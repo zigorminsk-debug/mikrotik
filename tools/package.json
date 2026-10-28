@@ -1,0 +1,8 @@
+{
+  "name": "mikrotik-guide-tools",
+  "private": true,
+  "description": "Дев-зависимости тестов учебника (DOM-смоук на jsdom)",
+  "devDependencies": {
+    "jsdom": "^24.1.3"
+  }
+}

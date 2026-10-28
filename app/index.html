@@ -28,6 +28,11 @@
     <header class="topbar">
       <button class="burger" id="burger" aria-label="Открыть меню">☰</button>
       <div class="topbar-title" id="topbar-title">Учебник MikroTik</div>
+      <div class="font-scale" title="Размер шрифта">
+        <button type="button" class="fs-btn" id="fs_minus" aria-label="Уменьшить шрифт">A−</button>
+        <span class="fs-val" id="fs_val">100%</span>
+        <button type="button" class="fs-btn" id="fs_plus" aria-label="Увеличить шрифт">A＋</button>
+      </div>
       <div class="topbar-hint">WinBox · CLI</div>
     </header>
 
@@ -49,10 +54,10 @@
         <fieldset class="fs">
           <legend>🌐 Локальная сеть (LAN)</legend>
           <div class="grid4">
-            <label>Подсеть (CIDR)<input id="lan_cidr" type="text" value="192.168.88.0/24" spellcheck="false"></label>
-            <label>Шлюз (IP роутера)<input id="lan_gw" type="text" value="192.168.88.1" spellcheck="false"></label>
-            <label>Пул — начало<input id="lan_pool_start" type="text" value="192.168.88.10" spellcheck="false"></label>
-            <label>Пул — конец<input id="lan_pool_end" type="text" value="192.168.88.250" spellcheck="false"></label>
+            <label>Подсеть (CIDR)<input id="lan_cidr" type="text" value="192.168.88.0/24" spellcheck="false" list="dl-net" inputmode="text"></label>
+            <label>Шлюз (IP роутера)<input id="lan_gw" type="text" value="192.168.88.1" spellcheck="false" list="dl-ip" inputmode="decimal"></label>
+            <label>Пул — начало<input id="lan_pool_start" type="text" value="192.168.88.10" spellcheck="false" list="dl-ip" inputmode="decimal"></label>
+            <label>Пул — конец<input id="lan_pool_end" type="text" value="192.168.88.250" spellcheck="false" list="dl-ip" inputmode="decimal"></label>
           </div>
           <label class="row-check"><input type="checkbox" id="lan_dhcp" checked> Разрешить DHCP-сервер в LAN</label>
         </fieldset>
@@ -62,10 +67,10 @@
           <legend>🛏️ Гостевая сеть</legend>
           <label class="row-check"><input type="checkbox" id="guest_en" checked> Создать гостевую сеть (Wi‑Fi)</label>
           <div class="grid4" id="guest-fields">
-            <label>Подсеть (CIDR)<input id="guest_cidr" type="text" value="192.168.99.0/24" spellcheck="false"></label>
-            <label>Шлюз<input id="guest_gw" type="text" value="192.168.99.1" spellcheck="false"></label>
-            <label>Пул — начало<input id="guest_pool_start" type="text" value="192.168.99.10" spellcheck="false"></label>
-            <label>Пул — конец<input id="guest_pool_end" type="text" value="192.168.99.250" spellcheck="false"></label>
+            <label>Подсеть (CIDR)<input id="guest_cidr" type="text" value="192.168.99.0/24" spellcheck="false" list="dl-net" inputmode="text"></label>
+            <label>Шлюз<input id="guest_gw" type="text" value="192.168.99.1" spellcheck="false" list="dl-ip" inputmode="decimal"></label>
+            <label>Пул — начало<input id="guest_pool_start" type="text" value="192.168.99.10" spellcheck="false" list="dl-ip" inputmode="decimal"></label>
+            <label>Пул — конец<input id="guest_pool_end" type="text" value="192.168.99.250" spellcheck="false" list="dl-ip" inputmode="decimal"></label>
           </div>
         </fieldset>
 
@@ -116,20 +121,20 @@
               <option value="sstp">SSTP — удалённый доступ</option>
               <option value="ovpn">OVPN — удалённый доступ</option>
             </select></label>
-            <label>Пул адресов VPN<input id="vpn_pool" type="text" value="10.10.10.0/24" spellcheck="false"></label>
+            <label>Пул адресов VPN<input id="vpn_pool" type="text" value="10.10.10.0/24" spellcheck="false" list="dl-net"></label>
           </div>
           <div class="vpn-opts" data-vpn="common">
             <div class="grid3">
               <label>Пользователь VPN<input id="vpn_user" type="text" value="vpnuser" spellcheck="false"></label>
               <label>Пароль VPN<input id="vpn_pass" type="text" value="VpnP@ss2026" spellcheck="false"></label>
-              <label>Порт (если применимо)<input id="vpn_port" type="text" value="13231" spellcheck="false"></label>
+              <label>Порт (если применимо)<input id="vpn_port" type="text" value="13231" spellcheck="false" list="dl-port" inputmode="numeric"></label>
             </div>
           </div>
           <div class="vpn-opts" data-vpn="ipsec-s2s" hidden>
             <div class="grid3">
-              <label>Публичный IP второго офиса<input id="s2s_remote_gw" type="text" value="203.0.113.5" spellcheck="false"></label>
+              <label>Публичный IP второго офиса<input id="s2s_remote_gw" type="text" value="203.0.113.5" spellcheck="false" list="dl-wan" inputmode="decimal"></label>
               <label>Общий ключ (PSK)<input id="s2s_psk" type="text" value="S3cretS2S-key" spellcheck="false"></label>
-              <label>Подсеть второго офиса<input id="s2s_remote_subnet" type="text" value="10.20.0.0/24" spellcheck="false"></label>
+              <label>Подсеть второго офиса<input id="s2s_remote_subnet" type="text" value="10.20.0.0/24" spellcheck="false" list="dl-net"></label>
             </div>
           </div>
         </fieldset>
@@ -167,9 +172,9 @@
       </select></label>
       <label class="f-pppoe">Логин<input data-f="user" type="text" value="user@isp" spellcheck="false"></label>
       <label class="f-pppoe">Пароль<input data-f="pass" type="text" value="secret" spellcheck="false"></label>
-      <label class="f-static" hidden>IP адрес роутера<input data-f="ip" type="text" value="198.51.100.2/30" spellcheck="false"></label>
-      <label class="f-static" hidden>Шлюз провайдера<input data-f="gw" type="text" value="198.51.100.1" spellcheck="false"></label>
-      <label class="f-static" hidden>DNS провайдера<input data-f="dns" type="text" value="198.51.100.1" spellcheck="false"></label>
+      <label class="f-static" hidden>IP адрес роутера<input data-f="ip" type="text" value="198.51.100.2/30" spellcheck="false" list="dl-wan" inputmode="decimal"></label>
+      <label class="f-static" hidden>Шлюз провайдера<input data-f="gw" type="text" value="198.51.100.1" spellcheck="false" list="dl-wan" inputmode="decimal"></label>
+      <label class="f-static" hidden>DNS провайдера<input data-f="dns" type="text" value="198.51.100.1" spellcheck="false" list="dl-dns" inputmode="decimal"></label>
       <label class="f-lte" hidden>APN<input data-f="apn" type="text" value="internet" spellcheck="false"></label>
       <label class="f-lte" hidden>Интерфейс модема<select data-f="lteif"><option value="lte1">lte1 (USB)</option><option value="usb1">usb1</option></select></label>
       <div class="isp-del-wrap"><button type="button" class="btn danger-ghost isp-del" title="Удалить">✕</button></div>
@@ -181,15 +186,82 @@
 <template id="tpl-pub">
   <div class="pub-row" data-pub>
     <div class="grid5">
-      <label>Внутренний IP<input data-f="ip" type="text" value="192.168.88.10" spellcheck="false"></label>
+      <label>Внутренний IP<input data-f="ip" type="text" value="192.168.88.10" spellcheck="false" list="dl-ip" inputmode="decimal"></label>
       <label>Протокол<select data-f="proto"><option value="tcp" selected>TCP</option><option value="udp">UDP</option></select></label>
-      <label>Порт наружу<input data-f="port" type="text" value="443" spellcheck="false"></label>
-      <label>Порт внутри<input data-f="dport" type="text" value="443" spellcheck="false"></label>
+      <label>Порт наружу<input data-f="port" type="text" value="443" spellcheck="false" list="dl-port" inputmode="numeric"></label>
+      <label>Порт внутри<input data-f="dport" type="text" value="443" spellcheck="false" list="dl-port" inputmode="numeric"></label>
       <label>Через провайдера<select data-f="isp"><option value="*0">Все провайдеры</option></select></label>
       <div class="isp-del-wrap"><button type="button" class="btn danger-ghost pub-del" title="Удалить">✕</button></div>
     </div>
   </div>
 </template>
+
+<!-- ================= ДАННЫЕ АВТОДОПОЛНЕНИЯ ================= -->
+<datalist id="dl-net">
+  <option value="192.168.88.0/24"></option>
+  <option value="192.168.99.0/24"></option>
+  <option value="192.168.1.0/24"></option>
+  <option value="192.168.0.0/24"></option>
+  <option value="10.0.0.0/24"></option>
+  <option value="10.0.1.0/24"></option>
+  <option value="10.10.10.0/24"></option>
+  <option value="10.10.20.0/24"></option>
+  <option value="10.20.0.0/24"></option>
+  <option value="172.16.0.0/24"></option>
+</datalist>
+<datalist id="dl-ip">
+  <option value="192.168.88.1"></option>
+  <option value="192.168.88.10"></option>
+  <option value="192.168.88.20"></option>
+  <option value="192.168.88.30"></option>
+  <option value="192.168.88.100"></option>
+  <option value="192.168.88.254"></option>
+  <option value="192.168.99.1"></option>
+  <option value="192.168.0.1"></option>
+  <option value="192.168.1.1"></option>
+  <option value="10.0.0.1"></option>
+  <option value="10.10.10.1"></option>
+  <option value="172.16.0.1"></option>
+  <option value="8.8.8.8"></option>
+  <option value="77.88.8.8"></option>
+</datalist>
+<datalist id="dl-wan">
+  <option value="198.51.100.2/30"></option>
+  <option value="198.51.100.1"></option>
+  <option value="203.0.113.2/30"></option>
+  <option value="203.0.113.1"></option>
+  <option value="203.0.113.5"></option>
+  <option value="192.0.2.2/30"></option>
+  <option value="192.0.2.1"></option>
+</datalist>
+<datalist id="dl-dns">
+  <option value="77.88.8.8"></option>
+  <option value="8.8.8.8"></option>
+  <option value="8.8.4.4"></option>
+  <option value="1.1.1.1"></option>
+  <option value="9.9.9.9"></option>
+  <option value="198.51.100.53"></option>
+</datalist>
+<datalist id="dl-port">
+  <option value="21"></option>
+  <option value="22"></option>
+  <option value="25"></option>
+  <option value="80"></option>
+  <option value="443"></option>
+  <option value="445"></option>
+  <option value="1433"></option>
+  <option value="1723"></option>
+  <option value="3000"></option>
+  <option value="3306"></option>
+  <option value="3389"></option>
+  <option value="5432"></option>
+  <option value="5900"></option>
+  <option value="8000"></option>
+  <option value="8080"></option>
+  <option value="8443"></option>
+  <option value="8579"></option>
+  <option value="22022"></option>
+</datalist>
 
 <script src="js/guide-core.js"></script>
 <script src="js/sec-intro.js"></script>

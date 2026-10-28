@@ -36,6 +36,10 @@ jobs:
           }
       - name: Модульные тесты
         run: node tools/test-stand.js
+      - name: DOM-тест (интерактивный стенд, шрифт, автодополнение)
+        run: |
+          npm install --prefix tools --no-audit --no-fund
+          node tools/test-dom.js
 
   android:
     name: Android APK (подписанный)

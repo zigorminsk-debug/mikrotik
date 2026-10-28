@@ -255,19 +255,29 @@ function refreshSelects() {
   var isps = Array.prototype.map.call(ispRows.querySelectorAll('.isp-row'), function (row, i) {
     return { i: i, name: row.querySelector('[data-f=name]').value || ('Провайдер ' + (i + 1)) };
   });
-  ['isp_primary', 'isp_backup'].forEach(function (id, j) {
-    var sel = document.getElementById(id);
-    var old = sel.value;
+  var pSel = document.getElementById('isp_primary');
+  var bSel = document.getElementById('isp_backup');
+  var oldP = pSel.value, oldB = bSel.value;
+  [pSel, bSel].forEach(function (sel) {
     sel.innerHTML = '';
     isps.forEach(function (s) {
       var o = document.createElement('option');
       o.value = String(s.i); o.textContent = s.name;
       sel.appendChild(o);
     });
-    if (isps.length > 1) sel.value = String(j === 0 ? 0 : Math.min(1, isps.length - 1));
-    else sel.value = '0';
-    if (old && Number(old) < isps.length) sel.value = old;
   });
+  // sensible defaults: основной — первый, резервный — второй (если есть)
+  pSel.value = '0';
+  bSel.value = isps.length > 1 ? '1' : '0';
+  // восстанавливаем прежний выбор пользователя, если он ещё валиден
+  if (oldP !== '' && Number(oldP) < isps.length) pSel.value = oldP;
+  if (oldB !== '' && Number(oldB) < isps.length) bSel.value = oldB;
+  // страховка: основной и резервный не должны совпадать при 2+ провайдерах
+  if (isps.length > 1 && pSel.value === bSel.value) {
+    for (var k = 0; k < isps.length; k++) {
+      if (String(k) !== pSel.value) { bSel.value = String(k); break; }
+    }
+  }
   document.querySelectorAll('[data-f=isp]').forEach(function (sel) {
     var old = sel.value;
     sel.innerHTML = '<option value="*0">Все провайдеры</option>';
@@ -364,6 +374,7 @@ function planTable(plan, inp) {
 function renderResults(res) {
   resultsEl.hidden = false;
   var inp = res.input, ch = res.checks, h = '';
+  var plan = res.plan || null;   // план есть только при успешной проверке модели
 
   var errCount = ch.errors.length;
   h += '<div class="res-summary"><h3>' + (errCount ? '✗ В модели найдено ошибок: ' + errCount : '✓ Модель прошла проверку') + '</h3>' +
@@ -415,7 +426,7 @@ function renderResults(res) {
     inp.pubs.map(function (p) {
       return '<li>Порт ' + esc(p.port) + '/' + esc(p.proto) + ' доступен снаружи и ведёт на ' + esc(p.ip) + ':' + esc(p.dport) + '</li>';
     }).join('') +
-    (inp.vpn.type !== 'none' ? '<li>VPN-клиент подключается и пингует адреса ' + esc(plan.lan ? plan.lan.first : '') + '</li>' : '') +
+    (inp.vpn.type !== 'none' && plan && plan.lan ? '<li>VPN-клиент подключается и пингует адреса ' + esc(plan.lan.first) + '</li>' : '') +
     '<li>Сохранён бэкап: /system backup save</li>' +
     '</ul></div></div>';
 
@@ -488,6 +499,29 @@ function initRows() {
   document.getElementById('failover').dispatchEvent(new Event('change'));
   document.getElementById('guest_en').dispatchEvent(new Event('change'));
 }
+
+/* ---------- масштаб шрифта A−/A+ (сохраняется между запусками) ---------- */
+(function initFontScale() {
+  var wrap = document.querySelector('.content-wrap');
+  var SCALES = [1, 1.15, 1.3, 1.5];
+  var idx = 0;
+  try {
+    var saved = parseInt(localStorage.getItem('mtFontScale'), 10);
+    if (!isNaN(saved) && saved >= 0 && saved < SCALES.length) idx = saved;
+  } catch (e) {}
+  var valEl = document.getElementById('fs_val');
+  function apply() {
+    var v = SCALES[idx];
+    if (wrap) wrap.style.zoom = (v === 1 ? '' : String(v));
+    if (valEl) valEl.textContent = Math.round(v * 100) + '%';
+    try { localStorage.setItem('mtFontScale', String(idx)); } catch (e) {}
+  }
+  var minus = document.getElementById('fs_minus');
+  var plus = document.getElementById('fs_plus');
+  if (minus) minus.addEventListener('click', function () { if (idx > 0) { idx--; apply(); } });
+  if (plus) plus.addEventListener('click', function () { if (idx < SCALES.length - 1) { idx++; apply(); } });
+  apply();
+})();
 
 /* ---------- старт ---------- */
 buildNav();
