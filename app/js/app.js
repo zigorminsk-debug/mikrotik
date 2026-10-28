@@ -500,6 +500,122 @@ function initRows() {
   document.getElementById('guest_en').dispatchEvent(new Event('change'));
 }
 
+/* ---------- Проверка обновлений (кнопка «⟳ Обновить») ---------- */
+var RELEASES_URL = 'https://github.com/zigorminsk-debug/mikrotik/releases';
+var UPD_API = 'https://api.github.com/repos/zigorminsk-debug/mikrotik/releases/latest';
+
+function updModalEl() { return document.getElementById('upd-modal'); }
+function openUpd() { updModalEl().hidden = false; }
+function closeUpd() { updModalEl().hidden = true; }
+document.getElementById('upd_close').addEventListener('click', closeUpd);
+updModalEl().addEventListener('click', function (e) { if (e.target === updModalEl()) closeUpd(); });
+
+/* HTTP GET с поддержкой Android-моста (обход CORS на file://) и обычного fetch */
+function httpGetJson(url, cb) {
+  try {
+    if (typeof window !== 'undefined' && window.Android && typeof window.Android.httpGet === 'function') {
+      var body = window.Android.httpGet(url);
+      cb(body ? JSON.parse(body) : null);
+      return;
+    }
+  } catch (e) { /* падаем в fetch */ }
+  if (typeof fetch === 'function') {
+    fetch(url, { headers: { 'Accept': 'application/vnd.github+json' } })
+      .then(function (r) { return r && r.ok ? r.json() : null; })
+      .then(function (j) { cb(j); })
+      .catch(function () { cb(null); });
+  } else {
+    cb(null);
+  }
+}
+function updTitle(t) { document.getElementById('upd-title').textContent = t; }
+function updBody(html) { document.getElementById('upd-body').innerHTML = html; }
+function updActions(list) {
+  var box = document.getElementById('upd-actions');
+  box.innerHTML = '';
+  list.forEach(function (a) {
+    var e2;
+    if (a.href) {
+      e2 = document.createElement('a');
+      e2.className = 'btn ' + (a.primary ? 'primary' : 'ghost');
+      e2.href = a.href;
+      e2.textContent = a.t;
+    } else {
+      e2 = document.createElement('button');
+      e2.type = 'button';
+      e2.className = 'btn ' + (a.primary ? 'primary' : 'ghost');
+      e2.textContent = a.t;
+      e2.addEventListener('click', a.onClick);
+    }
+    box.appendChild(e2);
+  });
+}
+function semverArr(s) {
+  return String(s || '0').replace(/^v/, '').split('.').map(function (n) { return parseInt(n, 10) || 0; });
+}
+function semverNewer(a, b) {
+  var A = semverArr(a), B = semverArr(b);
+  for (var i = 0; i < 3; i++) {
+    if ((A[i] || 0) !== (B[i] || 0)) return (A[i] || 0) > (B[i] || 0);
+  }
+  return false;
+}
+function currentVersion() {
+  return (typeof window !== 'undefined' && window.APP_VERSION) ? String(window.APP_VERSION) : '0.0.0';
+}
+function pickAsset(assets, preferApk) {
+  var apk = assets.filter(function (a) { return /\.apk$/i.test(a.name || ''); })[0];
+  var exe = assets.filter(function (a) { return /\.exe$/i.test(a.name || ''); })[0];
+  return { main: preferApk ? apk : exe, alt: preferApk ? exe : apk };
+}
+function checkUpdates() {
+  openUpd();
+  updTitle('Проверка обновлений…');
+  updBody('Соединяемся с GitHub…');
+  updActions([]);
+  httpGetJson(UPD_API, function (data) {
+    var cur = currentVersion();
+    if (!data || !data.tag_name) {
+      updTitle('Обновления');
+      updBody('<span class="upd-err">⚠ Не удалось проверить обновления — проверьте подключение к интернету.</span><br><br>' +
+        'Текущая версия: <span class="ver">' + esc(cur) + '</span>');
+      updActions([
+        { t: 'Страница релизов', href: RELEASES_URL, primary: true },
+        { t: 'Повторить', onClick: checkUpdates },
+        { t: 'Закрыть', onClick: closeUpd }
+      ]);
+      return;
+    }
+    var latest = String(data.tag_name).replace(/^v/, '');
+    var assets = data.assets || [];
+    var preferApk = /Android/i.test(navigator.userAgent || '');
+    if (semverNewer(latest, cur)) {
+      updTitle('Доступна версия ' + latest);
+      var pick = pickAsset(assets, preferApk);
+      updBody('<span class="upd-new">Обновление: <span class="ver">' + esc(cur) + '</span> → <span class="ver">' +
+        esc(latest) + '</span></span><br><br>' +
+        (pick.main
+          ? 'Файл: <b>' + esc(pick.main.name) + '</b>.<br>Скачайте и откройте его — обновление установится поверх текущей версии (данные сохранятся).'
+          : 'Скачайте нужный файл со страницы релиза.'));
+      var acts = [];
+      if (pick.main) acts.push({ t: 'Скачать ' + (/\.apk$/i.test(pick.main.name) ? 'APK' : 'установщик'), href: pick.main.browser_download_url, primary: true });
+      else acts.push({ t: 'Страница релизов', href: RELEASES_URL, primary: true });
+      if (pick.alt) acts.push({ t: 'Другой файл: ' + (/\.apk$/i.test(pick.alt.name) ? 'APK' : 'EXE'), href: pick.alt.browser_download_url });
+      acts.push({ t: 'Позже', onClick: closeUpd });
+      updActions(acts);
+    } else {
+      updTitle('У вас последняя версия');
+      updBody('<span class="upd-ok">✓ Версия <span class="ver">' + esc(cur) + '</span> актуальна — последний релиз ' +
+        esc(data.tag_name) + '.</span>');
+      updActions([
+        { t: 'Страница релизов', href: RELEASES_URL },
+        { t: 'Готово', onClick: closeUpd, primary: true }
+      ]);
+    }
+  });
+}
+document.getElementById('btn_update').addEventListener('click', checkUpdates);
+
 /* ---------- масштаб шрифта A−/A+ (сохраняется между запусками) ---------- */
 (function initFontScale() {
   var wrap = document.querySelector('.content-wrap');
@@ -524,6 +640,12 @@ function initRows() {
 })();
 
 /* ---------- старт ---------- */
+(function showVersion() {
+  var sf = document.getElementById('sidebar-foot');
+  if (sf && typeof window !== 'undefined' && window.APP_VERSION) {
+    sf.textContent = 'RouterOS v6 / v7 · v' + window.APP_VERSION;
+  }
+})();
 buildNav();
 initRows();
 route();

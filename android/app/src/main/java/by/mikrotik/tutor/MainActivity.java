@@ -5,10 +5,17 @@ import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Оболочка приложения: WebView загружает общий веб-контент учебника
@@ -58,6 +65,54 @@ public class MainActivity extends Activity {
             webView.restoreState(savedInstanceState);
         } else {
             webView.loadUrl(START_URL);
+        }
+
+        // Мост для кнопки «⟳ Обновить»: запрос к api.github.com выполняется
+        // нативно (без CORS-ограничений file://). URL строго ограничен allowlist.
+        webView.addJavascriptInterface(new GithubBridge(), "Android");
+    }
+
+    /**
+     * Небольшой HTTP-клиент, доступный из JavaScript.
+     * Вызывается из фонового потока WebView, сеть там разрешена.
+     */
+    public static class GithubBridge {
+        private static final String ALLOW_PREFIX =
+                "https://api.github.com/repos/zigorminsk-debug/mikrotik/";
+
+        @JavascriptInterface
+        public String httpGet(String url) {
+            HttpURLConnection conn = null;
+            try {
+                if (url == null || !url.startsWith(ALLOW_PREFIX)) {
+                    return null; // всё кроме официального репозитория — игнорируем
+                }
+                conn = (HttpURLConnection) new URL(url).openConnection();
+                conn.setConnectTimeout(6000);
+                conn.setReadTimeout(6000);
+                conn.setRequestMethod("GET");
+                conn.setRequestProperty("Accept", "application/vnd.github+json");
+                conn.setRequestProperty("User-Agent", "MikroTik-Guide-App");
+                int code = conn.getResponseCode();
+                if (code < 200 || code >= 300) {
+                    return null;
+                }
+                BufferedReader br = new BufferedReader(
+                        new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = br.readLine()) != null) {
+                    sb.append(line).append('\n');
+                }
+                br.close();
+                return sb.toString();
+            } catch (Exception e) {
+                return null; // нет сети / таймаут — JS покажет экран «повторить»
+            } finally {
+                if (conn != null) {
+                    conn.disconnect();
+                }
+            }
         }
     }
 

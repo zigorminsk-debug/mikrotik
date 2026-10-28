@@ -134,6 +134,49 @@ async function main() {
     ok(true, 'localStorage недоступен — в приложении доступ защищён try/catch (пропущено)');
   }
 
+  console.log('== Обновления (кнопка «⟳ Обновить») ==');
+  ok(typeof win.APP_VERSION === 'string' && win.APP_VERSION.length > 0, 'APP_VERSION из version.js: ' + win.APP_VERSION);
+  // a) сети/fetch нет → экран «не удалось» с кнопкой перехода к релизам
+  $('btn_update').dispatchEvent(new win.Event('click', { bubbles: true }));
+  await delay(20);
+  ok($('upd-modal').hidden === false, 'диалог обновлений открылся');
+  ok(/Не удалось проверить/.test($('upd-body').textContent), 'показан экран «не удалось проверить»');
+  ok(/Страница релизов/.test($('upd-actions').textContent), 'кнопка «Страница релизов» присутствует');
+  ok(/Повторить/.test($('upd-actions').textContent), 'кнопка «Повторить» присутствует');
+  // b) fetch отвечает: есть новая версия → предложение скачать
+  win.fetch = function () {
+    return Promise.resolve({
+      ok: true,
+      json: function () {
+        return Promise.resolve({
+          tag_name: 'v99.0.0',
+          assets: [
+            { name: 'MikroTik-Guide-v99.0.0.apk', browser_download_url: 'https://example.com/a.apk' },
+            { name: 'MikroTik-Guide-Setup-99.0.0.exe', browser_download_url: 'https://example.com/s.exe' }
+          ]
+        });
+      }
+    });
+  };
+  $('btn_update').dispatchEvent(new win.Event('click', { bubbles: true }));
+  await delay(40);
+  ok(/Доступна версия 99\.0\.0/.test($('upd-title').textContent), 'найдено обновление 99.0.0');
+  ok(/Скачать/.test($('upd-actions').textContent), 'кнопка скачивания показана');
+  ok(/99\.0\.0/.test($('upd-body').textContent), 'текст содержит новую версию');
+  // c) версия та же → «последняя версия»
+  win.fetch = function () {
+    return Promise.resolve({
+      ok: true,
+      json: function () { return Promise.resolve({ tag_name: 'v' + win.APP_VERSION, assets: [] }); }
+    });
+  };
+  $('btn_update').dispatchEvent(new win.Event('click', { bubbles: true }));
+  await delay(40);
+  ok(/последняя версия/.test($('upd-title').textContent), 'актуальная версия → «У вас последняя версия»');
+  // d) закрытие
+  $('upd_close').dispatchEvent(new win.Event('click', { bubbles: true }));
+  ok($('upd-modal').hidden === true, 'диалог закрывается');
+
   console.log('== Навигация ==');
   const navItems = doc.getElementById('nav').children;
   const secId = navItems[1].dataset.sec;

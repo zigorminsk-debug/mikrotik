@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Разрешения не требуются: приложение работает офлайн на локальных файлах -->
+    <!-- Интернет нужен только для проверки обновлений (кнопка «⟳ Обновить»).
+         Сам учебник работает офлайн на локальных файлах. -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
         android:allowBackup="true"

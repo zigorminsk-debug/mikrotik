@@ -69,6 +69,30 @@ jobs:
           name: MikroTik-Guide-APK
           path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
+      - name: Выложить чистый APK в репозиторий (releases/MikroTik-Guide.apk)
+        if: github.ref_type == 'branch'
+        run: |
+          set -e
+          APK=$(ls android/app/build/outputs/apk/release/*.apk | head -1)
+          mkdir -p releases
+          rm -f releases/*.apk
+          cp "$APK" releases/MikroTik-Guide.apk
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add releases/MikroTik-Guide.apk
+          if git diff --cached --quiet; then
+            echo "APK не изменился — коммит не требуется"
+            exit 0
+          fi
+          git commit -m "chore: обновить releases/MikroTik-Guide.apk [skip ci]"
+          for i in 1 2 3; do
+            if git pull --rebase origin "$GITHUB_REF_NAME" && git push origin "HEAD:$GITHUB_REF_NAME"; then
+              echo "APK выложен в репозиторий: releases/MikroTik-Guide.apk"
+              break
+            fi
+            echo "push не удался, повтор $i..."
+            sleep 5
+          done
 
   windows:
     name: Windows-установщик
@@ -102,8 +126,21 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      - name: Имена файлов релиза (чистый APK, без упаковки)
+        run: |
+          set -e
+          mkdir -p out
+          for f in dist/*.apk; do
+            [ -e "$f" ] || continue
+            cp "$f" "out/MikroTik-Guide-${GITHUB_REF_NAME}.apk"
+          done
+          for f in dist/*.exe; do
+            [ -e "$f" ] || continue
+            cp "$f" "out/$(basename "$f")"
+          done
+          ls -la out/
       - uses: softprops/action-gh-release@v2
         with:
           name: MikroTik Guide ${{ github.ref_name }}
-          files: dist/*
+          files: out/*
           generate_release_notes: true

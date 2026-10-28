@@ -215,6 +215,24 @@ for (const f of svgs) {
 }
 ok(true, 'SVG структурно корректны');
 
+/* ---------- 6. Синхронизация версий ---------- */
+sectionTitle('Синхронизация версий');
+const gradleSrc = fs.readFileSync(path.join(__dirname, '..', 'android', 'app', 'build.gradle'), 'utf8');
+const vnM = /versionName\s+"([^"]+)"/.exec(gradleSrc);
+const vcM = /versionCode\s+(\d+)/.exec(gradleSrc);
+const winPkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'windows', 'package.json'), 'utf8'));
+const verSrc = fs.readFileSync(path.join(__dirname, '..', 'app', 'js', 'version.js'), 'utf8');
+const appV = /APP_VERSION\s*=\s*'([^']+)'/.exec(verSrc);
+ok(!!(vnM && vcM && appV), 'версии читаются из всех источников');
+ok(!!appV && !!vnM && appV[1] === vnM[1], 'version.js == gradle versionName (' + (appV && appV[1]) + ')');
+ok(!!vnM && winPkg.version === vnM[1], 'windows/package.json == gradle (' + (winPkg && winPkg.version) + ')');
+ok(!!vcM && Number(vcM[1]) >= 1, 'versionCode задан: ' + (vcM && vcM[1]));
+const indexSrc = fs.readFileSync(path.join(__dirname, '..', 'app', 'index.html'), 'utf8');
+ok(indexSrc.includes('js/version.js'), 'version.js подключён первым в index.html');
+ok(indexSrc.includes('id="btn_update"'), 'кнопка «Обновить» есть в разметке');
+ok(indexSrc.includes('id="upd-modal"'), 'диалог обновлений есть в разметке');
+ok(indexSrc.indexOf('js/version.js') < indexSrc.indexOf('js/app.js'), 'version.js грузится до app.js');
+
 console.log('\n============================');
 console.log('Итого: ' + passed + ' ok, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

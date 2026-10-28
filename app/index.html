@@ -21,13 +21,14 @@
     </div>
     <input id="nav-search" class="nav-search" type="search" placeholder="Поиск по разделам…" autocomplete="off">
     <nav id="nav" class="nav"></nav>
-    <div class="sidebar-foot">RouterOS v6 / v7 · 2026</div>
+    <div class="sidebar-foot" id="sidebar-foot">RouterOS v6 / v7</div>
   </aside>
 
   <div class="content-wrap">
     <header class="topbar">
       <button class="burger" id="burger" aria-label="Открыть меню">☰</button>
       <div class="topbar-title" id="topbar-title">Учебник MikroTik</div>
+      <button type="button" class="btn-upd" id="btn_update" title="Проверить наличие обновлений">⟳ Обновить</button>
       <div class="font-scale" title="Размер шрифта">
         <button type="button" class="fs-btn" id="fs_minus" aria-label="Уменьшить шрифт">A−</button>
         <span class="fs-val" id="fs_val">100%</span>
@@ -159,6 +160,18 @@
 </div>
 <div class="overlay" id="overlay" hidden></div>
 
+<!-- ================= ДИАЛОГ ОБНОВЛЕНИЙ ================= -->
+<div class="modal" id="upd-modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="upd-title">
+    <div class="modal-head">
+      <span id="upd-title">Проверка обновлений…</span>
+      <button type="button" class="modal-x" id="upd_close" aria-label="Закрыть">✕</button>
+    </div>
+    <div class="modal-body" id="upd-body">Соединяемся с GitHub…</div>
+    <div class="modal-actions" id="upd-actions"></div>
+  </div>
+</div>
+
 <!-- ШАБЛОНЫ -->
 <template id="tpl-isp">
   <div class="isp-row" data-isp>
@@ -263,6 +276,7 @@
   <option value="22022"></option>
 </datalist>
 
+<script src="js/version.js"></script>
 <script src="js/guide-core.js"></script>
 <script src="js/sec-intro.js"></script>
 <script src="js/sec-initial.js"></script>

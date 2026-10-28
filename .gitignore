@@ -13,6 +13,8 @@ android/local.properties
 android/.idea/
 *.apk
 *.aab
+# …но чистый APK, выложенный CI, обязан лежать в репозитории (после *.apk!)
+!releases/MikroTik-Guide.apk
 
 # Прочее
 .DS_Store

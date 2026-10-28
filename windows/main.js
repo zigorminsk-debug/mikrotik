@@ -23,10 +23,16 @@ function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, 'www', 'index.html'));
 
-  // внешние ссылки открываем в системном браузере
+  // внешние ссылки открываем в системном браузере (ссылки обновлений и т.п.)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/i.test(url)) shell.openExternal(url);
     return { action: 'deny' };
+  });
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (/^https?:/i.test(url)) {
+      event.preventDefault();
+      shell.openExternal(url);
+    }
   });
 }
 
