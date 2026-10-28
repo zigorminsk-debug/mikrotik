@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<title>Учебник по настройке MikroTik</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-logo" aria-hidden="true">
+        <svg viewBox="0 0 40 40" width="34" height="34"><rect x="2" y="14" width="36" height="20" rx="4" fill="#0ea5e9"/><rect x="6" y="18" width="28" height="6" rx="2" fill="#0f172a"/><circle cx="10" cy="29" r="2" fill="#4ade80"/><circle cx="17" cy="29" r="2" fill="#94a3b8"/><rect x="16" y="5" width="3" height="10" rx="1.5" fill="#0ea5e9"/><rect x="26" y="8" width="3" height="7" rx="1.5" fill="#38bdf8"/><path d="M12 8a10 10 0 0 1 16 0" stroke="#38bdf8" stroke-width="2.5" fill="none" stroke-linecap="round"/></svg>
+      </div>
+      <div class="brand-text">
+        <div class="brand-title">MikroTik Guide</div>
+        <div class="brand-sub">Учебник · стенд · RouterOS</div>
+      </div>
+    </div>
+    <input id="nav-search" class="nav-search" type="search" placeholder="Поиск по разделам…" autocomplete="off">
+    <nav id="nav" class="nav"></nav>
+    <div class="sidebar-foot">RouterOS v6 / v7 · 2026</div>
+  </aside>
+
+  <div class="content-wrap">
+    <header class="topbar">
+      <button class="burger" id="burger" aria-label="Открыть меню">☰</button>
+      <div class="topbar-title" id="topbar-title">Учебник MikroTik</div>
+      <div class="topbar-hint">WinBox · CLI</div>
+    </header>
+
+    <main class="content" id="content"></main>
+
+    <!-- ================= ИНТЕРАКТИВНЫЙ СТЕНД ================= -->
+    <main class="content stand-view" id="stand-view" hidden>
+      <div class="sec-header">
+        <div class="sec-icon">🛠️</div>
+        <div>
+          <h1>Интерактивный стенд моделирования</h1>
+          <p class="sec-lead">Задайте исходную задачу — стенд рассчитает адресацию, сгенерирует конфигурацию RouterOS,
+          проверит модель на ошибки и выдаст пошаговую инструкцию для реализации на реальном роутере.</p>
+        </div>
+      </div>
+
+      <form id="stand-form" class="stand-form" autocomplete="off">
+        <!-- ЛОКАЛЬНАЯ СЕТЬ -->
+        <fieldset class="fs">
+          <legend>🌐 Локальная сеть (LAN)</legend>
+          <div class="grid4">
+            <label>Подсеть (CIDR)<input id="lan_cidr" type="text" value="192.168.88.0/24" spellcheck="false"></label>
+            <label>Шлюз (IP роутера)<input id="lan_gw" type="text" value="192.168.88.1" spellcheck="false"></label>
+            <label>Пул — начало<input id="lan_pool_start" type="text" value="192.168.88.10" spellcheck="false"></label>
+            <label>Пул — конец<input id="lan_pool_end" type="text" value="192.168.88.250" spellcheck="false"></label>
+          </div>
+          <label class="row-check"><input type="checkbox" id="lan_dhcp" checked> Разрешить DHCP-сервер в LAN</label>
+        </fieldset>
+
+        <!-- ГОСТЕВАЯ СЕТЬ -->
+        <fieldset class="fs">
+          <legend>🛏️ Гостевая сеть</legend>
+          <label class="row-check"><input type="checkbox" id="guest_en" checked> Создать гостевую сеть (Wi‑Fi)</label>
+          <div class="grid4" id="guest-fields">
+            <label>Подсеть (CIDR)<input id="guest_cidr" type="text" value="192.168.99.0/24" spellcheck="false"></label>
+            <label>Шлюз<input id="guest_gw" type="text" value="192.168.99.1" spellcheck="false"></label>
+            <label>Пул — начало<input id="guest_pool_start" type="text" value="192.168.99.10" spellcheck="false"></label>
+            <label>Пул — конец<input id="guest_pool_end" type="text" value="192.168.99.250" spellcheck="false"></label>
+          </div>
+        </fieldset>
+
+        <!-- WI-FI -->
+        <fieldset class="fs">
+          <legend>📶 Wi‑Fi</legend>
+          <div class="grid3">
+            <label>SSID рабочей сети<input id="ssid_work" type="text" value="MyNet" spellcheck="false"></label>
+            <label>Пароль WPA2/WPA3<input id="wifi_pass" type="text" value="Passw0rd!2026" spellcheck="false"></label>
+            <label>SSID гостевой сети<input id="ssid_guest" type="text" value="MyNet-Guest" spellcheck="false"></label>
+          </div>
+        </fieldset>
+
+        <!-- ПРОВАЙДЕРЫ -->
+        <fieldset class="fs">
+          <legend>🔌 Интернет‑провайдеры</legend>
+          <div id="isp-rows" class="isp-rows"></div>
+          <button type="button" class="btn ghost" id="btn_add_isp">＋ Добавить провайдера</button>
+        </fieldset>
+
+        <!-- РЕЗЕРВНЫЙ КАНАЛ -->
+        <fieldset class="fs">
+          <legend>🔁 Резервный канал интернет</legend>
+          <label class="row-check"><input type="checkbox" id="failover" checked> Нужен резервный канал с авто‑переключением</label>
+          <div class="grid3">
+            <label>Основной провайдер<select id="isp_primary"></select></label>
+            <label>Резервный провайдер<select id="isp_backup"></select></label>
+            <label>Время переключения<select id="failover_time">
+              <option value="10" selected>быстро (~10 с, check-gateway)</option>
+              <option value="30">средне (~30 с)</option>
+              <option value="5">агрессивно (~5 с)</option>
+            </select></label>
+          </div>
+        </fieldset>
+
+        <!-- VPN -->
+        <fieldset class="fs">
+          <legend>🔐 VPN (по необходимости)</legend>
+          <div class="grid2">
+            <label>Тип VPN<select id="vpn_type">
+              <option value="none" selected>Не требуется</option>
+              <option value="wireguard">WireGuard — удалённый доступ</option>
+              <option value="ikev2">IPsec IKEv2 (road warrior) — мобильные клиенты</option>
+              <option value="l2tp-ipsec">L2TP/IPsec — удалённый доступ</option>
+              <option value="ipsec-s2s">IPsec site-to-site — связать два офиса</option>
+              <option value="pptp">PPTP — удалённый доступ (устаревший)</option>
+              <option value="l2tp">L2TP без IPsec (устаревший)</option>
+              <option value="sstp">SSTP — удалённый доступ</option>
+              <option value="ovpn">OVPN — удалённый доступ</option>
+            </select></label>
+            <label>Пул адресов VPN<input id="vpn_pool" type="text" value="10.10.10.0/24" spellcheck="false"></label>
+          </div>
+          <div class="vpn-opts" data-vpn="common">
+            <div class="grid3">
+              <label>Пользователь VPN<input id="vpn_user" type="text" value="vpnuser" spellcheck="false"></label>
+              <label>Пароль VPN<input id="vpn_pass" type="text" value="VpnP@ss2026" spellcheck="false"></label>
+              <label>Порт (если применимо)<input id="vpn_port" type="text" value="13231" spellcheck="false"></label>
+            </div>
+          </div>
+          <div class="vpn-opts" data-vpn="ipsec-s2s" hidden>
+            <div class="grid3">
+              <label>Публичный IP второго офиса<input id="s2s_remote_gw" type="text" value="203.0.113.5" spellcheck="false"></label>
+              <label>Общий ключ (PSK)<input id="s2s_psk" type="text" value="S3cretS2S-key" spellcheck="false"></label>
+              <label>Подсеть второго офиса<input id="s2s_remote_subnet" type="text" value="10.20.0.0/24" spellcheck="false"></label>
+            </div>
+          </div>
+        </fieldset>
+
+        <!-- ПУБЛИКАЦИЯ РЕСУРСОВ -->
+        <fieldset class="fs">
+          <legend>🌍 Доступ во внутренние ресурсы из интернета (NAT)</legend>
+          <div id="pub-rows" class="pub-rows"></div>
+          <button type="button" class="btn ghost" id="btn_add_pub">＋ Добавить порт / адрес</button>
+          <p class="fs-hint">Укажите внутренний IP и порт, которые должны быть открыты наружу, и через какого провайдера (или через всех).</p>
+        </fieldset>
+
+        <div class="stand-actions">
+          <button type="button" class="btn primary" id="btn_run">▶ Смоделировать настройки</button>
+          <button type="button" class="btn ghost" id="btn_reset">Сбросить</button>
+        </div>
+      </form>
+
+      <div id="stand-results" class="stand-results" hidden></div>
+    </main>
+  </div>
+</div>
+<div class="overlay" id="overlay" hidden></div>
+
+<!-- ШАБЛОНЫ -->
+<template id="tpl-isp">
+  <div class="isp-row" data-isp>
+    <div class="grid4 isp-main">
+      <label>Название<input data-f="name" type="text" value="Провайдер" spellcheck="false"></label>
+      <label>Тип подключения<select data-f="type">
+        <option value="pppoe" selected>PPPoE (логин/пароль)</option>
+        <option value="dhcp">DHCP (авто, кабель)</option>
+        <option value="static">Статический IP</option>
+        <option value="lte">USB 3G/LTE модем</option>
+      </select></label>
+      <label class="f-pppoe">Логин<input data-f="user" type="text" value="user@isp" spellcheck="false"></label>
+      <label class="f-pppoe">Пароль<input data-f="pass" type="text" value="secret" spellcheck="false"></label>
+      <label class="f-static" hidden>IP адрес роутера<input data-f="ip" type="text" value="198.51.100.2/30" spellcheck="false"></label>
+      <label class="f-static" hidden>Шлюз провайдера<input data-f="gw" type="text" value="198.51.100.1" spellcheck="false"></label>
+      <label class="f-static" hidden>DNS провайдера<input data-f="dns" type="text" value="198.51.100.1" spellcheck="false"></label>
+      <label class="f-lte" hidden>APN<input data-f="apn" type="text" value="internet" spellcheck="false"></label>
+      <label class="f-lte" hidden>Интерфейс модема<select data-f="lteif"><option value="lte1">lte1 (USB)</option><option value="usb1">usb1</option></select></label>
+      <div class="isp-del-wrap"><button type="button" class="btn danger-ghost isp-del" title="Удалить">✕</button></div>
+    </div>
+    <div class="isp-wan-note"></div>
+  </div>
+</template>
+
+<template id="tpl-pub">
+  <div class="pub-row" data-pub>
+    <div class="grid5">
+      <label>Внутренний IP<input data-f="ip" type="text" value="192.168.88.10" spellcheck="false"></label>
+      <label>Протокол<select data-f="proto"><option value="tcp" selected>TCP</option><option value="udp">UDP</option></select></label>
+      <label>Порт наружу<input data-f="port" type="text" value="443" spellcheck="false"></label>
+      <label>Порт внутри<input data-f="dport" type="text" value="443" spellcheck="false"></label>
+      <label>Через провайдера<select data-f="isp"><option value="*0">Все провайдеры</option></select></label>
+      <div class="isp-del-wrap"><button type="button" class="btn danger-ghost pub-del" title="Удалить">✕</button></div>
+    </div>
+  </div>
+</template>
+
+<script src="js/guide-core.js"></script>
+<script src="js/sec-intro.js"></script>
+<script src="js/sec-initial.js"></script>
+<script src="js/sec-networks.js"></script>
+<script src="js/sec-firewall.js"></script>
+<script src="js/sec-failover.js"></script>
+<script src="js/sec-routing.js"></script>
+<script src="js/sec-vpn.js"></script>
+<script src="js/sec-stand.js"></script>
+<script src="js/stand.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

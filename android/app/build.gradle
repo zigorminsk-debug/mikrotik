@@ -1,0 +1,66 @@
+plugins {
+    id 'com.android.application'
+}
+
+// ---- Постоянный ключ подписи (лежит в репозитории: android/keystore/) ----
+def ksProps = new Properties()
+def ksPropsFile = rootProject.file('keystore/keystore.properties')
+if (ksPropsFile.exists()) {
+    ksPropsFile.withInputStream { ksProps.load(it) }
+}
+def hasKey = ksProps.getProperty('storeFile') != null
+
+android {
+    namespace 'by.mikrotik.tutor'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "by.mikrotik.tutor"
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+    }
+
+    signingConfigs {
+        if (hasKey) {
+            release {
+                storeFile rootProject.file(ksProps.getProperty('storeFile'))
+                storeType ksProps.getProperty('storeType', 'PKCS12')
+                storePassword ksProps.getProperty('storePassword')
+                keyAlias ksProps.getProperty('keyAlias')
+                keyPassword ksProps.getProperty('keyPassword')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+            if (hasKey) {
+                signingConfig signingConfigs.release
+            }
+        }
+        debug {
+            // отладочная сборка подписывается debug-ключом
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // Общее веб-ядро учебника (app/index.html, css, js, assets) попадает
+    // в APK как есть — без дополнительных шагов копирования.
+    sourceSets {
+        main {
+            assets.srcDirs += ["${rootProject.projectDir}/../app"]
+        }
+    }
+
+    packagingOptions {
+        resources.excludes += ['META-INF/*.version']
+    }
+}

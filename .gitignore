@@ -1,0 +1,21 @@
+# Зависимости
+node_modules/
+
+# Собранные артефакты Windows
+windows/www/
+windows/dist/
+
+# Gradle / Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+*.apk
+*.aab
+
+# Прочее
+.DS_Store
+*.log
+.idea/
+__pycache__/
