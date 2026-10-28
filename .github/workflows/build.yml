@@ -64,11 +64,10 @@ jobs:
           APK=$(ls android/app/build/outputs/apk/release/*.apk | head -1)
           echo "APK: $APK"
           $ANDROID_HOME/build-tools/34.0.0/apksigner verify --print-certs "$APK" | head -20
-      - uses: actions/upload-artifact@v4
-        with:
-          name: MikroTik-Guide-APK
-          path: android/app/build/outputs/apk/release/*.apk
-          if-no-files-found: error
+      # APK в артефакты НЕ выкладываем: GitHub всегда упаковывает артефакты в zip,
+      # а пользователю нужен чистый .apk. Он доступен напрямую:
+      #  - в релизе: releases/download/<тег>/MikroTik-Guide-<тег>.apk
+      #  - в дереве: releases/MikroTik-Guide.apk (перезаписывается шагом ниже)
       - name: Выложить чистый APK в репозиторий (releases/MikroTik-Guide.apk)
         if: github.ref_type == 'branch'
         run: |
@@ -84,7 +83,7 @@ jobs:
             echo "APK не изменился — коммит не требуется"
             exit 0
           fi
-          git commit -m "chore: обновить releases/MikroTik-Guide.apk [skip ci]"
+          git commit -m "chore: обновить releases/MikroTik-Guide.apk (CI build $GITHUB_RUN_NUMBER)"
           for i in 1 2 3; do
             if git pull --rebase origin "$GITHUB_REF_NAME" && git push origin "HEAD:$GITHUB_REF_NAME"; then
               echo "APK выложен в репозиторий: releases/MikroTik-Guide.apk"
