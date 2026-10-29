@@ -67,6 +67,11 @@ function renderBlock(b, stepIdx, bi) {
           link.href = b.src.indexOf('winbox-login') !== -1 ? 'https://help.mikrotik.com/docs/spaces/ROS/pages/328129/WinBox' : 'https://help.mikrotik.com/docs/spaces/ROS/pages/328151/First+Time+Configuration';
           link.textContent = ' Источник: MikroTik';
           caption.appendChild(link);
+        } else if ((b.src || '').indexOf('assets/img/examples/dhcp-client-') === 0) {
+          var exampleLink = document.createElement('a');
+          exampleLink.href = 'https://mikrotik.wiki/wiki/%D0%9D%D0%B0%D1%81%D1%82%D1%80%D0%BE%D0%B9%D0%BA%D0%B0_DHCP_%D0%BD%D0%B0_MikroTik';
+          exampleLink.textContent = ' Источник: MikroTik Wiki (независимый сайт)';
+          caption.appendChild(exampleLink);
         }
         fig.appendChild(caption);
       }

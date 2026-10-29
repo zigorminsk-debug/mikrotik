@@ -54,21 +54,29 @@ ping 8.8.8.8`,
     ]},
 
     { t: 'DHCP: подключение «автоматически»', b: [
-      P('Если провайдер выдаёт адрес DHCP-сервером (без логина), достаточно DHCP-клиента на WAN-порте:'),
-      CMD(
-`/ip dhcp-client add \\
-    interface=ether1 \\
-    add-default-route=no \\
-    use-peer-dns=yes \\
-    use-peer-ntp=yes \\
-    disabled=no comment="WAN: DHCP-провайдер"
-
-# Статус (State = bound — адрес получен):
-/ip dhcp-client print
-/ip address print where interface=ether1`,
-        'DHCP-клиент провайдера'),
-      P('При `add-default-route=no` маршрут по умолчанию пропишем сами в разделе маршрутизации (с distance для резервного канала). Если резерва не будет — `add-default-route=yes default-route-distance=1`.'),
-      TIP('Проверьте: `/ip dhcp-client print detail` → поле `status=bound`, поле `gateway` показывает шлюз провайдера — он понадобится для маршрута.')
+      P('Провайдер выдаёт адрес автоматически: DHCP-клиент должен работать на WAN-порту. Не путайте его с DHCP-сервером, который раздаёт адреса вашей LAN.'),
+      WARN('Сначала проверьте IP → DHCP Client: на заводской конфигурации клиент уже может существовать на WAN. Измените существующую запись, не создавайте дубликат. Перед изменениями сохраните резервную копию и доступ через LAN.'),
+      OL([
+        'Откройте IP → DHCP Client. Нажмите + (WinBox 3) или New (WinBox 4), если нужного клиента ещё нет.',
+        'На вкладке DHCP выберите подключённый к провайдеру порт. Для примера это ether1; в вашей схеме порт может отличаться.',
+        'Для основного канала включите Add Default Route и задайте Default Route Distance = 1; резерву обычно назначают distance = 2. В некоторых версиях дополнительные параметры находятся на вкладке Advanced.',
+        'В лабораторном проекте выключите Use Peer DNS: DNS указывается отдельно в IP → DNS. На снимках эта галочка включена — не копируйте настройки с изображения. Нажмите OK.',
+        'Проверьте Status = bound и полученный IP Address в DHCP Client, а также динамический адрес в IP → Addresses. Адреса на снимках являются примерами.',
+        'Проверьте в IP → Routes динамический маршрут 0.0.0.0/0. При двух каналах резервный маршрут может быть неактивным, пока работает основной.'
+      ]),
+      IMG('assets/img/examples/dhcp-client-create-winbox3.png', 'WinBox 3: создание DHCP-клиента. На снимке Use Peer DNS включён; в лабораторном проекте выключите его.'),
+      IMG('assets/img/examples/dhcp-client-create-winbox4.png', 'WinBox 4: выбор WAN и создание клиента. Имена и значения на снимке — пример.'),
+      IMG('assets/img/examples/dhcp-client-bound-winbox3.png', 'WinBox 3: status bound и динамический адрес WAN в IP → Addresses.'),
+      IMG('assets/img/examples/dhcp-client-bound-winbox4.png', 'WinBox 4: проверка полученного адреса WAN. Чужой адрес и интерфейс не копируйте.'),
+      P('Чтобы правила WAN действовали на этот интерфейс, добавьте порт в Interfaces → Interface List → Members: List = WAN, Interface = ether1. Если запись существует, повторно не создавайте.'),
+      IMG('assets/img/official/interface-list-member.png', 'Пример MikroTik: добавление в список. На снимке выбран LAN и bridge1; для WAN выберите WAN и свой WAN-интерфейс.'),
+      CMD(`# Пример для чистой конфигурации; убедитесь, что записи на ether1 ещё нет
+/ip dns set servers=1.1.1.1,8.8.8.8
+/ip dhcp-client add interface=ether1 add-default-route=yes default-route-distance=1 use-peer-dns=no disabled=no
+/ip dhcp-client print detail
+/ip address print where interface=ether1
+/ip route print where dst-address=0.0.0.0/0`, 'DHCP-клиент и проверка'),
+      TIP('Если status остаётся searching, проверьте кабель, выбранный WAN-порт, наличие DHCP у провайдера и необходимость VLAN. Работа DNS и доступность интернета проверяются отдельно. Не фиксируйте динамический шлюз в статическом маршруте без плана его обновления.')
     ]},
 
     { t: 'Статический IP от провайдера', b: [

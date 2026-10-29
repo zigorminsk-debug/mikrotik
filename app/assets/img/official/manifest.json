@@ -48,5 +48,10 @@
     "sha256": "dc8734a540d46494eb8201cabb4a1784c92e98aabf0f90183ea95c373aa1a7bb",
     "width": 957,
     "height": 534
+  },
+  "interface-list-member.png": {
+    "sha256": "c50cd5e3d07e04a5dcdf738486a0b78348d9ef9272562da54c8c5934c8ead2ab",
+    "width": 299,
+    "height": 360
   }
 }

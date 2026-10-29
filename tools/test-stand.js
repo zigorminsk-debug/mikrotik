@@ -219,6 +219,14 @@ for (const f of pngs) {
   const expected = imageManifest[f];
   ok2(!!expected && b.length > 1000 && b.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex')) && b.readUInt32BE(16) === expected.width && b.readUInt32BE(20) === expected.height && crypto.createHash('sha256').update(b).digest('hex') === expected.sha256, 'Оригинал PNG без изменений: ' + f);
 }
+const examples = path.join(imgDir, 'examples');
+const exampleManifest = JSON.parse(fs.readFileSync(path.join(examples, 'manifest.json'), 'utf8'));
+const examplePngs = fs.readdirSync(examples).filter(f => f.endsWith('.png'));
+ok(examplePngs.length >= 4, 'скриншоты DHCP-клиента WinBox 3 и 4: ' + examplePngs.length);
+for (const f of examplePngs) {
+  const b = fs.readFileSync(path.join(examples, f)), expected = exampleManifest[f];
+  ok2(!!expected && b.length > 1000 && b.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex')) && b.readUInt32BE(16) === expected.width && b.readUInt32BE(20) === expected.height && crypto.createHash('sha256').update(b).digest('hex') === expected.sha256, 'PNG примера без изменений: ' + f);
+}
 for (const f of svgs) {
   const s = fs.readFileSync(path.join(imgDir, f), 'utf8');
   if (!s.startsWith('<svg') || !s.endsWith('</svg>')) { failed++; console.log('  ✗ FAIL: битый SVG ' + f); }

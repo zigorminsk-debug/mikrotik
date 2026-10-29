@@ -8,6 +8,7 @@
 | Файл | Источник MikroTik |
 |---|---|
 | `winbox-login.png` | [WinBox — стартовое окно](https://help.mikrotik.com/docs/download/attachments/328129/winbox_loader_simple_.png?version=1&modificationDate=1570715133744&api=v2) |
+| `interface-list-member.png` | [First Time Configuration — добавление интерфейса в список](https://help.mikrotik.com/docs/download/attachments/328151/int_list_port.png?version=1&modificationDate=1715093441988&api=v2); на примере показана LAN, для WAN используйте значения инструкции |
 | `bridge-lan.png` | [First Time Configuration — bridge](https://help.mikrotik.com/docs/download/attachments/328151/winbox_add_bridge.png?version=1&modificationDate=1569855959279&api=v2) |
 | `ip-address.png` | [First Time Configuration — адрес интерфейса](https://help.mikrotik.com/docs/download/attachments/328151/ip_addr_add.png?version=1&modificationDate=1715153423458&api=v2) |
 | `pppoe-general.png` | [First Time Configuration — PPPoE](https://help.mikrotik.com/docs/download/attachments/328151/pppoe_client_01.png?version=2&modificationDate=1715090147404&api=v2) |

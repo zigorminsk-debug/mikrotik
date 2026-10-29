@@ -440,10 +440,10 @@ function vpnConfig(c, r) {
   return { commands:cmd, input:input, forward:forward };
 }
 /* Параметры WinBox строятся из той же модели, что и команды RouterOS.
-   Снимки из документации MikroTik приведены как примеры, не с устройства пользователя. */
+   Снимки из документации и других указанных источников — примеры, не с устройства пользователя. */
 function winboxSteps(state, model) {
   var r = model.router, steps = [];
-  function add(title, image, instructions) { steps.push({ title: title, image: image, instructions: instructions }); }
+  function add(title, image, instructions, illustrations) { steps.push({ title: title, image: image, instructions: instructions, illustrations: illustrations || [] }); }
   add('Подготовка и безопасное подключение', 'official/winbox-login.png', [
     'Подключите ПК к локальному порту роутера. В WinBox откройте Neighbors, выберите устройство по MAC-адресу, введите логин и пароль и нажмите Connect.',
     'Сохраните резервную копию в Files → Backup; сохраните также текстовый экспорт через New Terminal: /export file=before-lab. Копии скачайте с роутера.',
@@ -459,7 +459,7 @@ function winboxSteps(state, model) {
     'Откройте IP → DNS: Servers = ' + r.dns + ', ' + (r.cfg.dnsCache === false ? 'выключите' : 'включите') + ' Allow Remote Requests и нажмите OK. DHCP выдаёт DNS ' + r.clientDns + '. Доступ к DNS с WAN будет закрыт правилами input, если включён Firewall.'
   ]);
   model.isps.forEach(function (i) {
-    var c = i.cfg, dist = i.priority === 'primary' ? 1 : 2, routeOn = i.priority === 'primary' || wanFailover(r.cfg), list = [];
+    var c = i.cfg, dist = i.priority === 'primary' ? 1 : 2, routeOn = i.priority === 'primary' || wanFailover(r.cfg), list = [], illustrations = [];
     if (i.kind === 'pppoe') {
       list = [
         'Откройте Interfaces → + → PPPoE Client: Name = ' + i.iface + ', Interface = ' + i.phys + '.',
@@ -468,8 +468,18 @@ function winboxSteps(state, model) {
       ];
     } else if (i.kind === 'dhcp') {
       list = [
-        'Откройте IP → DHCP Client → +: Interface = ' + i.phys + ', Add Default Route = ' + (routeOn ? 'yes' : 'no') + ', Default Route Distance = ' + dist + ', Use Peer DNS = no. Нажмите OK.',
-        'Проверьте Status = bound и полученный адрес. IP и шлюз определяет провайдер; показанный на схеме адрес не является реальной арендой.'
+        'Подключите кабель провайдера к ' + i.phys + '. В WinBox откройте IP → DHCP Client. Проверьте, нет ли уже DHCP-клиента на этом интерфейсе: при наличии откройте и измените его, не создавайте дубликат.',
+        'Нажмите + (в WinBox 4 — New). На вкладке DHCP выберите Interface = ' + i.phys + ', Add Default Route = ' + (routeOn ? 'yes' : 'no') + ', Use Peer DNS = no; в дополнительных настройках укажите Default Route Distance = ' + dist + '. Поле может находиться на вкладке Advanced или отображаться иначе в вашей версии. Нажмите OK.',
+        'На снимках Use Peer DNS включён: в этом проекте снимите эту галочку и используйте DNS из шага «Адрес LAN и DNS». Имя интерфейса и состояние stopped на снимках — пример, не ваши данные.',
+        'В списке DHCP Client проверьте Status = bound и полученный IP Address. В IP → Addresses на ' + i.phys + ' появится динамический адрес. Адрес и шлюз предоставляет провайдер; адрес на схеме не является реальной арендой.',
+        'Если маршрут включён, в IP → Routes проверьте динамический маршрут 0.0.0.0/0 и расстояние ' + dist + '. При двух WAN резервный маршрут может не быть активным, пока работает основной.'
+      ];
+      var wiki = 'https://mikrotik.wiki/wiki/%D0%9D%D0%B0%D1%81%D1%82%D1%80%D0%BE%D0%B9%D0%BA%D0%B0_DHCP_%D0%BD%D0%B0_MikroTik';
+      illustrations = [
+        { after: 1, image: 'examples/dhcp-client-create-winbox3.png', caption: 'WinBox 3: меню IP → DHCP Client, создание клиента. На снимке Use Peer DNS включён — для этого проекта выключите.', source: wiki, sourceName: 'MikroTik Wiki (независимый сайт)' },
+        { after: 1, image: 'examples/dhcp-client-create-winbox4.png', caption: 'WinBox 4: создание DHCP-клиента. Используйте интерфейс и значения из текста, не со снимка.', source: wiki, sourceName: 'MikroTik Wiki (независимый сайт)' },
+        { after: 3, image: 'examples/dhcp-client-bound-winbox3.png', caption: 'WinBox 3: статус bound и динамический адрес в IP → Addresses. Адрес — пример.', source: wiki, sourceName: 'MikroTik Wiki (независимый сайт)' },
+        { after: 3, image: 'examples/dhcp-client-bound-winbox4.png', caption: 'WinBox 4: статус bound и динамический адрес. Адрес и имя интерфейса — пример.', source: wiki, sourceName: 'MikroTik Wiki (независимый сайт)' }
       ];
     } else if (i.kind === 'static') {
       list = [
@@ -486,9 +496,10 @@ function winboxSteps(state, model) {
       ];
     }
     if (!routeOn) list.push('Автопереключение выключено: отключите Add Default Route (для статического маршрута выключите маршрут).');
-    list.push('Откройте Interfaces → Interface List → Members → +: List = WAN, Interface = ' + i.iface + '. Нажмите OK.');
+    list.push('Откройте Interfaces → Interface List → Members → +: List = WAN, Interface = ' + i.iface + '. Нажмите OK. Если запись уже есть, вторую не создавайте.');
+    if (i.kind === 'dhcp') illustrations.push({ after: list.length - 1, image: 'official/interface-list-member.png', caption: 'Пример MikroTik: добавление в список интерфейсов. На снимке LAN и bridge1; для этого шага выберите WAN и ' + i.iface + '.', source: 'https://help.mikrotik.com/docs/spaces/ROS/pages/328151/First+Time+Configuration', sourceName: 'MikroTik' });
     add('Провайдер «' + i.name + '» — ' + (i.priority === 'primary' ? 'основной' : 'резервный'),
-      { pppoe: 'official/pppoe-general.png', dhcp: null, static: 'official/ip-address.png', lte: null }[i.kind], list);
+      { pppoe: 'official/pppoe-general.png', dhcp: null, static: 'official/ip-address.png', lte: null }[i.kind], list, illustrations);
   });
   if (r.cfg.dhcp) add('DHCP для локальной сети', 'official/dhcp-server.png', [
     'Откройте IP → Pool → +: Name = pool-lan, Addresses = ' + r.pool.start + '-' + r.pool.end + '. Нажмите OK.',

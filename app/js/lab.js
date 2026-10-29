@@ -582,11 +582,16 @@ function renderResults(res) {
       (res.dual ? '<li>Два MikroTik: см. соединения на схеме; номера портов и VRRP необходимо согласовать вручную.</li>' : res.model.isps.map(function(i) { return '<li>' + esc(i.phys) + ' → ' + esc(i.name) + ' (' + esc(i.kind) + ', ' + (i.priority === 'primary' ? 'основной' : 'резервный') + ')</li>'; }).join('') +
       res.model.router.lanPorts.map(function(p) { return '<li>' + esc(p.phys) + ' → ' + esc(p.dev.name) + (res.model.router.cfg.vlanGuest ? ' (' + (p.segment === 'guest' ? 'гостевой VLAN ' + esc(res.model.router.cfg.guestVlan) : 'основная LAN') + ')' : '') + '</li>'; }).join('')) + '</ul></div></div>';
     html += '<div class="res-card" id="lab-winbox"><div class="res-head">🖥 Пошаговая настройка через WinBox</div><div class="res-body">' +
-      '<div class="note">Снимки ниже — подлинные примеры из документации MikroTik, не снимки вашего роутера. Вводите значения из текста и карты адресов. Интерфейс зависит от версии RouterOS.</div>';
+      '<div class="note">Снимки ниже — примеры из официальной документации и сторонних источников, не снимки вашего роутера. Используйте значения из текста и карты адресов. Интерфейс зависит от версии WinBox и RouterOS.</div>';
     res.winbox.forEach(function (step, i) {
       html += '<section class="lab-winbox-step"><h3>' + (i + 1) + '. ' + esc(step.title) + '</h3>' +
         (step.image ? '<figure class="shot"><img src="assets/img/' + esc(step.image) + '" alt="Снимок WinBox: ' + esc(step.title) + '" loading="lazy"><figcaption>Снимок из документации MikroTik: значения на нём могут отличаться. <a href="' + (step.image === 'official/winbox-login.png' ? 'https://help.mikrotik.com/docs/spaces/ROS/pages/328129/WinBox' : 'https://help.mikrotik.com/docs/spaces/ROS/pages/328151/First+Time+Configuration') + '">Источник</a></figcaption><button class="shot-zoom" type="button">🔍 Увеличить</button></figure>' : '') +
-        '<ol>' + step.instructions.map(function (item) { return '<li>' + esc(item) + '</li>'; }).join('') + '</ol></section>';
+        '<ol>' + step.instructions.map(function (item, itemIndex) {
+          var pictures = (step.illustrations || []).filter(function (pic) { return pic.after === itemIndex; }).map(function (pic) {
+            return '<figure class="shot"><img src="assets/img/' + esc(pic.image) + '" alt="' + esc(pic.caption) + '" loading="lazy"><figcaption>' + esc(pic.caption) + ' <a href="' + esc(pic.source) + '">Источник: ' + esc(pic.sourceName) + '</a></figcaption><button class="shot-zoom" type="button">🔍 Увеличить</button></figure>';
+          }).join('');
+          return '<li>' + esc(item) + pictures + '</li>';
+        }).join('') + '</ol></section>';
     });
     html += '</div></div>';
     html += '<div class="res-card"><div class="res-head">⚙ ' + (res.dual ? 'План VRRP — требуется ручная настройка' : 'Проект настроек RouterOS') + '</div><div class="res-body">';

@@ -1,0 +1,22 @@
+{
+  "dhcp-client-bound-winbox3.png": {
+    "sha256": "d94b7f224d34f1db425b0fead65c6609746dadf451884cfe79c2133ac2883eb0",
+    "width": 1920,
+    "height": 1080
+  },
+  "dhcp-client-bound-winbox4.png": {
+    "sha256": "8c7c769f4b7b697deb55d95e71f20f17a15b12523767aada3d4b352bdea36b44",
+    "width": 1920,
+    "height": 1080
+  },
+  "dhcp-client-create-winbox3.png": {
+    "sha256": "2b3452822628072d3349b59e355cc7073ef5e0faee28b52ed1f8eaa2e1bd15fc",
+    "width": 1920,
+    "height": 1080
+  },
+  "dhcp-client-create-winbox4.png": {
+    "sha256": "bf5c5b77129c993107d65471ad8ae1ff0945251027fe71a5b51bc77062a9c0e4",
+    "width": 1920,
+    "height": 1080
+  }
+}

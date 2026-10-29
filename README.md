@@ -59,8 +59,7 @@ WAN; в интерфейсе можно имитировать отказ узл
 отслеживает доступность интернета за шлюзом. Трафик и переключения — учебные, не эмуляция
 RouterOS и не проверка реальной сети. VPN-ключи/пароли могут быть в командах; не
 публикуйте их. Перед применением любых команд сделайте резервную копию, сверьте правила и
-оборудование и протестируйте изменения. Для ручной настройки см. официальные руководства [WiFi](https://help.mikrotik.com/docs/spaces/ROS/pages/224559120/WiFi) и [Bridge VLAN Table](https://help.mikrotik.com/docs/spaces/ROS/pages/28606465/Bridge+VLAN+Table). Используются оригинальные снимки документации
-MikroTik; размеры, значения и интерфейс могут отличаться.
+оборудование и протестируйте изменения. Для ручной настройки см. официальные руководства [WiFi](https://help.mikrotik.com/docs/spaces/ROS/pages/224559120/WiFi) и [Bridge VLAN Table](https://help.mikrotik.com/docs/spaces/ROS/pages/28606465/Bridge+VLAN+Table). Используются снимки официальной документации MikroTik и примеры независимого MikroTik Wiki; значения и интерфейс могут отличаться. Источники и ограничения прав указаны в `app/assets/img/official/SOURCES.md` и `app/assets/img/examples/SOURCES.md`.
 
 **Стенд моделирования** принимает: подсети LAN/гостевой сети и пулы адресов, тип и количество
 провайдеров (PPPoE/DHCP/статика/LTE), основной и резервный канал, тип VPN, список внутренних
@@ -78,7 +77,8 @@ app/                     # общее веб-ядро (общее для Android
   js/stand.js            # движок моделирования (без DOM, тестируется в Node)
   js/sec-*.js            # контент разделов учебника
   css/app.css            # стили
-  assets/img/official/    # оригинальные скриншоты MikroTik (источники — SOURCES.md)
+  assets/img/official/    # снимки документации MikroTik (источники — SOURCES.md)
+  assets/img/examples/    # снимки независимого MikroTik Wiki (источники — SOURCES.md)
   assets/img/topology.svg # учебная схема сети (tools/gen-screens.js)
 android/                 # проект Android (WebView-обёртка, подписанный APK)
 windows/                 # проект Windows (Electron, установщик NSIS)
