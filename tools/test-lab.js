@@ -142,3 +142,19 @@ s=make();s.devices[4].cfg.nics=[{id:'nic2',mode:'dhcp',segment:'main'}];s.links[
 s=guestState();Object.assign(s.devices[1].cfg,{wifiAp:true,wifiIf:'wifi1',wifiCountry:'Belarus',wifiSsid:'Work',wifiPass:'StrongPassword',wifiGuest:true,wifiGuestSsid:'Guest',wifiGuestPass:'GuestPassword',wifiGuestIsolation:true});r=E.run(s);assert.deepStrictEqual(r.errors,[]);assert(code(r).includes('datapath.client-isolation=yes'));assert(r.warnings.some(x=>/проводных гостей/.test(x)));assert(r.winbox.some(x=>x.instructions.join(' ').includes('Client Isolation')));s.devices[1].cfg.wifiGuestIsolation=false;r=E.run(s);assert(!code(r).includes('datapath.client-isolation=yes'));s.devices[1].cfg.wifiGuestIsolation=true;s.devices[1].cfg.wifiGuest=false;fails(s,/требует включённого гостевого Wi-Fi/);
 // Ограничение административных служб опционально и применяется после включения VLAN.
 s=guestState();s.devices[1].cfg.secureManagement=true;r=E.run(s);assert.deepStrictEqual(r.errors,[]);assert(code(r).includes('/ip service set [find name=winbox] address=192.168.88.0/24'));assert(code(r).includes('/tool mac-server mac-winbox set allowed-interface-list=none'));assert(code(r).includes('/ip neighbor discovery-settings set discover-interface-list=LAN'));assert(code(r).indexOf('vlan-filtering=yes')<code(r).indexOf('/tool mac-server mac-winbox set'));assert(r.warnings.some(x=>/MAC WinBox/.test(x)));assert(r.winbox.some(x=>x.title.includes('Ограничение служб управления')));s.devices[1].cfg.secureManagement=false;r=E.run(s);assert(!code(r).includes('/tool mac-server mac-winbox set allowed-interface-list=none'));
+// Две физически независимые сети: сервер НЕ соединяет свои карты мостом.
+function isolatedNetworks() {
+  const z=make(); z.devices[3].cfg.mode='static'; z.devices[3].cfg.ip='192.168.88.11/24'; z.devices[3].cfg.gw='192.168.88.1';
+  z.devices[4].cfg.nics=[{id:'nic2',segment:'main',mode:'dhcp'}];
+  z.devices.push({id:'r2',type:'router',name:'MikroTik 2',cfg:{lan:'192.168.99.0/24',gw:'192.168.99.1',dhcp:true,nat:true,firewall:true,routerRole:'backup'}});
+  z.devices.push({id:'i2',type:'isp',name:'Провайдер 2',cfg:{kind:'dhcp',priority:'backup'}});
+  z.links.push({id:'l-card2',a:'r2',b:'a',nicId:'nic2'},{id:'l-wan2',a:'r2',b:'i2'});
+  return z;
+}
+s=isolatedNetworks();r=E.run(s);assert.deepStrictEqual(r.errors,[]);assert(r.independent && !r.dual);assert.equal(r.model.assignments['a::nic2'].gw,'192.168.99.1');assert.equal(r.model.assignments.a.gw,'192.168.88.1');assert(r.addrRows.some(row=>row[0].includes('сетевая карта 2') && row[2]==='192.168.99.100/24'));assert(r.groups.some(g=>g.title.includes('MikroTik 2') && g.code.includes('192.168.99.1/24')));assert(r.warnings.some(w=>w.includes('гипервизора')));
+routes=E.activeRoutes(s);assert.equal(routes.filter(x=>x.endpoint==='a').length,2);assert(routes.some(x=>x.endpoint==='a' && x.router==='r2' && x.isp==='i2' && x.linkIds.includes('l-card2')));assert(routes.some(x=>x.endpoint==='a' && x.router==='r' && x.isp==='i'));
+s.devices.find(x=>x.id==='i2').on=false;routes=E.activeRoutes(s);assert(!routes.some(x=>x.router==='r2'));assert(routes.some(x=>x.router==='r'));s.devices.find(x=>x.id==='i2').on=true;s.devices.find(x=>x.id==='r').on=false;routes=E.activeRoutes(s);assert(!routes.some(x=>x.router==='r'));assert(routes.some(x=>x.router==='r2'));
+s=isolatedNetworks();s.devices.find(x=>x.id==='r2').cfg.dhcp=false;fails(s,/«MikroTik 2».+DHCP/);
+s=isolatedNetworks();s.devices.find(x=>x.id==='r2').cfg.lan='192.168.88.0/24';s.devices.find(x=>x.id==='r2').cfg.gw='192.168.88.1';r=E.run(s);assert.deepStrictEqual(r.errors,[]);assert(r.warnings.some(w=>/пересекаются/.test(w)));
+s=isolatedNetworks();s.links.push({a:'r2',b:'s'});r=E.run(s);assert(!r.independent);assert(r.errors.length);
+s=isolatedNetworks();assert.equal(E.routerForCard(s,'a','nic1').id,'r');assert.equal(E.routerForCard(s,'a','nic2').id,'r2');

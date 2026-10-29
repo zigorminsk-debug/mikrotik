@@ -303,6 +303,51 @@ function activeRoutes(state) {
     return path ? { endpoint:d.id, router:active.id, isp:isp.id, path:path.concat([isp.id]) } : null;
   }).filter(Boolean);
 }
+/* Two disconnected L2 networks, each with one router. Independent NICs have
+   already been expanded, so a multihomed host never joins these components. */
+function independentNetworks(state) {
+  var devices = state.devices || [], adj = adjacency(state), seen = Object.create(null), parts = [];
+  if (devices.filter(function(d) { return d.type === 'router'; }).length !== 2 || (state.links || []).some(function(l) {return !adj[l.a] || !adj[l.b];})) return null;
+  devices.forEach(function(d) {
+    if (seen[d.id]) return;
+    var queue = [d.id], ids = Object.create(null); seen[d.id] = true;
+    while (queue.length) { var id = queue.shift(); ids[id] = true; (adj[id] || []).forEach(function(n) { if (!seen[n]) { seen[n] = true; queue.push(n); } }); }
+    parts.push({ devices:devices.filter(function(x) { return ids[x.id]; }), links:(state.links || []).filter(function(l) { return ids[l.a] && ids[l.b]; }) });
+  });
+  if (parts.length !== 2 || parts.some(function(p) { return p.devices.filter(function(d){return d.type === 'router';}).length !== 1; })) return null;
+  return parts.map(function(p) {
+    var providers = p.devices.filter(function(d) {return d.type === 'isp';});
+    return { devices:p.devices.map(function(d) { return providers.length === 1 && d.type === 'isp' ? Object.assign({}, d, {cfg:Object.assign({}, d.cfg, {priority:'primary'})}) : d; }), links:p.links };
+  });
+}
+function routesForState(state) {
+  var parts = independentNetworks(state);
+  return parts ? parts.reduce(function(all,p) { return all.concat(activeRoutes(p)); }, []) : activeRoutes(state);
+}
+function runIndependent(parts) {
+  var errors = [], warnings = ['Две независимые сети: каждый адаптер использует свой маршрутизатор и провайдера. Это не автоматическое резервирование; при отказе канала остальные сети не перенаправляют его трафик.', 'Виртуальные машины, виртуальные коммутаторы и привязка сетевых карт гипервизора не моделируются. Назначьте каждой ВМ нужный отдельный адаптер и проверьте её DHCP, шлюз, DNS и фактический выход в интернет.'], runs = [];
+  parts.forEach(function(p) {
+    var router = p.devices.filter(function(d) {return d.type === 'router';})[0], r = runSingle(p);
+    r.errors.forEach(function(e){errors.push('«' + router.name + '»: ' + e);});
+    r.warnings.forEach(function(w){warnings.push('«' + router.name + '»: ' + w);});
+    runs.push({router:router, result:r});
+  });
+  var a = parseCidr(runs[0].router.cfg.lan), b = parseCidr(runs[1].router.cfg.lan);
+  if (a && b && a.overlaps(b)) warnings.push('LAN-подсети независимых сетей совпадают или пересекаются. Разные подсети упрощают настройку гипервизора, хоста и маршрутизации; при общих адресах возможны неоднозначные маршруты.');
+  if (errors.length) return {errors:errors,warnings:warnings,model:null,timeline:[],groups:[],winbox:[],addrRows:[]};
+  var model = {assignments:{}, networks:runs.map(function(x){return x.result.model;})};
+  var timeline = [], groups = [], steps = [], rows = [];
+  runs.forEach(function(x) {
+    Object.assign(model.assignments, x.result.model.assignments);
+    timeline.push({t:'log',level:'info',text:'Независимая сеть: ' + x.router.name});
+    timeline = timeline.concat(x.result.timeline);
+    x.result.groups.forEach(function(g) {groups.push({id:x.router.id + ':' + g.id,title:x.router.name + ' — ' + g.title,code:'# Только для ' + x.router.name.replace(/[\r\n]/g, ' ') + '\n' + g.code});});
+    x.result.winbox.forEach(function(w) {steps.push(Object.assign({},w,{title:x.router.name + ' — ' + w.title}));});
+    rows = rows.concat(x.result.addrRows);
+  });
+  return {errors:[],warnings:warnings,independent:true,model:model,timeline:timeline,groups:groups,winbox:steps,addrRows:rows};
+}
+
 function buildTimeline(state, model) {
   var steps = [], routes = activeRoutes(state), ds = state.devices;
   function packets(path, proto, kind) { for (var j = 0; j < path.length - 1; j++) steps.push({ t: 'pkt', from: path[j], to: path[j + 1], proto: proto, kind: kind }); }
@@ -662,7 +707,8 @@ function expandedRun(state) {
   var view = expandAdapters(state);
   if (view.errors.length) { var basic = analyze(view.state); return {errors:view.errors.concat(basic.errors),warnings:view.warnings.concat(basic.warnings),model:null,timeline:[],groups:[],winbox:[],addrRows:[]}; }
   var expanded = view.state;
-  var res = expanded.devices.filter(function(d) {return d.type === 'router';}).length === 2 ? runDual(expanded) : runSingle(expanded);
+  var parts = independentNetworks(expanded);
+  var res = parts ? runIndependent(parts) : expanded.devices.filter(function(d) {return d.type === 'router';}).length === 2 ? runDual(expanded) : runSingle(expanded);
   res.warnings = res.warnings.concat(view.warnings);
   if (res.model) {
     res.timeline.forEach(function(ev) {
@@ -682,7 +728,9 @@ function expandedRun(state) {
   return res;
 }
 var LabEngine = { ipToInt: ipToInt, intToIp: intToIp, validIp: validIp, parseCidr: parseCidr, poolOf: poolOf, adjacency: adjacency, bfsPath: bfsPath,
-  analyze: analyze, buildModel: buildModel, buildTimeline: buildTimeline, activeRoutes: function(state) { var v=expandAdapters(state); return v.errors.length ? [] : activeRoutes(v.state).map(function(r){return mapRoute(r,v);}); }, genCommands: genCommands, addrRows: addrRows, winboxSteps: winboxSteps,
+  isIndependent: function(state) { var v = expandAdapters(state); return !v.errors.length && !!independentNetworks(v.state); },
+  routerForCard: function(state, id, nic) { var v = expandAdapters(state), parts = !v.errors.length && independentNetworks(v.state), key = nic && nic !== 'nic1' ? id + '::' + nic : id; if (!parts) return null; var p = parts.filter(function(x) {return x.devices.some(function(d){return d.id === key;});})[0]; return p ? p.devices.filter(function(d){return d.type === 'router';})[0] : null; },
+  analyze: analyze, buildModel: buildModel, buildTimeline: buildTimeline, activeRoutes: function(state) { var v=expandAdapters(state); return v.errors.length ? [] : routesForState(v.state).map(function(r){return mapRoute(r,v);}); }, genCommands: genCommands, addrRows: addrRows, winboxSteps: winboxSteps,
   run: function (state) {
     state = state || {devices:[],links:[]};
     if (!state.devices) state.devices = []; if (!state.links) state.links = [];

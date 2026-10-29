@@ -82,6 +82,7 @@ function $(id) { return document.getElementById(id); }
 /* ---------- Рендер устройств ---------- */
 function renderDevices() {
   Array.prototype.slice.call(canvas.querySelectorAll('.lab-dev')).forEach(function (e) { e.remove(); });
+  var independent = typeof LabEngine !== 'undefined' && LabEngine.isIndependent(state);
   state.devices.forEach(function (d) {
     var t = TYPES[d.type];
     var el = document.createElement('div');
@@ -94,11 +95,11 @@ function renderDevices() {
     var badge = '';
     if (lastModel && lastModel.assignments && lastModel.assignments[d.id]) {
       if (d.type === 'isp')
-        badge = '<span class="lab-ip">' + esc({ pppoe: 'PPPoE', dhcp: 'DHCP', static: 'IP', lte: 'LTE' }[d.cfg.kind] || '') + ' · ' + (d.cfg.priority === 'backup' ? 'резерв' : 'основной') + '</span>';
+        badge = '<span class="lab-ip">' + esc({ pppoe: 'PPPoE', dhcp: 'DHCP', static: 'IP', lte: 'LTE' }[d.cfg.kind] || '') + ' · ' + (independent ? 'отдельный канал' : d.cfg.priority === 'backup' ? 'резерв' : 'основной') + '</span>';
       else
         badge = '<span class="lab-ip">' + esc(lastModel.assignments[d.id].ip) + '</span>';
     } else if (d.type === 'isp') {
-      badge = '<span class="lab-ip">' + esc({pppoe:'PPPoE', dhcp:'DHCP', static:'Статический IP', lte:'LTE'}[d.cfg.kind]) + ' · ' + esc(d.cfg.priority === 'backup' ? 'резерв' : 'основной') + '</span>';
+      badge = '<span class="lab-ip">' + esc({pppoe:'PPPoE', dhcp:'DHCP', static:'Статический IP', lte:'LTE'}[d.cfg.kind]) + ' · ' + esc(independent ? 'отдельный канал' : d.cfg.priority === 'backup' ? 'резерв' : 'основной') + '</span>';
     } else if (d.type === 'pc' || d.type === 'server' || d.type === 'printer') {
       badge = '<span class="lab-ip">' + esc(d.cfg.mode === 'dhcp' ? 'DHCP' : d.cfg.ip) + '</span>';
     } else if (d.type === 'router') {
@@ -189,7 +190,7 @@ function renderLinks() {
     if (status) {
       status.hidden = false;
       if (!routes.length) status.textContent = 'Нет активного пути в модели: проверьте ON/OFF и резервирование.';
-      else { var r = byId(routes[0].router), i = byId(routes[0].isp); status.textContent = 'Учебный трафик туда/обратно: ' + r.name + ' → ' + i.name + '. Реальные пакеты не отправляются.'; }
+      else { var pairs = []; routes.forEach(function(route) { var r = byId(route.router), i = byId(route.isp), label = r.name + ' → ' + i.name; if (pairs.indexOf(label) < 0) pairs.push(label); }); status.textContent = 'Учебный трафик туда/обратно: ' + pairs.join('; ') + '. Реальные пакеты не отправляются.'; }
     }
   }
 }
@@ -284,10 +285,10 @@ function renderInspect() {
     if (d.cfg.vpn) roles.push('VPN');
     if (d.cfg.vlanGuest) roles.push('гостевой VLAN');
     if (d.cfg.wifiAp) roles.push('Wi-Fi');
-    sub = esc(d.cfg.lan) + ' · ' + (d.cfg.routerRole === 'backup' ? 'резервный' : 'основной') + ' · роли: ' + esc(roles.join(', ') || 'не заданы');
+    sub = esc(d.cfg.lan) + ' · ' + (LabEngine.isIndependent(state) ? 'независимая сеть' : d.cfg.routerRole === 'backup' ? 'резервный' : 'основной') + ' · роли: ' + esc(roles.join(', ') || 'не заданы');
   } else if (d.type === 'isp') {
     sub = { pppoe: 'PPPoE: логин/пароль', dhcp: 'DHCP — авто', static: 'Статический IP', lte: 'USB 3G/LTE' }[d.cfg.kind];
-    sub = esc(sub) + ' · ' + (d.cfg.priority === 'backup' ? 'резервный' : 'основной');
+    sub = esc(sub) + ' · ' + (LabEngine.isIndependent(state) ? 'отдельный канал' : d.cfg.priority === 'backup' ? 'резервный' : 'основной');
   } else if (d.type === 'switch') {
     sub = 'Коммутатор L2 — просто соединяет сегменты';
   } else {
@@ -586,7 +587,7 @@ function renderResults(res) {
       '</div></div>';
   } else {
     html += '<div class="res-summary"><h3>✅ Проверка учебной модели пройдена</h3>' +
-      '<p>Показан предполагаемый путь, реальные пакеты не отправлялись. DHCP-адреса на карте — примеры. ' + (res.dual ? 'Для двух роутеров ниже приведён только план VRRP, настройка выполняется вручную.' : 'Ниже — проект настроек для проверки на реальном оборудовании.') + '</p></div>';
+      '<p>Показан предполагаемый путь, реальные пакеты не отправлялись. DHCP-адреса на карте — примеры. ' + (res.dual ? 'Для двух роутеров ниже приведён только план VRRP, настройка выполняется вручную.' : res.independent ? 'Две независимые сети: команды каждого роутера выполняются отдельно; ВМ и гипервизор не моделируются.' : 'Ниже — проект настроек для проверки на реальном оборудовании.') + '</p></div>';
     if (res.warnings.length) {
       html += '<div class="res-card"><div class="res-head">⚠ Предупреждения: ' + res.warnings.length + '</div><div class="res-body"><ul class="check-list">' +
         res.warnings.map(function (w) { return '<li class="warn"><span class="ci">⚠</span><span>' + esc(w) + '</span></li>'; }).join('') +
@@ -600,8 +601,10 @@ function renderResults(res) {
       '</tbody></table></div></div></div>';
     html += '<div class="note">' + (res.dual ? 'При двух роутерах номера портов согласуйте вручную. ' : 'Порты назначаются по порядку создания линий к MikroTik. ' ) + ' Подключите кабели согласно карте ниже; для DHCP-клиентов настройте автоматическое получение IP, для статических — адрес, шлюз и DNS из таблицы. Пароли и ключи могут присутствовать в командах: не публикуйте их.</div>';
     html += '<div class="res-card"><div class="res-head">🔌 Подключения MikroTik</div><div class="res-body"><ul>' +
-      (res.dual ? '<li>Два MikroTik: см. соединения на схеме; номера портов и VRRP необходимо согласовать вручную.</li>' : res.model.isps.map(function(i) { return '<li>' + esc(i.phys) + ' → ' + esc(i.name) + ' (' + esc(i.kind) + ', ' + (i.priority === 'primary' ? 'основной' : 'резервный') + ')</li>'; }).join('') +
-      res.model.router.lanPorts.map(function(p) { return '<li>' + esc(p.phys) + ' → ' + esc(p.dev.name) + (res.model.router.cfg.vlanGuest ? ' (' + (p.segment === 'guest' ? 'гостевой VLAN ' + esc(res.model.router.cfg.guestVlan) : 'основная LAN') + ')' : '') + '</li>'; }).join('')) + '</ul></div></div>';
+      (res.dual ? '<li>Два MikroTik: см. соединения на схеме; номера портов и VRRP необходимо согласовать вручную.</li>' : (res.independent ? res.model.networks : [res.model]).map(function(m) {
+        return (res.independent ? '<li><strong>' + esc(m.router.name) + '</strong></li>' : '') + m.isps.map(function(i) { return '<li>' + esc(i.phys) + ' → ' + esc(i.name) + ' (' + esc(i.kind) + ', ' + (i.priority === 'primary' ? 'основной' : 'резервный') + ')</li>'; }).join('') +
+          m.router.lanPorts.map(function(p) { return '<li>' + esc(p.phys) + ' → ' + esc(p.dev.name) + (m.router.cfg.vlanGuest ? ' (' + (p.segment === 'guest' ? 'гостевой VLAN ' + esc(m.router.cfg.guestVlan) : 'основная LAN') + ')' : '') + '</li>'; }).join('');
+      }).join('')) + '</ul></div></div>';
     html += '<div class="res-card" id="lab-winbox"><div class="res-head">🖥 Пошаговая настройка через WinBox</div><div class="res-body">' +
       '<div class="note">Снимки ниже — примеры из официальной документации и сторонних источников, не снимки вашего роутера. Используйте значения из текста и карты адресов. Интерфейс зависит от версии WinBox и RouterOS.</div>';
     res.winbox.forEach(function (step, i) {
@@ -621,7 +624,7 @@ function renderResults(res) {
         '<div class="codeblock"><div class="code-head"><span class="ch-lang">RouterOS</span><button type="button" class="copy-btn" data-copy="labg' + i + '">Копировать</button></div><pre><code id="labg' + i + '">' + esc(g.code) + '</code></pre></div>' +
         '</div></details>';
     });
-    html += '<p class="fs-hint">' + (res.dual ? 'Для двух роутеров выше приведён только план, не готовый проект команд. ' : '') + 'Проект рассчитан на чистую конфигурацию RouterOS 7. Перед применением сделайте резервную копию, сверьте порты, модель и существующие правила; выполняйте группы по порядку с локальным доступом. Протестируйте на реальном оборудовании.</p>';
+    html += '<p class="fs-hint">' + (res.dual ? 'Для двух роутеров выше приведён только план, не готовый проект команд. ' : res.independent ? 'Применяйте только группы с именем соответствующего роутера, не смешивайте команды двух сетей. ' : '') + 'Проект рассчитан на чистую конфигурацию RouterOS 7. Перед применением сделайте резервную копию, сверьте порты, модель и существующие правила; выполняйте группы по порядку с локальным доступом. Протестируйте на реальном оборудовании.</p>';
     html += '</div></div>';
   }
   resultsEl.innerHTML = html;
@@ -649,7 +652,7 @@ function openSettings(id) {
   var c = d.cfg;
   var html = f('lm_name', 'Название устройства', 'text', d.name, 'spellcheck="false"');
   if (d.type === 'router') {
-    html += sel('lm_router_role', 'Роль MikroTik', [['primary', 'Основной'], ['backup', 'Резервный']], c.routerRole || 'primary');
+    html += sel('lm_router_role', 'Роль MikroTik (для общего LAN / VRRP)', [['primary', 'Основной'], ['backup', 'Резервный']], c.routerRole || 'primary') + '<p class="fs-hint">В двух независимых сетях эта роль не переключает интернет между роутерами.</p>';
     html += '<div class="lm-grid">' + f('lm_lan', 'Подсеть LAN (CIDR)', 'text', c.lan, 'spellcheck="false" list="dl-net"') +
       f('lm_gw', 'IP роутера (шлюз)', 'text', c.gw, 'list="dl-ip" inputmode="decimal"') + '</div>';
     html += '<div class="lm-t">Роли MikroTik:</div>' +
@@ -706,7 +709,7 @@ function openSettings(id) {
       '<div id="lm_vpn_ike">' + f('lm_vpn_server_cert', 'Имя импортированного сертификата сервера', 'text', c.vpnServerCert || '', 'spellcheck="false"') + f('lm_vpn_client_cert', 'Имя доверенного сертификата клиента', 'text', c.vpnClientCert || '', 'spellcheck="false"') + '<p class="fs-hint">Сертификаты и закрытые ключи подготовьте и импортируйте заранее; настройте доверие и имя сервера на клиенте.</p></div>' +
       '<div id="lm_vpn_l2tp">' + f('lm_vpn_user', 'Имя пользователя L2TP', 'text', c.vpnUser || '', 'spellcheck="false"') + f('lm_vpn_pass', 'Пароль (не менее 8 символов)', 'password', c.vpnPass || '', 'autocomplete="new-password"') + f('lm_vpn_psk', 'Общий ключ IPsec (не менее 8 символов)', 'password', c.vpnPsk || '', 'autocomplete="new-password"') + '</div></div>';
   } else if (d.type === 'isp') {
-    html += sel('lm_priority', 'Роль канала', [['primary', 'Основной'], ['backup', 'Резервный']], c.priority || 'primary');
+    html += sel('lm_priority', 'Роль канала (при нескольких WAN)', [['primary', 'Основной'], ['backup', 'Резервный']], c.priority || 'primary') + '<p class="fs-hint">Единственный провайдер каждого изолированного роутера используется как основной, независимо от этой роли.</p>';
     html += sel('lm_kind', 'Тип подключения', [['pppoe', 'PPPoE (логин/пароль)'], ['dhcp', 'DHCP (авто)'], ['static', 'Статический IP'], ['lte', 'USB 3G/LTE-модем']], c.kind);
     html += '<div id="lm_g_pppoe"' + (c.kind === 'pppoe' ? '' : ' hidden') + '><div class="lm-grid">' +
       f('lm_user', 'Логин PPPoE', 'text', c.user, 'spellcheck="false"') +
@@ -728,7 +731,7 @@ function openSettings(id) {
       '<button type="button" class="btn ghost lm-mini" id="lm_fill_gw">↳ подставить адрес и шлюз выбранного сегмента</button></div>';
     if (d.type === 'pc' || d.type === 'server') {
       var cardCount = 1 + (Array.isArray(c.nics) ? c.nics.length : 0);
-      html += '<div class="lm-t">Дополнительные сетевые карты</div>' + sel('lm_nic_count', 'Количество сетевых карт', [['1','1'],['2','2'],['3','3'],['4','4']], String(cardCount)) + '<p class="fs-hint">До четырёх независимых карт: каждая использует один кабель. При создании линии выбирается свободная карта; изменить назначение можно, выбрав линию. Публикация относится к карте 1.</p>';
+      html += '<div class="lm-t">Дополнительные сетевые карты</div>' + sel('lm_nic_count', 'Количество сетевых карт', [['1','1'],['2','2'],['3','3'],['4','4']], String(cardCount)) + '<p class="fs-hint">До четырёх независимых карт: каждая использует один кабель. При создании линии выбирается свободная карта; изменить назначение можно, выбрав линию. Публикация относится к карте 1. Для двух ВМ назначьте каждой соответствующий физический адаптер через настройки гипервизора; здесь ВМ не эмулируются.</p>';
       for (var n=2; n<=4; n++) {
         var nc = (c.nics || []).filter(function(x) { return x.id === 'nic' + n; })[0] || {mode:'dhcp', segment:'main',ip:'',gw:'',dns:''};
         html += '<div id="lm_nic_box_' + n + '"' + (n <= cardCount ? '' : ' hidden') + '><div class="lm-t">Сетевая карта ' + n + '</div>' +
@@ -777,7 +780,8 @@ function openSettings(id) {
   ['lm_network_guide', 'lm_routing_guide', 'lm_failover_guide'].forEach(function(id) { var link = $(id); if (link) link.addEventListener('click', function () { modal.hidden = true; editingId = null; }); });
   var fill = $('lm_fill_gw');
   if (fill) fill.addEventListener('click', function () {
-    var rt = state.devices.filter(function (x) { return x.type === 'router'; })[0];
+    var rt = LabEngine.isIndependent(state) ? LabEngine.routerForCard(state, d.id, 'nic1') : state.devices.filter(function (x) { return x.type === 'router'; })[0];
+    if (!rt && LabEngine.isIndependent(state)) return lmFail('Подключите первую карту к нужной сети или задайте её адрес и шлюз вручную.');
     if (rt) {
       var guest = $('lm_segment') && $('lm_segment').value === 'guest';
       var network = LabEngine.parseCidr(guest ? rt.cfg.guestNet : rt.cfg.lan), gw = guest ? rt.cfg.guestGw : rt.cfg.gw;
