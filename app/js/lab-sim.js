@@ -194,6 +194,85 @@ function genCommands(state, model) {
   add('verify', '7. Проверка', ['/interface print', '/ip address print', '/ip route print', '/ip dhcp-server lease print', '/ping 1.1.1.1 count=5', '# Проверить DHCP и доступ с реального ПК.']);
   return groups;
 }
+/* Параметры WinBox строятся из той же модели, что и команды RouterOS.
+   Картинки — учебные схемы, а не снимки с конкретного устройства. */
+function winboxSteps(state, model) {
+  var r = model.router, steps = [];
+  function add(title, image, instructions) { steps.push({ title: title, image: image, instructions: instructions }); }
+  add('Подготовка и безопасное подключение', 'winbox-login.svg', [
+    'Подключите ПК к локальному порту роутера. В WinBox откройте Neighbors, выберите устройство по MAC-адресу, введите логин и пароль и нажмите Connect.',
+    'Сохраните резервную копию в Files → Backup; сохраните также текстовый экспорт через New Terminal: /export file=before-lab. Копии скачайте с роутера.',
+    'Эта инструкция рассчитана на RouterOS 7 с чистой конфигурацией: на работающем роутере сначала сопоставьте существующие мосты, DHCP, списки интерфейсов и правила. Не удаляйте и не сбрасывайте настройки вслепую. Держите локальный доступ для восстановления.'
+  ]);
+  add('Мост и локальные порты', 'bridge-lan.svg', [
+    'Откройте Bridge → вкладка Bridge → +. В поле Name укажите bridge-lan, нажмите OK.',
+    'На вкладке Ports через + добавьте в Bridge = bridge-lan каждый из портов LAN: ' + r.lanPorts.map(function (p) { return p.phys + ' → ' + p.dev.name; }).join(', ') + '. Не добавляйте WAN-порты в мост.',
+    'В Interfaces → Interface List создайте списки LAN и WAN. В Members добавьте в LAN интерфейс bridge-lan. WAN-интерфейсы добавим после их настройки.'
+  ]);
+  add('Адрес LAN и DNS', 'winbox-interfaces.svg', [
+    'Откройте IP → Addresses → +: Address = ' + r.gw + '/24, Interface = bridge-lan. Нажмите OK.',
+    'Откройте IP → DNS: Servers = ' + r.dns + ', включите Allow Remote Requests и нажмите OK. Доступ к DNS с WAN будет закрыт правилами input, если включён Firewall.'
+  ]);
+  model.isps.forEach(function (i) {
+    var c = i.cfg, dist = i.priority === 'primary' ? 1 : 2, list = [];
+    if (i.kind === 'pppoe') {
+      list = [
+        'Откройте Interfaces → + → PPPoE Client: Name = ' + i.iface + ', Interface = ' + i.phys + '.',
+        'В Dial Out введите User = ' + c.user + ' и пароль из настроек провайдера. Включите Add Default Route, задайте Default Route Distance = ' + dist + '; Use Peer DNS оставьте выключенным. Нажмите OK.',
+        'Убедитесь, что интерфейс включён и сессия подключилась. Данные в примере изображения могут отличаться от вашей схемы.'
+      ];
+    } else if (i.kind === 'dhcp') {
+      list = [
+        'Откройте IP → DHCP Client → +: Interface = ' + i.phys + ', Add Default Route = yes, Default Route Distance = ' + dist + ', Use Peer DNS = no. Нажмите OK.',
+        'Проверьте Status = bound и полученный адрес. IP и шлюз определяет провайдер; показанный на схеме адрес не является реальной арендой.'
+      ];
+    } else if (i.kind === 'static') {
+      list = [
+        'Откройте IP → Addresses → +: Address = ' + c.ip + ', Interface = ' + i.phys + '. Нажмите OK.',
+        'Откройте IP → Routes → +: Dst. Address = 0.0.0.0/0, Gateway = ' + c.gw + ', Distance = ' + dist + ', Check Gateway = ping. Нажмите OK.',
+        'Убедитесь, что шлюз провайдера отвечает на ping: иначе этот маршрут может считаться недоступным.'
+      ];
+    } else {
+      list = [
+        'Подключите поддерживаемый LTE-модем и SIM. В Interfaces проверьте имя lte1; настройка зависит от версии RouterOS и модема.',
+        'В LTE → APNs создайте профиль lab-apn: APN = ' + c.apn + ', Add Default Route = yes, Default Route Distance = ' + dist + '. На интерфейсе lte1 выберите этот профиль.',
+        'Проверьте состояние модема, полученный адрес и маршрут; при необходимости настройте PIN SIM и аутентификацию по данным оператора.'
+      ];
+    }
+    list.push('Откройте Interfaces → Interface List → Members → +: List = WAN, Interface = ' + i.iface + '. Нажмите OK.');
+    add('Провайдер «' + i.name + '» — ' + (i.priority === 'primary' ? 'основной' : 'резервный'),
+      { pppoe: 'pppoe-client.svg', dhcp: 'dhcp-client.svg', static: 'routes-failover.svg', lte: 'lte-setup.svg' }[i.kind], list);
+  });
+  if (r.cfg.dhcp) add('DHCP для локальной сети', 'dhcp-server.svg', [
+    'Откройте IP → Pool → +: Name = pool-lan, Addresses = ' + r.pool.start + '-' + r.pool.end + '. Нажмите OK.',
+    'Откройте IP → DHCP Server → DHCP → +: Name = dhcp-lan, Interface = bridge-lan, Address Pool = pool-lan; убедитесь, что сервер включён.',
+    'На вкладке Networks → + задайте Address = ' + r.net.first + '/24, Gateway = ' + r.gw + ', DNS Servers = ' + r.gw + '. Нажмите OK. Проверьте выдачу в Leases.'
+  ]);
+  if (r.cfg.firewall) add('Firewall: правила в точном порядке', 'firewall-filter.svg', [
+    'Откройте IP → Firewall → Filter Rules. Каждое правило добавляется кнопкой +; Chain и условия задаются на вкладках General/Advanced, Action — на вкладке Action. На чистом роутере разместите сверху вниз в следующем порядке:',
+    '1. Chain = input, Connection State = established, related, untracked; Action = accept.',
+    '2. Chain = input, Connection State = invalid; Action = drop.',
+    '3. Chain = input, Protocol = icmp; Action = accept.',
+    '4. Chain = input, In. Interface List = LAN; Action = accept.',
+    '5. Chain = input, Protocol = udp, Src. Port = 67, Dst. Port = 68, In. Interface List = WAN; Action = accept (ответы DHCP-клиенту WAN).',
+    '6. Chain = input; Action = drop (остальной доступ к роутеру).',
+    '7. Chain = forward, Connection State = established, related, untracked; Action = accept.',
+    '8. Chain = forward, Connection State = invalid; Action = drop.',
+    '9. Chain = forward, In. Interface List = LAN, Out. Interface List = WAN; Action = accept.',
+    '10. Chain = forward; Action = drop. Сверьте порядок и существующие правила: добавление рядом с заводскими правилами без анализа может заблокировать доступ.'
+  ]);
+  add('NAT для выхода в интернет', 'nat-rules.svg', [
+    'Откройте IP → Firewall → NAT → +. Во вкладке General: Chain = srcnat, Out. Interface List = WAN.',
+    'Во вкладке Action выберите masquerade и нажмите OK. Правило применяется к обоим каналам, добавленным в список WAN.'
+  ]);
+  add('Настройка устройств и проверка', 'dhcp-client.svg', [
+    'На каждом ПК, сервере и принтере задайте DHCP или статический IP, шлюз и DNS по таблице адресации выше. Адреса DHCP в таблице — только примеры, фактические аренды смотрите в Leases.',
+    'В WinBox проверьте IP → Addresses, IP → Routes и IP → DHCP Server → Leases; в New Terminal выполните /ping 1.1.1.1 count=5. Затем проверьте доступ из локальной сети и DNS.',
+    model.backupIsp ? 'Проверьте оба канала в реальности: отключите основной, проверьте новые соединения через резерв, затем восстановите основной. Distance сам по себе не обнаруживает все отказы за шлюзом; для контроля внешнего узла нужна дополнительная настройка.' : 'Проверка лаборатории не отправляет реальные пакеты: убедитесь в работоспособности на оборудовании.'
+  ]);
+  return steps;
+}
+
 function addrRows(state, model) {
   return state.devices.map(function (d) {
     var a = model.assignments[d.id];
@@ -201,11 +280,11 @@ function addrRows(state, model) {
   });
 }
 var LabEngine = { ipToInt: ipToInt, intToIp: intToIp, validIp: validIp, parseCidr: parseCidr, poolOf: poolOf, adjacency: adjacency, bfsPath: bfsPath,
-  analyze: analyze, buildModel: buildModel, buildTimeline: buildTimeline, genCommands: genCommands, addrRows: addrRows,
+  analyze: analyze, buildModel: buildModel, buildTimeline: buildTimeline, genCommands: genCommands, addrRows: addrRows, winboxSteps: winboxSteps,
   run: function (state) {
     state = state || {}; var check = analyze(state), model = null;
     if (!check.errors.length) model = buildModel(state);
-    return { errors: check.errors, warnings: check.warnings, model: model, timeline: model ? buildTimeline(state, model) : [], groups: model ? genCommands(state, model) : [], addrRows: model ? addrRows(state, model) : [] };
+    return { errors: check.errors, warnings: check.warnings, model: model, timeline: model ? buildTimeline(state, model) : [], groups: model ? genCommands(state, model) : [], winbox: model ? winboxSteps(state, model) : [], addrRows: model ? addrRows(state, model) : [] };
   } };
 global.LabEngine = LabEngine;
 if (typeof module !== 'undefined' && module.exports) module.exports = LabEngine;

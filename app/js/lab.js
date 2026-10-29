@@ -137,6 +137,7 @@ function renderLinks() {
     var hit = svgEl('line', { class: 'lab-link-hit', x1: A.x, y1: A.y, x2: B.x, y2: B.y });
     hit.addEventListener('click', function (e) {
       e.stopPropagation();
+      if (mode === 'delete') { requestDelete('link', l.id); return; }
       if (mode !== 'select') return;
       selectLink(l.id);
     });
@@ -159,6 +160,8 @@ function updateHint() {
     t = linkFrom
       ? 'Отлично. Коснитесь второго устройства — появится линия связи'
       : 'Коснитесь первого устройства, затем второго — соедините их линией';
+  else if (mode === 'delete')
+    t = 'Нажмите устройство или линию на карте, затем подтвердите удаление';
   else
     t = 'Коснитесь устройства или линии — можно настроить, удалить или просто рассмотреть';
   hintEl.textContent = t + ' Настройки устройства: нажмите ⚙ на его значке (в любом режиме).';
@@ -201,12 +204,7 @@ function renderInspect() {
       '<div class="insp-sub">' + esc((a.type === 'isp' || b.type === 'isp') && (a.type === 'router' || b.type === 'router') ? 'WAN-канал' : 'LAN-сегмент') + '</div>' +
       '<div class="insp-acts"><button type="button" class="btn danger-ghost" id="insp_del">✕ Удалить линию</button></div>';
     inspectEl.hidden = false;
-    $('insp_del').addEventListener('click', function () {
-      state.links = state.links.filter(function (x) { return x.id !== l.id; });
-      selected = null;
-      invalidate();
-      renderAll();
-    });
+    $('insp_del').addEventListener('click', function () { requestDelete('link', l.id); });
     return;
   }
   var d = byId(selected.id);
@@ -233,13 +231,42 @@ function renderInspect() {
     '<button type="button" class="btn danger-ghost" id="insp_del">✕ Удалить</button></div>';
   inspectEl.hidden = false;
   $('insp_cfg').addEventListener('click', function () { openSettings(d.id); });
-  $('insp_del').addEventListener('click', function () {
-    state.devices = state.devices.filter(function (x) { return x.id !== d.id; });
-    state.links = state.links.filter(function (x) { return x.a !== d.id && x.b !== d.id; });
-    selected = null;
-    invalidate();
-    renderAll();
-  });
+  $('insp_del').addEventListener('click', function () { requestDelete('dev', d.id); });
+}
+
+/* Подтверждаем удаление в собственном диалоге: window.confirm не работает
+   в Android WebView без WebChromeClient. Удаление устройства удаляет его линии. */
+var pendingDelete = null;
+function requestDelete(kind, id) {
+  var target = kind === 'dev' ? byId(id) : state.links.filter(function (l) { return l.id === id; })[0];
+  if (!target) return;
+  pendingDelete = { kind: kind, id: id };
+  var text;
+  if (kind === 'dev') {
+    var count = state.links.filter(function (l) { return l.a === id || l.b === id; }).length;
+    text = 'Удалить «' + target.name + '»? Вместе с устройством будут удалены его линии: ' + count + '.';
+  } else {
+    var a = byId(target.a), b = byId(target.b);
+    text = 'Удалить линию между «' + (a ? a.name : '') + '» и «' + (b ? b.name : '') + '»? Устройства останутся на карте.';
+  }
+  $('lab-confirm-text').textContent = text;
+  $('lab-confirm').hidden = false;
+}
+function finishDelete() {
+  if (!pendingDelete) return;
+  var item = pendingDelete;
+  pendingDelete = null;
+  $('lab-confirm').hidden = true;
+  if (item.kind === 'dev') {
+    state.devices = state.devices.filter(function (d) { return d.id !== item.id; });
+    state.links = state.links.filter(function (l) { return l.a !== item.id && l.b !== item.id; });
+    modal.hidden = true;
+    editingId = null;
+  } else state.links = state.links.filter(function (l) { return l.id !== item.id; });
+  selected = null;
+  linkFrom = null;
+  invalidate();
+  renderAll();
 }
 
 /* ---------- Размещение и связи ---------- */
@@ -289,6 +316,7 @@ function addLink(a, b) {
   return id;
 }
 function onDeviceClick(d) {
+  if (mode === 'delete') { requestDelete('dev', d.id); return; }
   if (mode === 'link') {
     if (!linkFrom) { linkFrom = d.id; renderAll(); return; }
     if (linkFrom === d.id) { linkFrom = null; renderAll(); return; }
@@ -492,6 +520,14 @@ function renderResults(res) {
     html += '<div class="res-card"><div class="res-head">🔌 Подключения MikroTik</div><div class="res-body"><ul>' +
       res.model.isps.map(function(i) { return '<li>' + esc(i.phys) + ' → ' + esc(i.name) + ' (' + esc(i.kind) + ', ' + (i.priority === 'primary' ? 'основной' : 'резервный') + ')</li>'; }).join('') +
       res.model.router.lanPorts.map(function(p) { return '<li>' + esc(p.phys) + ' → ' + esc(p.dev.name) + '</li>'; }).join('') + '</ul></div></div>';
+    html += '<div class="res-card" id="lab-winbox"><div class="res-head">🖥 Пошаговая настройка через WinBox</div><div class="res-body">' +
+      '<div class="note">Изображения ниже — схематичные иллюстрации WinBox с примерными данными, не снимки вашего роутера. Вводите значения из текста и карты адресов. Интерфейс зависит от версии RouterOS.</div>';
+    res.winbox.forEach(function (step, i) {
+      html += '<section class="lab-winbox-step"><h3>' + (i + 1) + '. ' + esc(step.title) + '</h3>' +
+        (step.image ? '<figure class="shot"><img src="assets/img/' + esc(step.image) + '" alt="Иллюстрация WinBox: ' + esc(step.title) + '" loading="lazy"><figcaption>Иллюстрация: пример окна WinBox, значения на ней могут отличаться.</figcaption></figure>' : '') +
+        '<ol>' + step.instructions.map(function (item) { return '<li>' + esc(item) + '</li>'; }).join('') + '</ol></section>';
+    });
+    html += '</div></div>';
     html += '<div class="res-card"><div class="res-head">⚙ Проект настроек RouterOS</div><div class="res-body">';
     res.groups.forEach(function (g, i) {
       html += '<details class="cmd-group"' + (i < 2 ? ' open' : '') + '><summary>' + esc(g.title) + '</summary><div class="cg-body">' +
@@ -717,6 +753,9 @@ function init() {
   });
   skipBtn.addEventListener('click', skip);
   lmSave.addEventListener('click', saveSettings);
+  $('lm_delete').addEventListener('click', function () { if (editingId) requestDelete('dev', editingId); });
+  $('lab-confirm-ok').addEventListener('click', finishDelete);
+  $('lab-confirm-cancel').addEventListener('click', function () { pendingDelete = null; $('lab-confirm').hidden = true; });
   lmCancel.addEventListener('click', function () { modal.hidden = true; editingId = null; });
   lmClose.addEventListener('click', function () { modal.hidden = true; editingId = null; });
   modal.addEventListener('click', function (e) { if (e.target === modal) { modal.hidden = true; editingId = null; } });

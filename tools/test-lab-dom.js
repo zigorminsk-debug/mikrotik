@@ -11,10 +11,10 @@ const {JSDOM,VirtualConsole} = require('jsdom');
  w.location.hash='lab'; await new Promise(resolve=>setTimeout(resolve,20));
  assert(!$('lab-view').hidden); assert($('stand-view').hidden);
  $('lab_example').click(); assert.equal(w.Lab.state.devices.length,5); assert.equal(w.Lab.state.links.length,4);
- $('lab_run').click(); assert(!$('lab-results').hidden); assert($('lab-results').textContent.includes('Проверка учебной модели пройдена')); assert(d.querySelector('#lab-results .copy-btn')); assert($('lab-results').textContent.includes('реальные пакеты не отправлялись'));
+ $('lab_run').click(); assert(!$('lab-results').hidden); assert($('lab-results').textContent.includes('Проверка учебной модели пройдена')); assert(d.querySelector('#lab-results .copy-btn')); assert($('lab-results').textContent.includes('реальные пакеты не отправлялись')); assert($('lab-winbox')); assert($('lab-winbox').textContent.includes('Подготовка')); assert($('lab-winbox').querySelector('img[src*=winbox-login]')); assert($('lab-winbox').textContent.includes('192.168.88.1/24'));
  const pc=w.Lab.state.devices.find(x=>x.type==='pc'); w.Lab.select(pc.id); $('insp_cfg').click(); assert(!$('lab-modal').hidden); $('lm_mode').value='static'; $('lm_mode').dispatchEvent(new w.Event('change')); $('lm_ip2').value='192.168.88.120/24'; $('lm_gw2').value='192.168.88.1'; $('lm_save').click(); assert($('lab-modal').hidden); assert($('lab-results').hidden);
  $('lab_run').click(); assert($('lab-results').textContent.includes('пул'));
- w.Lab.select(pc.id); $('insp_del').click(); assert.equal(w.Lab.state.devices.length,4); assert.equal(w.Lab.state.links.length,3);
+ w.Lab.select(pc.id); $('insp_del').click(); assert(!$('lab-confirm').hidden); $('lab-confirm-ok').click(); assert.equal(w.Lab.state.devices.length,4); assert.equal(w.Lab.state.links.length,3);
  $('lab_reset').click(); assert.equal(w.Lab.state.devices.length,0); assert.equal(w.Lab.state.links.length,0);
  d.querySelector('[data-dev=router]').click(); $('lab-canvas').dispatchEvent(new w.MouseEvent('click',{bubbles:true,clientX:50,clientY:50})); assert.equal(w.Lab.state.devices.length,1);
  $('lab_run').click(); assert($('lab-results').textContent.includes('провайдеров'));
@@ -38,5 +38,13 @@ const {JSDOM,VirtualConsole} = require('jsdom');
  d.querySelector('[data-id="'+isp2+'"] .lab-gear').click(); $('lm_priority').value='primary';$('lm_save').click();
  assert.equal(w.Lab.state.devices.find(x=>x.id===isp1).cfg.priority,'backup');assert.equal(w.Lab.state.devices.find(x=>x.id===isp2).cfg.priority,'primary');
  w.Lab.setMode('select'); d.querySelector('[data-id="'+clients[1]+'"] .lab-ico').click(); assert(!$('lab-modal').hidden); $('lm_cancel').click();
+
+ // Кнопка удаления в окне устройства: отмена сохраняет, подтверждение убирает линии.
+ d.querySelector('[data-id="'+clients[1]+'"] .lab-gear').click(); $('lm_delete').click(); assert(!$('lab-confirm').hidden); $('lab-confirm-cancel').click(); assert(!$('lab-modal').hidden); assert(w.Lab.state.devices.some(x=>x.id===clients[1]));
+ $('lm_delete').click(); $('lab-confirm-ok').click(); assert($('lab-modal').hidden); assert(!w.Lab.state.devices.some(x=>x.id===clients[1])); assert(!w.Lab.state.links.some(x=>x.a===clients[1]||x.b===clients[1])); assert($('lab-results').hidden);
+ // Режим удаления: нажатие на линию предлагает подтверждение, отмена и удаление.
+ w.Lab.setMode('delete'); const linkCount=w.Lab.state.links.length; d.querySelector('.lab-link-hit').dispatchEvent(new w.MouseEvent('click',{bubbles:true})); assert(!$('lab-confirm').hidden); $('lab-confirm-cancel').click(); assert.equal(w.Lab.state.links.length,linkCount);
+ d.querySelector('.lab-link-hit').dispatchEvent(new w.MouseEvent('click',{bubbles:true})); $('lab-confirm-ok').click(); assert.equal(w.Lab.state.links.length,linkCount-1);
+ const n=w.Lab.state.devices.length; d.querySelector('[data-id="'+clients[0]+'"] .lab-ico').click(); assert(!$('lab-confirm').hidden); $('lab-confirm-ok').click(); assert.equal(w.Lab.state.devices.length,n-1);
  assert.deepStrictEqual(errors,[]); dom.window.close(); console.log('Лаборатория: DOM-взаимодействия прошли.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

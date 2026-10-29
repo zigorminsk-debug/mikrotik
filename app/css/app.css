@@ -233,3 +233,5 @@ h2.sec-sub{font-size:18px;margin:26px 0 8px;padding-left:12px;border-left:4px so
 @media(max-width:560px){.lab-canvas{height:460px}.lab-acts{margin-left:0}.lm-grid{grid-template-columns:1fr}}
 
 .lab-gear{position:absolute;right:0;top:0;z-index:3;border:1px solid #94a3b8;background:#fff;color:#075985;border-radius:7px;min-width:29px;min-height:29px;font-size:17px;line-height:1;cursor:pointer;touch-action:manipulation}.lab-gear:hover,.lab-gear:focus{background:#e0f2fe;border-color:#0284c7;outline:2px solid #7dd3fc}
+
+.lab-confirm-modal{z-index:100}.lab-delete-mode.active{background:#fee2e2;color:#991b1b;border-color:#dc2626}.lab-winbox-step{padding:14px 0;border-bottom:1px solid var(--line)}.lab-winbox-step:last-child{border-bottom:0}.lab-winbox-step h3{margin:0 0 8px;font-size:16px}.lab-winbox-step ol{padding-left:22px}.lab-winbox-step li{margin:7px 0}.lab-winbox-step figure{max-width:748px}
