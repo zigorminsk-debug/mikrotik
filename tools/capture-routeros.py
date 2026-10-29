@@ -35,7 +35,7 @@ try:
         vm.sendline('')
         for _ in range(12):
             n = vm.expect([r'(?i)do you want to see the software license',
-                           r'(?i)(?:new password|repeat new password)[^\r\n]*:',
+                           r'(?i)(?:new password|repeat new password)[^\r\n]*[>:]',
                            r'(?i)press (?:enter|return)', r'\[admin@[^\]]+\]\s*>',
                            r'(?i)password:'])
             if n == 0:

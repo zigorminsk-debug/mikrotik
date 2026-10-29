@@ -31,6 +31,17 @@ jobs:
           find winbox -type f -maxdepth 3 -printf '%p\n'
       - name: Boot RouterOS CHR and capture WinBox
         run: /usr/bin/python3 tools/capture-routeros.py "$RUNNER_TEMP/routeros-capture"
+      - name: Report diagnostics to check annotations
+        if: failure()
+        run: |
+          /usr/bin/python3 - <<'PYDIAG'
+          import pathlib, os, re
+          path = pathlib.Path(os.environ['RUNNER_TEMP']) / 'routeros-capture/output/serial.log'
+          if path.exists():
+              data = re.sub(r'\x1b\[[0-9;?]*[A-Za-z]', '', path.read_text(errors='replace'))
+              data = data[-1800:].replace('%', '%25').replace('\n', '%0A').replace('\r', '%0D')
+              print('::error title=RouterOS serial diagnostics::' + data)
+          PYDIAG
       - name: Upload capture and diagnostic output
         if: always()
         uses: actions/upload-artifact@v4
