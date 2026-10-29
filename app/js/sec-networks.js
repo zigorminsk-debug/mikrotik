@@ -9,7 +9,8 @@ section({
   steps: [
     { t: 'Мост LAN и адресация', b: [
       P('Все LAN-порты объединяются в **bridge-lan** — к нему привязывается IP роутера (шлюз для клиентов).'),
-      IMG('assets/img/bridge-lan.svg', 'WinBox: Bridge → Ports — порты ether2…ether5 объединены в bridge-lan'),
+      IMG('assets/img/official/bridge-lan.png', 'WinBox: создание моста и добавление портов. Пример MikroTik.'),
+      IMG('assets/img/official/ip-address.png', 'WinBox: добавление адреса на интерфейс моста. Пример MikroTik.'),
       CMD(
 `# 1) Переименование портов (ether1 — WAN, остальные — LAN):
 /interface ethernet set [ find default-name=ether1 ] name=ether1 comment="WAN"
@@ -31,8 +32,7 @@ section({
 
     { t: 'Пул адресов и DHCP-сервер', b: [
       P('DHCP раздаёт клиентам адреса из заданного **пула**, шлюз и DNS автоматически.'),
-      IMG('assets/img/ip-pool.svg', 'WinBox: IP → Pool — диапазон адресов для раздачи (напр. 192.168.88.10–192.168.88.250)'),
-      IMG('assets/img/dhcp-server.svg', 'WinBox: DHCP Setup / список серверов — интерфейс bridge-lan, пул pool-lan'),
+      IMG('assets/img/official/dhcp-server.png', 'WinBox: запуск мастера DHCP Setup. Пример MikroTik.'),
       CMD(
 `# Пул адресов (10…250 — оставляем резерв под статику 1–9 и 251–254):
 /ip pool add name=pool-lan ranges=192.168.88.10-192.168.88.250
@@ -62,7 +62,8 @@ section({
 
     { t: 'Рабочая Wi-Fi-сеть', b: [
       P('Задача: надёжное шифрование WPA2/WPA3, один SSID на всех точках, канал без помех.'),
-      IMG('assets/img/wifi-work.svg', 'WinBox: настройки Wi-Fi (v7 wifiwave2) — SSID рабочей сети, профиль безопасности WPA2'),
+      IMG('assets/img/official/wireless-legacy.png', 'WinBox: меню Wireless для старого пакета wireless; в RouterOS 7 с пакетом WiFi интерфейс отличается.'),
+      IMG('assets/img/official/wireless-security-legacy.png', 'WinBox: пример профиля безопасности в старом пакете wireless.'),
       CMD(
 `# Страна (обязательно для корректной работы радио):
 /interface wifi config set country=BY
@@ -98,7 +99,6 @@ section({
 
     { t: 'Гостевая Wi-Fi-сеть (изолированная)', b: [
       P('Гости получают адреса из **своей подсети** и ходят **только в интернет**. До корпоративных ресурсов — доступ закрыт правилами firewall (раздел Firewall).'),
-      IMG('assets/img/wifi-guest.svg', 'WinBox: гостевая сеть — отдельный SSID, привязка к bridge-guest, свой профиль безопасности'),
       CMD(
 `# 1) Отдельный мост под гостей:
 /interface bridge add name=bridge-guest comment="Гостевая сеть"

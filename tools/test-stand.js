@@ -202,13 +202,23 @@ for (const sec of G.sections) {
 function ok2(c, m) { if (!c) { failed++; console.log('  ✗ FAIL: ' + m); } }
 ok(steps >= 45, 'всего шагов в учебнике: ' + steps);
 ok(blocks >= 150, 'всего блоков контента: ' + blocks);
-ok(imgs >= 15, 'скриншотов в тексте: ' + imgs);
+ok(imgs >= 10, 'изображений в тексте: ' + imgs);
 ok(imgMissing.length === 0, 'все изображения существуют' + (imgMissing.length ? ': ' + imgMissing.join(', ') : ''));
 
 /* все ссылки img в разделах + база скриншотов */
 const imgDir = path.join(root, '..', 'assets', 'img');
 const svgs = fs.readdirSync(imgDir).filter(f => f.endsWith('.svg'));
-ok(svgs.length >= 19, 'SVG-скриншотов на диске: ' + svgs.length);
+ok(svgs.length === 1 && svgs[0] === 'topology.svg', 'в проекте только одна SVG-схема сети');
+const official = path.join(imgDir, 'official');
+const pngs = fs.readdirSync(official).filter(f => f.endsWith('.png'));
+const imageManifest = JSON.parse(fs.readFileSync(path.join(official, 'manifest.json'), 'utf8'));
+const crypto = require('crypto');
+ok(pngs.length >= 10, 'оригинальных снимков MikroTik: ' + pngs.length);
+for (const f of pngs) {
+  const b = fs.readFileSync(path.join(official, f));
+  const expected = imageManifest[f];
+  ok2(!!expected && b.length > 1000 && b.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex')) && b.readUInt32BE(16) === expected.width && b.readUInt32BE(20) === expected.height && crypto.createHash('sha256').update(b).digest('hex') === expected.sha256, 'Оригинал PNG без изменений: ' + f);
+}
 for (const f of svgs) {
   const s = fs.readFileSync(path.join(imgDir, f), 'utf8');
   if (!s.startsWith('<svg') || !s.endsWith('</svg>')) { failed++; console.log('  ✗ FAIL: битый SVG ' + f); }

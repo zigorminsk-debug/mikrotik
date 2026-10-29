@@ -52,7 +52,7 @@ section({
         'Логин по умолчанию `admin`, пароль пустой. **Сразу смените пароль** (меню → New Terminal):'
       ]),
       CMD('/user set [find name=admin] password="НовыйСильныйПароль1!"\n/user print'),
-      IMG('assets/img/winbox-login.svg', 'WinBox: окно логина — указываем MAC-адрес роутера, логин и пароль'),
+      IMG('assets/img/official/winbox-login.png', 'WinBox: окно подключения. Пример MikroTik; данные отличаются от ваших.'),
       P('Если роутер пингуется, но не находится в Neighbors — пробросьте WinBox-порт или подключитесь по IP из той же подсети.'),
       WARN('Никогда не оставляйте заводской пароль и не подключайте роутер к интернету без минимального firewall (раздел «Firewall»).')
     ]},

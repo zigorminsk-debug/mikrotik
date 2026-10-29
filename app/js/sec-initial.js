@@ -19,7 +19,8 @@ section({
 
     { t: 'PPPoE: подключение по логину и паролю', b: [
       P('Самый частый вариант домашних провайдеров. Откройте **WinBox → Interfaces → + → PPPoE Client** (или терминал):'),
-      IMG('assets/img/pppoe-client.svg', 'WinBox: создание PPPoE-клиента — Service, User, Password, галочки Add Default Route'),
+      IMG('assets/img/official/pppoe-general.png', 'WinBox: создание PPPoE-клиента и выбор интерфейса. Пример MikroTik.'),
+      IMG('assets/img/official/pppoe-dial.png', 'WinBox: вкладка Dial Out для параметров PPPoE. Значения являются примером.'),
       CMD(
 `# Интерфейсы сначала приводим к порядку (см. раздел «LAN»):
 /interface ethernet set [ find default-name=ether1 ] name=ether1 comment="WAN"
@@ -54,7 +55,6 @@ ping 8.8.8.8`,
 
     { t: 'DHCP: подключение «автоматически»', b: [
       P('Если провайдер выдаёт адрес DHCP-сервером (без логина), достаточно DHCP-клиента на WAN-порте:'),
-      IMG('assets/img/dhcp-client.svg', 'WinBox: DHCP-клиент — интерфейс ether1, Add Default Route = yes'),
       CMD(
 `/ip dhcp-client add \\
     interface=ether1 \\
@@ -91,7 +91,6 @@ ping 8.8.8.8`,
 
     { t: 'USB 3G / LTE-модем', b: [
       P('Вставьте SIM-карту и USB-модем в роутер. RouterOS подхватывает его как интерфейс `lte1` (модели с USB; проверьте `/interface lte print`).'),
-      IMG('assets/img/lte-setup.svg', 'WinBox: настройки LTE-интерфейса — APN, режим работы, статус RSRP/SINR'),
       CMD(
 `# Точка доступа оператора (узнайте у оператора, часто "internet"):
 /interface lte apn add name=apn-main apn=internet use-network-apn=no

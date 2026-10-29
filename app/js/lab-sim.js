@@ -195,21 +195,21 @@ function genCommands(state, model) {
   return groups;
 }
 /* Параметры WinBox строятся из той же модели, что и команды RouterOS.
-   Картинки — учебные схемы, а не снимки с конкретного устройства. */
+   Снимки из документации MikroTik приведены как примеры, не с устройства пользователя. */
 function winboxSteps(state, model) {
   var r = model.router, steps = [];
   function add(title, image, instructions) { steps.push({ title: title, image: image, instructions: instructions }); }
-  add('Подготовка и безопасное подключение', 'winbox-login.svg', [
+  add('Подготовка и безопасное подключение', 'official/winbox-login.png', [
     'Подключите ПК к локальному порту роутера. В WinBox откройте Neighbors, выберите устройство по MAC-адресу, введите логин и пароль и нажмите Connect.',
     'Сохраните резервную копию в Files → Backup; сохраните также текстовый экспорт через New Terminal: /export file=before-lab. Копии скачайте с роутера.',
     'Эта инструкция рассчитана на RouterOS 7 с чистой конфигурацией: на работающем роутере сначала сопоставьте существующие мосты, DHCP, списки интерфейсов и правила. Не удаляйте и не сбрасывайте настройки вслепую. Держите локальный доступ для восстановления.'
   ]);
-  add('Мост и локальные порты', 'bridge-lan.svg', [
+  add('Мост и локальные порты', 'official/bridge-lan.png', [
     'Откройте Bridge → вкладка Bridge → +. В поле Name укажите bridge-lan, нажмите OK.',
     'На вкладке Ports через + добавьте в Bridge = bridge-lan каждый из портов LAN: ' + r.lanPorts.map(function (p) { return p.phys + ' → ' + p.dev.name; }).join(', ') + '. Не добавляйте WAN-порты в мост.',
     'В Interfaces → Interface List создайте списки LAN и WAN. В Members добавьте в LAN интерфейс bridge-lan. WAN-интерфейсы добавим после их настройки.'
   ]);
-  add('Адрес LAN и DNS', 'winbox-interfaces.svg', [
+  add('Адрес LAN и DNS', 'official/ip-address.png', [
     'Откройте IP → Addresses → +: Address = ' + r.gw + '/24, Interface = bridge-lan. Нажмите OK.',
     'Откройте IP → DNS: Servers = ' + r.dns + ', включите Allow Remote Requests и нажмите OK. Доступ к DNS с WAN будет закрыт правилами input, если включён Firewall.'
   ]);
@@ -241,14 +241,14 @@ function winboxSteps(state, model) {
     }
     list.push('Откройте Interfaces → Interface List → Members → +: List = WAN, Interface = ' + i.iface + '. Нажмите OK.');
     add('Провайдер «' + i.name + '» — ' + (i.priority === 'primary' ? 'основной' : 'резервный'),
-      { pppoe: 'pppoe-client.svg', dhcp: 'dhcp-client.svg', static: 'routes-failover.svg', lte: 'lte-setup.svg' }[i.kind], list);
+      { pppoe: 'official/pppoe-general.png', dhcp: null, static: 'official/ip-address.png', lte: null }[i.kind], list);
   });
-  if (r.cfg.dhcp) add('DHCP для локальной сети', 'dhcp-server.svg', [
+  if (r.cfg.dhcp) add('DHCP для локальной сети', 'official/dhcp-server.png', [
     'Откройте IP → Pool → +: Name = pool-lan, Addresses = ' + r.pool.start + '-' + r.pool.end + '. Нажмите OK.',
     'Откройте IP → DHCP Server → DHCP → +: Name = dhcp-lan, Interface = bridge-lan, Address Pool = pool-lan; убедитесь, что сервер включён.',
     'На вкладке Networks → + задайте Address = ' + r.net.first + '/24, Gateway = ' + r.gw + ', DNS Servers = ' + r.gw + '. Нажмите OK. Проверьте выдачу в Leases.'
   ]);
-  if (r.cfg.firewall) add('Firewall: правила в точном порядке', 'firewall-filter.svg', [
+  if (r.cfg.firewall) add('Firewall: правила в точном порядке', 'official/firewall-rule.png', [
     'Откройте IP → Firewall → Filter Rules. Каждое правило добавляется кнопкой +; Chain и условия задаются на вкладках General/Advanced, Action — на вкладке Action. На чистом роутере разместите сверху вниз в следующем порядке:',
     '1. Chain = input, Connection State = established, related, untracked; Action = accept.',
     '2. Chain = input, Connection State = invalid; Action = drop.',
@@ -261,11 +261,11 @@ function winboxSteps(state, model) {
     '9. Chain = forward, In. Interface List = LAN, Out. Interface List = WAN; Action = accept.',
     '10. Chain = forward; Action = drop. Сверьте порядок и существующие правила: добавление рядом с заводскими правилами без анализа может заблокировать доступ.'
   ]);
-  add('NAT для выхода в интернет', 'nat-rules.svg', [
+  add('NAT для выхода в интернет', null, [
     'Откройте IP → Firewall → NAT → +. Во вкладке General: Chain = srcnat, Out. Interface List = WAN.',
     'Во вкладке Action выберите masquerade и нажмите OK. Правило применяется к обоим каналам, добавленным в список WAN.'
   ]);
-  add('Настройка устройств и проверка', 'dhcp-client.svg', [
+  add('Настройка устройств и проверка', null, [
     'На каждом ПК, сервере и принтере задайте DHCP или статический IP, шлюз и DNS по таблице адресации выше. Адреса DHCP в таблице — только примеры, фактические аренды смотрите в Leases.',
     'В WinBox проверьте IP → Addresses, IP → Routes и IP → DHCP Server → Leases; в New Terminal выполните /ping 1.1.1.1 count=5. Затем проверьте доступ из локальной сети и DNS.',
     model.backupIsp ? 'Проверьте оба канала в реальности: отключите основной, проверьте новые соединения через резерв, затем восстановите основной. Distance сам по себе не обнаруживает все отказы за шлюзом; для контроля внешнего узла нужна дополнительная настройка.' : 'Проверка лаборатории не отправляет реальные пакеты: убедитесь в работоспособности на оборудовании.'

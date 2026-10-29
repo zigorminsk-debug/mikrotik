@@ -211,6 +211,22 @@
 </div>
 <div class="overlay" id="overlay" hidden></div>
 
+<!-- Просмотр изображения полностью и с увеличением -->
+<div class="modal shot-viewer" id="shot-viewer" hidden>
+  <div class="shot-viewer-card" role="dialog" aria-modal="true" aria-labelledby="shot-viewer-title">
+    <div class="shot-viewer-head">
+      <span id="shot-viewer-title">Просмотр изображения</span>
+      <button type="button" id="shot-fit">Целиком</button>
+      <button type="button" id="shot-out" aria-label="Уменьшить">−</button>
+      <span id="shot-level" aria-live="polite">100%</span>
+      <button type="button" id="shot-in" aria-label="Увеличить">+</button>
+      <button type="button" id="shot-close" aria-label="Закрыть">✕</button>
+    </div>
+    <div class="shot-stage" id="shot-stage"><img id="shot-full" alt=""></div>
+    <p class="shot-viewer-hint">«Целиком» показывает весь снимок. При увеличении перемещайтесь прокруткой или свайпом.</p>
+  </div>
+</div>
+
 <!-- ================= ДИАЛОГ ОБНОВЛЕНИЙ ================= -->
 <div class="modal" id="upd-modal" hidden>
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="upd-title">
@@ -373,5 +389,6 @@
 <script src="js/lab-sim.js"></script>
 <script src="js/lab.js"></script>
 <script src="js/app.js"></script>
+<script src="js/image-viewer.js"></script>
 </body>
 </html>

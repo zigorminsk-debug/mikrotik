@@ -44,7 +44,6 @@ section({
     ]},
 
     { t: 'Маршруты с check-gateway — сердце failover', b: [
-      IMG('assets/img/routes-failover.svg', 'WinBox: IP → Routes — два маршрута 0.0.0.0/0 с distance 1 и 2, check-gateway = ping'),
       CMD(
 `/ip route
 add dst-address=0.0.0.0/0 gateway=pppoe-out1 distance=1 \\
@@ -69,7 +68,6 @@ add dst-address=0.0.0.0/0 gateway=192.0.2.1 distance=2 \\
 
     { t: 'Метки соединений: сессии не рвутся при переключении', b: [
       P('Без меток при восстановлении основного все TCP-соединения (включая работающие RDP-сессии) мгновенно вернутся на основной и оборвутся. **Mangle** решает это:'),
-      IMG('assets/img/mangle-marks.svg', 'WinBox: Firewall → Mangle — пометка новых соединений и назначение routing-mark'),
       CMD(
 `# Таблицы маршрутизации (RouterOS v7):
 /routing table add name=to-primary fib
@@ -104,7 +102,6 @@ add dst-address=0.0.0.0/0 gateway=pppoe-out1 distance=2 routing-mark=to-backup c
 
     { t: 'Netwatch: мониторинг каналов и уведомления', b: [
       P('Netwatch периодически пингует контролируемые адреса и запускает скрипты при событии — удобно для журнала/почты.'),
-      IMG('assets/img/netwatch.svg', 'WinBox: Tools → Netwatch — контроль 8.8.8.8 и шлюзов провайдеров'),
       CMD(
 `/tool netwatch add host=8.8.8.8 type=icmp interval=10s timeout=1s \\
     comment="Интернет вообще"

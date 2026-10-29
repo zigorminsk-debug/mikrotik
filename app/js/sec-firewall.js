@@ -20,7 +20,8 @@ section({
 
     { t: 'Защита роутера: input', b: [
       P('Базовый набор: разрешаем уже открытые соединения и LAN, всё остальное — запрещаем.'),
-      IMG('assets/img/firewall-filter.svg', 'WinBox: Firewall → Filter Rules — правила input в правильном порядке'),
+      IMG('assets/img/official/firewall-menu.png', 'WinBox: открыть IP → Firewall и добавить правило. Пример MikroTik.'),
+      IMG('assets/img/official/firewall-rule.png', 'WinBox: пример создания правила filter. Параметры на снимке — пример, сверяйте с инструкцией.'),
       CMD(
 `/ip firewall filter
 # --- input: трафик К роутеру ---
@@ -61,7 +62,6 @@ add chain=forward in-interface-list=WAN action=drop comment="F6. Интерне�
 
     { t: 'NAT: выход в интернет (masquerade)', b: [
       P('Внутренние адреса 192.168.88.x провайдер не знает — маскируем исходящий трафик на WAN.'),
-      IMG('assets/img/nat-rules.svg', 'WinBox: Firewall → NAT — одно правило masquerade, out-interface-list = WAN'),
       CMD(
 `/ip firewall nat add \\
     chain=srcnat out-interface-list=WAN \\
@@ -81,7 +81,6 @@ add chain=forward in-interface-list=WAN action=drop comment="F6. Интерне�
 
     { t: 'Порт-форвардинг: доступ из интернета к внутренним ресурсам', b: [
       P('Пример: открыть веб-сервер `192.168.88.10:443` наружу под портом `443` и NAS `192.168.88.20` под внешним `8443/tcp`:'),
-      IMG('assets/img/dstnat.svg', 'WinBox: Firewall → NAT → dstnat — правило перенаправления с To Addresses / To Ports'),
       CMD(
 `# 1) Само перенаправление (dstnat):
 /ip firewall nat add chain=dstnat in-interface-list=WAN \\

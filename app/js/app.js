@@ -60,7 +60,20 @@ function renderBlock(b, stepIdx, bi) {
       var im = document.createElement('img');
       im.src = b.src; im.alt = b.cap || 'Скриншот'; im.loading = 'lazy';
       fig.appendChild(im);
-      if (b.cap) fig.appendChild(el('figcaption', '', fmt(b.cap)));
+      if (b.cap) {
+        var caption = el('figcaption', '', fmt(b.cap));
+        if ((b.src || '').indexOf('assets/img/official/') === 0) {
+          var link = document.createElement('a');
+          link.href = b.src.indexOf('winbox-login') !== -1 ? 'https://help.mikrotik.com/docs/spaces/ROS/pages/328129/WinBox' : 'https://help.mikrotik.com/docs/spaces/ROS/pages/328151/First+Time+Configuration';
+          link.textContent = ' Источник: MikroTik';
+          caption.appendChild(link);
+        }
+        fig.appendChild(caption);
+      }
+      var zoom = document.createElement('button');
+      zoom.type = 'button'; zoom.className = 'shot-zoom'; zoom.textContent = '🔍 Увеличить';
+      zoom.setAttribute('aria-label', 'Увеличить изображение: ' + (b.cap || 'схема'));
+      fig.appendChild(zoom);
       return fig;
     }
     case 'note': return el('div', 'note', fmt(b.t));

@@ -24,7 +24,6 @@ section({
 
     { t: 'WireGuard: сервер на роутере', b: [
       P('Самый простой и быстрый VPN в RouterOS v7. Интерфейс создаёт пару ключей автоматически.'),
-      IMG('assets/img/wireguard-peers.svg', 'WinBox: Interfaces → WireGuard — интерфейс wg0 и список Peers'),
       CMD(
 `# 1) Интерфейс сервера (порты наружу открыть в firewall — ниже):
 /interface wireguard add listen-port=13231 name=wg0 comment="VPN"
@@ -106,7 +105,7 @@ AllowedIPs = 192.168.88.0/24, 10.10.10.0/24
         'IKEv2 сервер'),
       P('**Клиент Windows**: Настройки → Сеть → VPN → Добавить: тип **IKEv2**, сервер — публичный IP, тип входа «Использовать общие ключи», пароль — ваш PSK.'),
       P('**Клиент iOS/Android**: VPN → Добавить VPN → IPsec (IKEv2) → сервер, общий ключ, логин/пароль (если EAP).'),
-      IMG('assets/img/ipsec-peer.svg', 'WinBox: IPsec → Peers/Identities — состояние соединений клиентов')
+
     ]},
 
     { t: 'L2TP/IPsec — универсальный вариант', b: [

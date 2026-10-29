@@ -27,11 +27,11 @@ jobs:
           set -e
           for f in app/js/*.js tools/*.js; do node --check "$f"; done
           echo "syntax OK"
-      - name: Генерация скриншотов (детерминированность)
+      - name: Генерация схемы сети (детерминированность)
         run: |
           node tools/gen-screens.js
           git diff --exit-code -- app/assets/img || {
-            echo "::error::SVG-скриншоты отличаются от закоммиченных. Запустите node tools/gen-screens.js и закоммитьте."
+            echo "::error::Схема сети отличается от закоммиченной. Запустите node tools/gen-screens.js и закоммитьте."
             exit 1
           }
       - name: Модульные тесты

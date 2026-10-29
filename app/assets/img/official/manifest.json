@@ -1,0 +1,52 @@
+{
+  "bridge-lan.png": {
+    "sha256": "dd6ba45685d5f6a941f93c684083fbbcfd728246ba6ed044f1f45e7e9071ba50",
+    "width": 1166,
+    "height": 452
+  },
+  "dhcp-server.png": {
+    "sha256": "2a3c985ec969b08b3131586d061f40f984a98e6c57daf2c6cd601d01255791a4",
+    "width": 806,
+    "height": 415
+  },
+  "firewall-menu.png": {
+    "sha256": "688ac9592214886a45cb28b02a461ced063d7dc445c5d133e36db4dcb0929f9f",
+    "width": 1022,
+    "height": 530
+  },
+  "firewall-rule.png": {
+    "sha256": "340220770840ff65e55754ddbc05fd195f3bd396acffc977ad30d88d73bda7a0",
+    "width": 1239,
+    "height": 634
+  },
+  "ip-address.png": {
+    "sha256": "cb2abdd203b5125c455a1a89dba506af9b695a7bca4042baf2d93415c48b7ed9",
+    "width": 635,
+    "height": 371
+  },
+  "pppoe-dial.png": {
+    "sha256": "77cf2432cb9ff786632ba488d9e785c88bf755342b35c808e4d4c1e6b89d8c40",
+    "width": 300,
+    "height": 296
+  },
+  "pppoe-general.png": {
+    "sha256": "14f6fdeab382cc67c914a826b6539f45b2d9fb2f8cf276b2e38c45e6a192acc6",
+    "width": 1535,
+    "height": 486
+  },
+  "winbox-login.png": {
+    "sha256": "d5853e463dbfbc90621bca74b02e0df37219b7a07991f95bc1c9b566f4ce17a5",
+    "width": 738,
+    "height": 355
+  },
+  "wireless-legacy.png": {
+    "sha256": "a98a0f0352930f4b038941b43d18b629fff59975c82715f68dd8404596512c15",
+    "width": 1172,
+    "height": 699
+  },
+  "wireless-security-legacy.png": {
+    "sha256": "dc8734a540d46494eb8201cabb4a1784c92e98aabf0f90183ea95c373aa1a7bb",
+    "width": 957,
+    "height": 534
+  }
+}
