@@ -91,13 +91,12 @@ try:
 "$1" 127.0.0.1:18291 admin "$2" >"$3/winbox.log" 2>&1 &
 pid=$!
 # Do not treat a login screen or failed authentication as a connected GUI.
-# CHR can be slow under software emulation. Check the status bar with OCR.
+# CHR can be slow under software emulation. Require authentication and session startup logs.
 ready=0
 for attempt in $(seq 1 12); do
   sleep 15
   scrot "$3/winbox.png"
-  tesseract "$3/winbox.png" "$3/ocr" 2>/dev/null || true
-  if grep -Eiq 'CHR[[:space:]]+QEMU' "$3/ocr.txt"; then ready=1; break; fi
+  if grep -q 'Auth OK' "$3/winbox.log" && grep -q 'WBOXSESS,INFO: first clock synced' "$3/winbox.log" && kill -0 "$pid" 2>/dev/null; then ready=1; break; fi
 done
 if [ "$ready" -ne 1 ]; then
   echo 'WinBox did not reach a verifiable CHR workspace' >>"$3/winbox.log"
