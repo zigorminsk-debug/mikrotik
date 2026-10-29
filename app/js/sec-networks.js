@@ -1,160 +1,111 @@
-/* Раздел: LAN и Wi-Fi (рабочая + гостевая) */
+/* Раздел: LAN, VLAN и Wi-Fi. Примеры рассчитаны на RouterOS 7. */
 section({
-  id: 'networks',
-  icon: '📶',
-  title: 'LAN и Wi-Fi сети',
-  badge: 'шаг 2',
-  lead: 'Создадим локальную сеть с пулом адресов, DHCP-сервером и две беспроводные сети: рабочую и гостевую ' +
-        'с полной изоляцией гостей от внутренних ресурсов.',
+  id: 'networks', icon: '📶', title: 'LAN, VLAN и Wi‑Fi', badge: 'шаг 2',
+  lead: 'Основная LAN, отдельный гостевой VLAN и Wi‑Fi для RouterOS 7: планирование, настройка, изоляция и проверка.',
   steps: [
-    { t: 'Мост LAN и адресация', b: [
-      P('Все LAN-порты объединяются в **bridge-lan** — к нему привязывается IP роутера (шлюз для клиентов).'),
-      IMG('assets/img/official/bridge-lan.png', 'WinBox: создание моста и добавление портов. Пример MikroTik.'),
-      IMG('assets/img/official/ip-address.png', 'WinBox: добавление адреса на интерфейс моста. Пример MikroTik.'),
-      CMD(
-`# 1) Переименование портов (ether1 — WAN, остальные — LAN):
-/interface ethernet set [ find default-name=ether1 ] name=ether1 comment="WAN"
-/interface ethernet set [ find default-name=ether2 ] name=ether2 comment="LAN"
-
-# 2) Мост и добавление LAN-портов:
-/interface bridge add name=bridge-lan comment="Локальная сеть"
+    { t: 'Что означают LAN, мост и VLAN', b: [
+      P('**LAN** — локальная сеть устройств. **Bridge** объединяет порты второго уровня, а адрес моста служит шлюзом основной сети. **VLAN** отделяет кадры разных сегментов: access-порт принимает нетегированный трафик и назначает ему PVID; trunk переносит теги нескольких VLAN.'),
+      P('Пример: основная LAN `192.168.88.0/24`, шлюз `192.168.88.1`; гостевой VLAN 20 — `192.168.99.0/24`, шлюз `192.168.99.1`. Подсети не должны пересекаться с WAN и VPN.'),
+      IMG('assets/img/official/bridge-lan.png', 'Официальный пример WinBox: создание моста. Значения могут отличаться от вашей схемы.'),
+      WARN('Перед изменением моста и VLAN сделайте резервную копию, откройте Safe Mode и подготовьте доступ через консоль или отдельный порт. Включение VLAN Filtering может отключить управление.')
+    ]},
+    { t: 'Основная LAN и DHCP', b: [
+      P('Для чистой конфигурации, где `ether1` — WAN, а `ether2`–`ether4` — LAN. Сверьте интерфейсы с устройством; не создавайте второй bridge или DHCP рядом с существующим без анализа.'),
+      IMG('assets/img/official/ip-address.png', 'Официальный пример WinBox: назначение адреса интерфейсу.'),
+      IMG('assets/img/official/dhcp-server.png', 'Официальный пример WinBox: мастер DHCP Setup.'),
+      CMD(`# Основная LAN: bridge VLAN Filtering пока выключен
+/interface bridge add name=bridge-lan vlan-filtering=no
 /interface bridge port add bridge=bridge-lan interface=ether2
 /interface bridge port add bridge=bridge-lan interface=ether3
 /interface bridge port add bridge=bridge-lan interface=ether4
-/interface bridge port add bridge=bridge-lan interface=ether5
+/ip address add address=192.168.88.1/24 interface=bridge-lan
 
-# 3) IP-адрес роутера = шлюз LAN:
-/ip address add address=192.168.88.1/24 interface=bridge-lan comment="LAN"`,
-        'Мост bridge-lan и шлюз'),
-      P('Адресная сеть выбирается **один раз** и дальше не меняется без миграции: `192.168.88.0/24` (диапазон 192.168.88.0–192.168.88.255, usable 192.168.88.2–254).'),
-      TIP('Если в сети уже есть чужой роутер с 192.168.88.0/24 — смените свою подсеть заранее, например на 192.168.10.0/24, чтобы не было конфликтов.')
+# Автоматические адреса; статику назначайте вне .100–.199
+/ip pool add name=pool-lan ranges=192.168.88.100-192.168.88.199
+/ip dhcp-server add name=dhcp-lan interface=bridge-lan address-pool=pool-lan disabled=no
+/ip dhcp-server network add address=192.168.88.0/24 gateway=192.168.88.1 dns-server=192.168.88.1
+/ip dns set servers=1.1.1.1,8.8.8.8 allow-remote-requests=yes`, 'Основная сеть'),
+      NOTE('Открывайте DNS роутера только нужным внутренним сегментам; не разрешайте произвольные DNS-запросы с WAN. DHCP-адреса в лаборатории — примеры, а реальные аренды проверяются в Leases.')
     ]},
-
-    { t: 'Пул адресов и DHCP-сервер', b: [
-      P('DHCP раздаёт клиентам адреса из заданного **пула**, шлюз и DNS автоматически.'),
-      IMG('assets/img/official/dhcp-server.png', 'WinBox: запуск мастера DHCP Setup. Пример MikroTik.'),
-      CMD(
-`# Пул адресов (10…250 — оставляем резерв под статику 1–9 и 251–254):
-/ip pool add name=pool-lan ranges=192.168.88.10-192.168.88.250
-
-# Сеть для клиентов (шлюз и DNS):
-/ip dhcp-server network add \\
-    address=192.168.88.0/24 \\
-    gateway=192.168.88.1 \\
-    dns-server=77.88.8.8,8.8.8.8 \\
-    comment="LAN"
-
-# Сам DHCP-сервер:
-/ip dhcp-server add \\
-    name=dhcp-lan interface=bridge-lan \\
-    address-pool=pool-lan lease-time=10m disabled=no
-
-# Статические адреса внутри DHCP (например, сервер 1С):
-/ip dhcp-server lease add address=192.168.88.10 mac-address=AA:BB:CC:DD:EE:FF server=dhcp-lan`,
-        'Пул и DHCP-сервер LAN'),
-      UL([
-        '**Lease time** 10m–1d: короткое — быстрее отдаёт освободившийся адрес, длиннее — меньше трафика;',
-        '**Статика** — лучше по MAC-адресу в DHCP-lease, чтобы адрес не «уезжал»;',
-        'Проверка выдач: `/ip dhcp-server lease print`.'
-      ]),
-      WARN('Название сети в `dhcp-server network` должно совпадать с подсетью IP роутера. Пул **не должен** содержать адрес самого роутера (192.168.88.1).')
+    { t: 'Рабочая точка Wi‑Fi — пакет wifi', b: [
+      P('В RouterOS **7.13 и новее** команды ниже относятся к пакету `wifi`. Устройство должно иметь радио и поддерживать режим AP. Имена и доступные пакеты зависят от модели; для старого `wireless` и `wifiwave2` меню отличается.'),
+      P('Замените `wifi1`, SSID, пароль и страну на свои. Страну выбирайте из списка RouterOS согласно фактическому месту использования. В примере WPA2-PSK; используйте уникальный сильный пароль.'),
+      CMD(`# Сначала выключите радио; предполагается чистая конфигурация без существующего datapath/bridge-порта
+/interface wifi set [find name="wifi1"] disabled=yes configuration.mode=ap configuration.country="Belarus" configuration.ssid="Work-Net" security.authentication-types=wpa2-psk security.passphrase="ReplaceWithStrongPassword"
+/interface bridge port add bridge=bridge-lan interface=wifi1
+# После настройки firewall и проверки порта включите:
+/interface wifi set [find name="wifi1"] disabled=no`, 'Рабочий SSID в основной LAN'),
+      WARN('Существующий datapath может автоматически добавить Wi‑Fi в мост: проверьте текущие настройки, чтобы не создать повторный порт. Наличие или имена wifi1/wifi2 не гарантированы на каждой модели.')
     ]},
+    { t: 'Гостевой VLAN и гостевой SSID', b: [
+      P('В примере `ether4` — гостевой **access**-порт, `wifi-guest` — виртуальный гостевой SSID, `bridge-lan` — tagged CPU-порт VLAN 20. Основные `ether2`, `ether3` и `wifi1` остаются в нетегированной основной LAN (PVID 1). Не подключайте основную и гостевую сети к одному неуправляемому коммутатору.'),
+      CMD(`# Подготовка при выключенном vlan-filtering; ether4 уже добавлен в bridge-lan
+/interface bridge port set [find where bridge=bridge-lan and interface=ether4] pvid=20 frame-types=admit-only-untagged-and-priority-tagged ingress-filtering=yes disabled=yes
 
-    { t: 'Рабочая Wi-Fi-сеть', b: [
-      P('Задача: надёжное шифрование WPA2/WPA3, один SSID на всех точках, канал без помех.'),
-      IMG('assets/img/official/wireless-legacy.png', 'WinBox: меню Wireless для старого пакета wireless; в RouterOS 7 с пакетом WiFi интерфейс отличается.'),
-      IMG('assets/img/official/wireless-security-legacy.png', 'WinBox: пример профиля безопасности в старом пакете wireless.'),
-      CMD(
-`# Страна (обязательно для корректной работы радио):
-/interface wifi config set country=BY
-
-# Профиль безопасности рабочей сети:
-/interface wifi security profiles add name=sec-work \\
-    mode=wpa2 wpa2-pre-shared-key="ВашНадежныйПароль1!"
-
-# Точка доступа на мосту LAN:
-/interface wifi configuration add name=cfg-work \\
-    ssid="MyNet" security=sec-work \\
-    mode-ap bridge=bridge-lan disabled=no`,
-        'Wi-Fi v7 (wifiwave2: hAP ax, ax², cCR2004 и др.)'),
-      P('Если роутер со **старым** Wireless (hAP ac², hEX, rb9xx и подобные — пакет `wireless`, не `wifiwave2`):'),
-      CMD(
-`/interface wireless security-profiles add name=sec-work \\
-    authentication-types=wpa2-psk wpa2-pre-shared-key="ВашНадежныйПароль1!" \\
-    mode=dynamic-keys
-
-/interface wireless set [ find default-name=wlan1 ] \\
-    disabled=no ssid="MyNet" \\
-    security-profile=sec-work \\
-    mode=ap bridge=bridge-lan \\
-    channel=20/40mhz-Ce frequency=auto`,
-        'Классический Wireless'),
-      UL([
-        '**Пароль** — 12+ символов, смешанный: WPA2-AES минимум, WPA3 где поддерживают клиенты;',
-        '**Канал**: 2.4 ГГц — 1/6/11 (автовыбор), 5 ГГц — широкие 40/80 МГц, но короче радиус;',
-        '**SSID лучше не прятать** (скрытый — проблемы у клиентов, трафик всё равно открыт в воздухе);',
-        'Для офисов: отдельный VLAN для Wi-Fi через `/interface bridge add name=bridge-lan vlan-filtering=yes`.'
-      ])
+# Виртуальный SSID поддерживается не всеми радио/пакетами; пока отключён
+/interface wifi add name=wifi-guest master-interface=wifi1 disabled=yes configuration.mode=ap configuration.ssid="Guest-Net" security.authentication-types=wpa2-psk security.passphrase="ReplaceGuestPassword"
+/interface bridge port add bridge=bridge-lan interface=wifi-guest pvid=20 frame-types=admit-only-untagged-and-priority-tagged ingress-filtering=yes
+/interface bridge vlan add bridge=bridge-lan tagged=bridge-lan untagged=ether4,wifi-guest vlan-ids=20
+/interface vlan add name=vlan-guest interface=bridge-lan vlan-id=20
+/ip address add address=192.168.99.1/24 interface=vlan-guest
+/ip pool add name=pool-guest ranges=192.168.99.100-192.168.99.199
+/ip dhcp-server add name=dhcp-guest interface=vlan-guest address-pool=pool-guest disabled=no
+/ip dhcp-server network add address=192.168.99.0/24 gateway=192.168.99.1 dns-server=192.168.99.1`, 'Гостевой VLAN и DHCP'),
+      P('В WinBox: **Bridge → Ports** — PVID и тип кадров; **Bridge → VLANs** — tagged/untagged; **Interfaces → VLAN** — интерфейс VLAN на мосту; **IP → Addresses / DHCP Server** — адрес и выдача.'),
+      WARN('До включения VLAN Filtering гостевой порт ether4 и гостевое радио должны оставаться выключенными, иначе гости могут временно оказаться в основной LAN. Не включайте фильтрацию до проверки таблицы VLAN и правил firewall. Доступ между клиентами одного VLAN на L2 эти правила сами по себе не запрещают.')
     ]},
+    { t: 'Firewall: гостям интернет, но не доступ в LAN', b: [
+      P('Ниже дополнительные правила к базовому firewall. Они требуют существующего списка интерфейсов `WAN`. Более ранние правила accept могут разрешить дополнительный доступ, например ICMP; проверьте всю цепочку. Размещайте их **до общих разрешений и завершающих drop** соответствующих цепочек; слепое добавление в конец может не сработать. Если нужен доступ к отдельному ресурсу, создайте узкое исключение до запрета.'),
+      CMD(`# INPUT: DHCP и DNS роутера для гостей; остальное к самому роутеру запрещаем
+/ip firewall filter add chain=input in-interface=vlan-guest protocol=udp dst-port=53,67 action=accept comment="guest DNS DHCP"
+/ip firewall filter add chain=input in-interface=vlan-guest protocol=tcp dst-port=53 action=accept comment="guest DNS TCP"
+/ip firewall filter add chain=input in-interface=vlan-guest action=drop comment="guest no router management"
 
-    { t: 'Гостевая Wi-Fi-сеть (изолированная)', b: [
-      P('Гости получают адреса из **своей подсети** и ходят **только в интернет**. До корпоративных ресурсов — доступ закрыт правилами firewall (раздел Firewall).'),
-      CMD(
-`# 1) Отдельный мост под гостей:
-/interface bridge add name=bridge-guest comment="Гостевая сеть"
-# (при необходимости добавьте в него порт: /interface bridge port add bridge=bridge-guest interface=ether5)
-
-# 2) Адрес и пул гостей — своя подсеть!:
-/ip address add address=192.168.99.1/24 interface=bridge-guest comment="Гости"
-/ip pool add name=pool-guest ranges=192.168.99.10-192.168.99.250
-/ip dhcp-server add name=dhcp-guest interface=bridge-guest \\
-    address-pool=pool-guest lease-time=10m disabled=no
-/ip dhcp-server network add address=192.168.99.0/24 \\
-    gateway=192.168.99.1 dns-server=77.88.8.8 comment="Гости"
-
-# 3) Гостевой Wi-Fi (v7):
-/interface wifi security profiles add name=sec-guest \\
-    mode=wpa2 wpa2-pre-shared-key="Gost2026!Net"
-/interface wifi configuration add name=cfg-guest \\
-    ssid="MyNet-Guest" security=sec-guest \\
-    mode-ap bridge=bridge-guest disabled=no
-
-# 4) Ограничение полосы для гостей (опционально):
-/queue simple add name=guest-limit max-limit=20M/20M \\
-    target=192.168.99.0/24 comment="Гостям не более 20 Мбит"`,
-        'Гостевой сегмент'),
-      P('Гости **не должны** попадать в LAN — изоляция делается в разделе Firewall (правила «Гости → LAN: запрет»).'),
-      TIP('Если гостям нужен доступ к принтеру/IP-камере — разрешите конкретные адреса: `dst-address=192.168.88.10 protocol=tcp dst-port=631 action=accept` вместо общего запрета.')
+# FORWARD: гости — только в WAN; ограничить также новые LAN -> guest
+/ip firewall filter add chain=forward in-interface=vlan-guest out-interface-list=WAN action=accept comment="guest internet"
+/ip firewall filter add chain=forward in-interface=vlan-guest action=drop comment="guest no internal networks"
+/ip firewall filter add chain=forward out-interface=vlan-guest connection-state=new action=drop comment="no new internal to guest"`, 'Правила гостевого сегмента'),
+      P('После проверки firewall и таблицы VLAN включайте фильтрацию и радио. При иной схеме firewall скорректируйте порядок: действующие established-соединения, исключения, FastTrack и аппаратное ускорение могут влиять на проверку.'),
+      CMD(`# Только после проверки и при наличии консольного доступа
+/interface bridge set [find name=bridge-lan] vlan-filtering=yes
+/interface bridge port set [find where bridge=bridge-lan and interface=ether4] disabled=no
+/interface wifi set [find name="wifi1"] disabled=no
+/interface wifi set [find name=wifi-guest] disabled=no`, 'Включение после проверки'),
+      WARN('Публикация порта, VPN или отдельные разрешения могут специально открыть путь в гостевую сеть. Для интернета нужен NAT/маршрутизация; они настраиваются отдельно.')
     ]},
-
-    { t: 'Hotspot (каптив-портал) для гостей — по желанию', b: [
-      P('Вместо простого пароля можно показывать страницу входа с правилами. Быстрый старт через мастер:'),
-      CMD(
-`# WinBox: IP → Hotspot → Hotspot Setup → выбрать bridge-guest,
-# пул, адрес страницы (обычно 192.168.99.1), логины. Мастер создаст всё сам.
-
-# Ручной эквивалент ключевых объектов:
-/ip hotspot profile add name=hs-guest hotspot-interface=bridge-guest \\
-    html-directory=hotspot login-by=http-pap,mac-cookie
-/ip hotspot user add name=guest password=temporary123 profile=hs-guest`,
-        'Hotspot для гостей'),
-      NOTE('Hotspot работает на уровне своего сервера — правила изоляции LAN из раздела Firewall продолжают действовать.')
+    { t: 'Дополнительно: Hotspot и ограничение скорости', b: [
+      P('Для каптив-портала используйте в WinBox **IP → Hotspot → Hotspot Setup** и выберите `vlan-guest`, если гостевая сеть создана именно на нём. Мастер запросит адреса, пул, DNS-имя и учётные данные. Проверьте ограничения лицензии, сертификат и доступность портала на своих устройствах.'),
+      WARN('Hotspot и скорость в графической лаборатории пока не моделируются и автоматически не настраиваются. Мастер может изменить DNS, DHCP и firewall; перед запуском проверьте существующую конфигурацию и сделайте резервную копию.'),
+      CMD(`# Пример общего ограничения для адресов гостей (при необходимости)
+/queue simple add name=guest-limit target=192.168.99.0/24 max-limit=20M/20M
+/queue simple print stats`, 'Ограничение скорости гостей'),
+      NOTE('FastTrack и аппаратное ускорение могут обходить очереди. Протестируйте скорость при реальном трафике; при необходимости скорректируйте правила FastTrack.')
     ]},
-
-    { t: 'Проверка LAN/Wi-Fi', b: [
+    { t: 'Старый пакет Wireless и ограничения', b: [
+      IMG('assets/img/official/wireless-legacy.png', 'Официальный снимок старого пакета Wireless, не интерфейс нового wifi.'),
+      IMG('assets/img/official/wireless-security-legacy.png', 'Официальный пример старого профиля безопасности Wireless.'),
+      P('На устройстве со старым пакетом `wireless` используйте меню **Wireless**, а не приведённые выше команды `/interface wifi`. Для отдельных VLAN и виртуальных точек настройки зависят от модели и драйвера; предварительно сверьте документацию MikroTik.'),
+      CMD(`# Пример только для пакета wireless; проверьте имя wlan1 и фактическую страну
+/interface wireless security-profiles add name=sec-work mode=dynamic-keys authentication-types=wpa2-psk wpa2-pre-shared-key="ReplaceWithStrongPassword"
+/interface wireless set [find default-name=wlan1] mode=ap-bridge ssid="Work-Net" security-profile=sec-work country=belarus frequency-mode=regulatory-domain disabled=no
+# При необходимости отдельно добавьте wlan1 в существующий bridge LAN.`, 'Старый Wireless: основной SSID'),
+      NOTE('Роутер без беспроводного радио не станет точкой доступа только от команды. В лаборатории генератор пока поддерживает пакет wifi, а не старый Wireless или wifiwave2.')
+    ]},
+    { t: 'Проверка и поиск ошибок', b: [
       OL([
-        'Клиент получает адрес из правильного пула: `/ip dhcp-server lease print`.',
-        'Шлюз пингуется с клиента: `ping 192.168.88.1`.',
-        'Оба SSID видны и подключаются (рабочий → в LAN, гостевой → в 192.168.99.0/24).',
-        'Клиент гостевой сети видит адрес вида 192.168.99.x (проверка `ipconfig /all` / `ip addr`).',
-        'С гостевого устройства **не открывается** ресурс 192.168.88.x (до настройки firewall это ожидаемо после правил изоляции).'
+        'В Bridge → Ports и VLANs проверьте PVID, tagged/untagged и активное состояние VLAN Filtering.',
+        'В DHCP Server → Leases проверьте основную и гостевую аренды: адрес, шлюз и DNS должны относиться к своему сегменту.',
+        'Проверьте выход гостя в интернет и отсутствие доступа к рабочему серверу и управлению роутером; проверьте отдельно доступ между гостевыми клиентами.',
+        'В WiFi проверьте активную конфигурацию, страну и регистрацию клиента; отдельно проверьте реальное покрытие и работу после перезагрузки.'
       ]),
-      CMD(
-`/interface print
+      CMD(`/interface bridge port print detail
+/interface bridge vlan print detail
+/interface vlan print
+/interface wifi print detail
 /ip address print
 /ip dhcp-server lease print
-/queue simple print`,
-        'Проверка состояния')
+/ip firewall filter print stats`, 'Диагностика'),
+      NOTE('Лаборатория показывает расчётную схему, не отправляет реальный трафик и не проверяет радио. Источники: официальная документация MikroTik — Bridge VLAN Table и WiFi.')
     ]}
   ]
 });

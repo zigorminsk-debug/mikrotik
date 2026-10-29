@@ -81,6 +81,17 @@ const {JSDOM,VirtualConsole} = require('jsdom');
  d.querySelector('[data-id="'+common+'"] .lab-power').click(); assert($('lab-flow-status').textContent.includes('Нет активного пути')); assert(!d.querySelector('.lab-flow-out'));
  // Настройка доступа извне непосредственно через линию ПК — MikroTik.
  $('lab_reset').click(); const directRouter=w.Lab.place('router',100,100), directIsp=w.Lab.place('isp',100,0), directPc=w.Lab.place('pc',100,220); w.Lab.link(directRouter,directIsp); const link=w.Lab.link(directRouter,directPc); w.Lab.selectLink(link); assert($('insp_ext')); $('insp_ext').click(); assert($('lm_external')); $('lm_cancel').click();
+ // Настройки LAN/VLAN/Wi-Fi в MikroTik и выбор гостевого сегмента у устройства.
+ $('lab_reset').click(); const vr=w.Lab.place('router',100,100), vi=w.Lab.place('isp',100,0), vs=w.Lab.place('switch',200,220), vp=w.Lab.place('pc',100,350), vg=w.Lab.place('server',320,220);
+ w.Lab.link(vr,vi); w.Lab.link(vr,vs); w.Lab.link(vs,vp); w.Lab.link(vr,vg);
+ d.querySelector('[data-id="'+vr+'"] .lab-gear').click();
+ assert($('lm_guest_vlan') && $('lm_wifi_ap') && $('lm_network_guide'));
+ $('lm_guest_vlan').checked=true; $('lm_guest_vlan').dispatchEvent(new w.Event('change')); assert(!$('lm_guest_vlan_box').hidden);
+ $('lm_wifi_ap').checked=true; $('lm_wifi_ap').dispatchEvent(new w.Event('change')); $('lm_wifi_country').value='Belarus'; $('lm_wifi_pass').value='StrongPassword'; $('lm_wifi_guest').checked=true; $('lm_wifi_guest').dispatchEvent(new w.Event('change')); $('lm_wifi_guest_pass').value='GuestPassword'; $('lm_save').click(); assert($('lab-modal').hidden);
+ d.querySelector('[data-id="'+vg+'"] .lab-gear').click(); $('lm_segment').value='guest'; $('lm_mode').value='dhcp'; $('lm_mode').dispatchEvent(new w.Event('change')); $('lm_save').click();
+ $('lab_run').click(); assert($('lab-results').textContent.includes('Проверка учебной модели пройдена')); assert($('lab-results').textContent.includes('192.168.99.100/24')); assert($('lab-results').textContent.includes('wifi-guest')); assert($('lab-results').textContent.includes('vlan-filtering=yes'));
+ // Ссылка на учебник закрывает окно настроек.
+ d.querySelector('[data-id="'+vr+'"] .lab-gear').click(); $('lm_network_guide').click(); assert($('lab-modal').hidden); await new Promise(resolve=>setTimeout(resolve,20)); assert(!$('content').hidden);
  // Обычный раздел учебника использует тот же просмотр, не только лаборатория.
  w.location.hash='firewall'; await new Promise(resolve=>setTimeout(resolve,20));
  const guideImg=d.querySelector('#content figure.shot img'); assert(guideImg && guideImg.getAttribute('src').includes('official/'));

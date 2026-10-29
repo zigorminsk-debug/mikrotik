@@ -37,6 +37,8 @@ var TYPES = {
     defName: function (n) { return n <= 1 ? 'MikroTik' : 'MikroTik ' + n; },
     cfg: function () { return { lan: '192.168.88.0/24', gw: '192.168.88.1',
       dhcp: true, nat: true, firewall: true, vpn: false, wanFailover: false, routerFailover: true,
+      vlanGuest: false, guestVlan: '20', guestNet: '192.168.99.0/24', guestGw: '192.168.99.1', guestDhcp: true,
+      wifiAp: false, wifiIf: 'wifi1', wifiCountry: '', wifiSsid: 'MikroTik-LAN', wifiPass: '', wifiGuest: false, wifiGuestSsid: 'MikroTik-Guest', wifiGuestPass: '',
       vpnType: 'wireguard', vpnPort: '13231', vpnPool: '10.10.10.0/24', vpnPeer: '', vpnUser: '', vpnPass: '', vpnPsk: '', vpnServerCert: '', vpnClientCert: '' }; } },
   switch: { label: 'Коммутатор', cls: 'switch',
     defName: function (n) { return n <= 1 ? 'Коммутатор' : 'Коммутатор ' + n; },
@@ -102,6 +104,8 @@ function renderDevices() {
       if (d.cfg.nat) roles.push('NAT');
       if (d.cfg.firewall) roles.push('FW');
       if (d.cfg.vpn) roles.push('VPN');
+      if (d.cfg.vlanGuest) roles.push('VLAN');
+      if (d.cfg.wifiAp) roles.push('Wi-Fi');
       badge = '<span class="lab-ip">' + esc(roles.join('·') || 'роли —') + '</span>';
     }
     el.innerHTML = '<div class="lab-ico">' + ICONS[d.type] + '</div>' +
@@ -250,6 +254,8 @@ function renderInspect() {
     if (d.cfg.nat) roles.push('NAT');
     if (d.cfg.firewall) roles.push('Firewall');
     if (d.cfg.vpn) roles.push('VPN');
+    if (d.cfg.vlanGuest) roles.push('гостевой VLAN');
+    if (d.cfg.wifiAp) roles.push('Wi-Fi');
     sub = esc(d.cfg.lan) + ' · ' + (d.cfg.routerRole === 'backup' ? 'резервный' : 'основной') + ' · роли: ' + esc(roles.join(', ') || 'не заданы');
   } else if (d.type === 'isp') {
     sub = { pppoe: 'PPPoE: логин/пароль', dhcp: 'DHCP — авто', static: 'Статический IP', lte: 'USB 3G/LTE' }[d.cfg.kind];
@@ -257,7 +263,7 @@ function renderInspect() {
   } else if (d.type === 'switch') {
     sub = 'Коммутатор L2 — просто соединяет сегменты';
   } else {
-    sub = d.cfg.mode === 'dhcp' ? 'получает адрес по DHCP' : 'статический: ' + esc(d.cfg.ip);
+    sub = (d.cfg.segment === 'guest' ? 'гостевой VLAN · ' : 'основная LAN · ') + (d.cfg.mode === 'dhcp' ? 'получает адрес по DHCP' : 'статический: ' + esc(d.cfg.ip));
   }
   inspectEl.innerHTML = '<div class="insp-t">' + esc(d.name) + '</div><div class="insp-sub">' + sub + '</div>' +
     '<div class="insp-acts">' +
@@ -561,7 +567,7 @@ function renderResults(res) {
     html += '<div class="note">' + (res.dual ? 'При двух роутерах номера портов согласуйте вручную. ' : 'Порты назначаются по порядку создания линий к MikroTik. ' ) + ' Подключите кабели согласно карте ниже; для DHCP-клиентов настройте автоматическое получение IP, для статических — адрес, шлюз и DNS из таблицы. Пароли и ключи могут присутствовать в командах: не публикуйте их.</div>';
     html += '<div class="res-card"><div class="res-head">🔌 Подключения MikroTik</div><div class="res-body"><ul>' +
       (res.dual ? '<li>Два MikroTik: см. соединения на схеме; номера портов и VRRP необходимо согласовать вручную.</li>' : res.model.isps.map(function(i) { return '<li>' + esc(i.phys) + ' → ' + esc(i.name) + ' (' + esc(i.kind) + ', ' + (i.priority === 'primary' ? 'основной' : 'резервный') + ')</li>'; }).join('') +
-      res.model.router.lanPorts.map(function(p) { return '<li>' + esc(p.phys) + ' → ' + esc(p.dev.name) + '</li>'; }).join('')) + '</ul></div></div>';
+      res.model.router.lanPorts.map(function(p) { return '<li>' + esc(p.phys) + ' → ' + esc(p.dev.name) + (res.model.router.cfg.vlanGuest ? ' (' + (p.segment === 'guest' ? 'гостевой VLAN ' + esc(res.model.router.cfg.guestVlan) : 'основная LAN') + ')' : '') + '</li>'; }).join('')) + '</ul></div></div>';
     html += '<div class="res-card" id="lab-winbox"><div class="res-head">🖥 Пошаговая настройка через WinBox</div><div class="res-body">' +
       '<div class="note">Снимки ниже — подлинные примеры из документации MikroTik, не снимки вашего роутера. Вводите значения из текста и карты адресов. Интерфейс зависит от версии RouterOS.</div>';
     res.winbox.forEach(function (step, i) {
@@ -615,6 +621,27 @@ function openSettings(id) {
       chk('lm_router_failover', 'Учебное переключение на резервный MikroTik (задаётся на основном)' , c.routerFailover !== false) +
       chk('lm_vpn', 'VPN-сервер', c.vpn) +
       '<p class="fs-hint">Переключение в модели условное. Для реальной доступности интернета и резервирования двух роутеров нужна отдельная проверка оборудования и VRRP.</p>';
+    html += '<div class="lm-t">LAN, VLAN и Wi‑Fi</div>' +
+      '<p class="fs-hint">LAN — основная сеть моста. Гостевой VLAN создаёт отдельную подсеть; у каждого ПК/сервера/принтера выберите сегмент. Одно подключение неуправляемого коммутатора может нести только один сегмент.</p>' +
+      chk('lm_guest_vlan', 'Гостевой VLAN и изоляция от LAN', c.vlanGuest) +
+      '<div id="lm_guest_vlan_box"' + (c.vlanGuest ? '' : ' hidden') + '><div class="lm-grid">' +
+      f('lm_guest_vlan_id', 'VLAN ID (2–4094)', 'text', c.guestVlan || '20', 'inputmode="numeric"') +
+      f('lm_guest_net', 'Гостевая подсеть /24', 'text', c.guestNet || '192.168.99.0/24', 'spellcheck="false"') +
+      f('lm_guest_gw', 'Гостевой шлюз', 'text', c.guestGw || '192.168.99.1', 'inputmode="decimal"') + '</div>' +
+      chk('lm_guest_dhcp', 'DHCP гостевого сегмента (пул .100–.199)', c.guestDhcp !== false) +
+      '<p class="fs-hint">Гости получают доступ в WAN и к DNS/DHCP роутера, но не в основную LAN. Для этого обязателен Firewall. Клиенты одного гостевого сегмента могут общаться друг с другом.</p></div>' +
+      chk('lm_wifi_ap', 'Рабочая точка доступа Wi‑Fi (пакет wifi)', c.wifiAp) +
+      '<div id="lm_wifi_box"' + (c.wifiAp ? '' : ' hidden') + '><div class="lm-grid">' +
+      f('lm_wifi_if', 'Имя радио-интерфейса', 'text', c.wifiIf || 'wifi1', 'spellcheck="false"') +
+      f('lm_wifi_country', 'Страна точно как в RouterOS', 'text', c.wifiCountry || '', 'spellcheck="false" placeholder="Например: Belarus"') +
+      f('lm_wifi_ssid', 'SSID основной сети', 'text', c.wifiSsid || 'MikroTik-LAN', 'spellcheck="false"') +
+      f('lm_wifi_pass', 'Пароль WPA2 (8–63 символа ASCII)', 'password', c.wifiPass || '', 'autocomplete="new-password"') + '</div>' +
+      chk('lm_wifi_guest', 'Гостевой Wi‑Fi (виртуальный SSID в гостевом VLAN)', c.wifiGuest) +
+      '<div id="lm_wifi_guest_box"' + (c.wifiGuest ? '' : ' hidden') + '><div class="lm-grid">' +
+      f('lm_wifi_guest_ssid', 'SSID гостей', 'text', c.wifiGuestSsid || 'MikroTik-Guest', 'spellcheck="false"') +
+      f('lm_wifi_guest_pass', 'Пароль гостей WPA2', 'password', c.wifiGuestPass || '', 'autocomplete="new-password"') + '</div></div>' +
+      '<p class="fs-hint">RouterOS 7.13+ с пакетом wifi и поддержкой AP/виртуального интерфейса. Для старого wireless и wifiwave2 команды отличаются; радио и покрытие не эмулируются. Пароли попадут в проект команд.</p></div>' +
+      '<p class="fs-hint"><a id="lm_network_guide" href="#networks">Подробные инструкции по LAN, VLAN и Wi‑Fi в учебнике</a></p>';
     html += '<div id="lm_vpn_box"' + (c.vpn ? '' : ' hidden') + '><div class="lm-grid">' +
       sel('lm_vpn_type', 'Тип VPN', [['wireguard', 'WireGuard'], ['ikev2', 'IPsec IKEv2'], ['l2tp-ipsec', 'L2TP/IPsec']], c.vpnType) +
       f('lm_vpn_pool', 'Подсеть VPN (CIDR)', 'text', c.vpnPool, 'list="dl-net"') + '</div>' +
@@ -634,12 +661,13 @@ function openSettings(id) {
     html += '<div id="lm_g_lte"' + (c.kind === 'lte' ? '' : ' hidden') + '><div class="lm-grid">' +
       f('lm_apn', 'APN', 'text', c.apn || 'internet', 'spellcheck="false"') + '</div></div>';
   } else if (d.type !== 'switch') {
+    html += sel('lm_segment', 'Сегмент сети', [['main', 'Основная LAN'], ['guest', 'Гостевой VLAN']], c.segment || 'main');
     html += sel('lm_mode', 'Получение адреса', [['static', 'Статический IP'], ['dhcp', 'DHCP (авто)']], c.mode || 'static');
     html += '<div id="lm_g_static_ep"' + ((c.mode || 'static') === 'static' ? '' : ' hidden') + '><div class="lm-grid">' +
       f('lm_ip2', 'IP/маска', 'text', c.ip, 'list="dl-net" inputmode="decimal"') +
       f('lm_gw2', 'Шлюз', 'text', c.gw, 'list="dl-ip" inputmode="decimal"') +
       f('lm_ep_dns', 'DNS (необязательно)', 'text', c.dns || '', 'list="dl-dns" inputmode="decimal"') + '</div>' +
-      '<button type="button" class="btn ghost lm-mini" id="lm_fill_gw">↳ подставить IP роутера</button></div>';
+      '<button type="button" class="btn ghost lm-mini" id="lm_fill_gw">↳ подставить адрес и шлюз выбранного сегмента</button></div>';
     if (d.type === 'pc' || d.type === 'server') {
       html += '<div class="lm-t">Публикация в интернете</div>' + chk('lm_external', 'Разрешить доступ извне к этому устройству', c.external) +
         '<div id="lm_external_box"' + (c.external ? '' : ' hidden') + '><div class="lm-grid">' +
@@ -659,7 +687,7 @@ function openSettings(id) {
   lmErr.hidden = true;
   modal.hidden = false;
 
-  var kindSel = $('lm_kind'), modeSel = $('lm_mode'), vpnChk = $('lm_vpn'), vpnType = $('lm_vpn_type'), extChk = $('lm_external');
+  var kindSel = $('lm_kind'), modeSel = $('lm_mode'), vpnChk = $('lm_vpn'), vpnType = $('lm_vpn_type'), extChk = $('lm_external'), guestChk = $('lm_guest_vlan'), wifiChk = $('lm_wifi_ap'), wifiGuestChk = $('lm_wifi_guest');
   function applyVis() {
     if (kindSel) {
       $('lm_g_pppoe').hidden = kindSel.value !== 'pppoe';
@@ -670,14 +698,27 @@ function openSettings(id) {
     if (vpnChk) $('lm_vpn_box').hidden = !vpnChk.checked;
     if (vpnType) { $('lm_vpn_wg').hidden = vpnType.value !== 'wireguard'; $('lm_vpn_ike').hidden = vpnType.value !== 'ikev2'; $('lm_vpn_l2tp').hidden = vpnType.value !== 'l2tp-ipsec'; }
     if (extChk) $('lm_external_box').hidden = !extChk.checked;
+    if (guestChk) $('lm_guest_vlan_box').hidden = !guestChk.checked;
+    if (wifiChk) { $('lm_wifi_box').hidden = !wifiChk.checked; if (!wifiChk.checked && wifiGuestChk) wifiGuestChk.checked = false; }
+    if (wifiGuestChk) $('lm_wifi_guest_box').hidden = !wifiGuestChk.checked;
   }
-  [kindSel, modeSel, vpnChk, vpnType, extChk].forEach(function (e2) {
+  [kindSel, modeSel, vpnChk, vpnType, extChk, guestChk, wifiChk, wifiGuestChk].forEach(function (e2) {
     if (e2) e2.addEventListener('change', applyVis);
   });
+  var guideLink = $('lm_network_guide');
+  if (guideLink) guideLink.addEventListener('click', function () { modal.hidden = true; editingId = null; });
   var fill = $('lm_fill_gw');
   if (fill) fill.addEventListener('click', function () {
     var rt = state.devices.filter(function (x) { return x.type === 'router'; })[0];
-    if (rt) $('lm_gw2').value = rt.cfg.gw;
+    if (rt) {
+      var guest = $('lm_segment') && $('lm_segment').value === 'guest';
+      var network = LabEngine.parseCidr(guest ? rt.cfg.guestNet : rt.cfg.lan), gw = guest ? rt.cfg.guestGw : rt.cfg.gw;
+      if (!network) return lmFail('Сначала настройте подсеть выбранного сегмента на MikroTik');
+      var used = state.devices.filter(function(x) { return x.id !== d.id && x.cfg && x.cfg.mode === 'static'; }).map(function(x) { return (x.cfg.ip || '').split('/')[0]; });
+      var host = 10, ip; do { ip = LabEngine.intToIp(network.firstInt + host++); } while (host < 100 && (ip === gw || used.indexOf(ip) !== -1));
+      if (ip === gw || used.indexOf(ip) !== -1) return lmFail('Нет свободных статических адресов .10–.99 в сегменте.');
+      $('lm_ip2').value = ip + '/24'; $('lm_gw2').value = gw;
+    }
   });
   applyVis();
 }
@@ -702,9 +743,17 @@ function saveSettings() {
     var vpn = $('lm_vpn').checked;
     var vp = { lan: lan, gw: gw, dhcp: $('lm_dhcp').checked, nat: $('lm_nat').checked,
       firewall: $('lm_fw').checked, vpn: vpn, routerRole: $('lm_router_role').value, wanFailover: $('lm_wan_failover').checked, routerFailover: $('lm_router_failover').checked,
+      vlanGuest: $('lm_guest_vlan').checked, guestVlan: $('lm_guest_vlan_id').value.trim(), guestNet: $('lm_guest_net').value.trim(), guestGw: $('lm_guest_gw').value.trim(), guestDhcp: $('lm_guest_dhcp').checked,
+      wifiAp: $('lm_wifi_ap').checked, wifiIf: $('lm_wifi_if').value.trim(), wifiCountry: $('lm_wifi_country').value.trim(), wifiSsid: $('lm_wifi_ssid').value, wifiPass: $('lm_wifi_pass').value, wifiGuest: $('lm_wifi_guest').checked, wifiGuestSsid: $('lm_wifi_guest_ssid').value, wifiGuestPass: $('lm_wifi_guest_pass').value,
       vpnType: $('lm_vpn_type').value, vpnPort: $('lm_vpn_port').value.trim(), vpnPool: $('lm_vpn_pool').value.trim(),
       vpnPeer: $('lm_vpn_peer').value.trim(), vpnServerCert: $('lm_vpn_server_cert').value.trim(), vpnClientCert: $('lm_vpn_client_cert').value.trim(),
       vpnUser: $('lm_vpn_user').value.trim(), vpnPass: $('lm_vpn_pass').value, vpnPsk: $('lm_vpn_psk').value };
+    if (vp.vlanGuest && (!E.parseCidr(vp.guestNet) || !E.validIp(vp.guestGw))) return lmFail('Укажите подсеть и шлюз гостевого VLAN.');
+    if (vp.vlanGuest && (!/^\d{1,4}$/.test(vp.guestVlan) || +vp.guestVlan < 2 || +vp.guestVlan > 4094)) return lmFail('VLAN ID должен быть от 2 до 4094.');
+    if (vp.vlanGuest && !vp.firewall) return lmFail('Для изоляции гостей включите Firewall.');
+    if (vp.wifiGuest && (!vp.wifiAp || !vp.vlanGuest)) return lmFail('Для гостевого Wi-Fi включите точку доступа и гостевой VLAN.');
+    if (vp.wifiAp && (!vp.wifiCountry || !vp.wifiSsid || vp.wifiPass.length < 8)) return lmFail('Для Wi-Fi укажите страну, SSID и пароль не короче 8 символов.');
+    if (vp.wifiGuest && (!vp.wifiGuestSsid || vp.wifiGuestPass.length < 8)) return lmFail('Для гостевого Wi-Fi задайте SSID и пароль не короче 8 символов.');
     if (vpn && !E.parseCidr(vp.vpnPool)) return lmFail('Пул VPN задан неверно — нужен вид 10.10.10.0/24');
     if (vpn && vp.vpnType === 'wireguard' && (!/^\d{1,5}$/.test(vp.vpnPort) || +vp.vpnPort < 1 || +vp.vpnPort > 65535)) return lmFail('Порт WireGuard — число от 1 до 65535');
     if (vpn && vp.vpnType === 'ikev2' && (!vp.vpnServerCert || !vp.vpnClientCert)) return lmFail('Для IKEv2 укажите имена сертификатов сервера и клиента');
@@ -733,6 +782,7 @@ function saveSettings() {
       if (other.type === 'isp' && other.id !== d.id) other.cfg.priority = nc.priority === 'primary' ? 'backup' : 'primary';
     });
   } else if (d.type !== 'switch') {
+    c.segment = $('lm_segment').value;
     var md = $('lm_mode').value;
     if (md === 'static') {
       var ip = $('lm_ip2').value.trim(), gwv = $('lm_gw2').value.trim();

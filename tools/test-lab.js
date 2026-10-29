@@ -79,5 +79,35 @@ s.devices.push({id:'i2',type:'isp',name:'Второй провайдер',cfg:{k
 r=E.run(s);assert.deepStrictEqual(r.errors,[]);assert(r.dual);assert(r.groups.every(g=>g.code.split('\n').every(line=>!line || line.startsWith('#'))));assert.equal(E.activeRoutes(s)[0].router,'r');
 s.devices[1].on=false;assert.equal(E.activeRoutes(s)[0].router,'r2');s.devices[1].on=true;assert.equal(E.activeRoutes(s)[0].router,'r');s.devices[0].on=false;assert.equal(E.activeRoutes(s)[0].router,'r2');s.devices[1].cfg.wanFailover=false;assert.equal(E.activeRoutes(s).length,0);s.devices[1].on=false;s.devices[1].cfg.routerFailover=false;assert.equal(E.activeRoutes(s).length,0);
 s.devices[6].cfg.priority='backup'; s.devices[5].cfg.gw='192.168.88.2'; fails(s,/виртуальный IP/);
+s.devices[5].cfg.gw='192.168.88.1';s.devices[1].cfg.vlanGuest=true;fails(s,/двухроутерной модели/);
+
+
+// VLAN: гостевой ПК на отдельном access-порту, отдельный DHCP и изоляция.
+function guestState() {
+  const z=make(), rt=z.devices[1]; Object.assign(rt.cfg,{vlanGuest:true,guestVlan:'20',guestNet:'192.168.99.0/24',guestGw:'192.168.99.1',guestDhcp:true});
+  z.links=z.links.filter(l=>!(l.a==='s'&&l.b==='a'));z.links.push({a:'r',b:'a'});Object.assign(z.devices[4].cfg,{segment:'guest',mode:'dhcp'});return z;
+}
+s=guestState();r=E.run(s);assert.deepStrictEqual(r.errors,[]);assert.equal(r.model.assignments.a.ip,'192.168.99.100/24');assert.equal(r.model.assignments.a.gw,'192.168.99.1');assert.equal(r.model.router.lanPorts.find(p=>p.dev.id==='a').segment,'guest');assert(code(r).includes('interface=ether3 pvid=20 frame-types=admit-only-untagged-and-priority-tagged ingress-filtering=yes disabled=yes'));assert(code(r).indexOf('vlan-filtering=yes')<code(r).indexOf('interface=ether3] disabled=no'));assert(code(r).includes('tagged=bridge-lan untagged=ether3 vlan-ids=20'));assert(code(r).includes('in-interface=vlan-guest out-interface-list=WAN action=accept'));assert(code(r).includes('in-interface=vlan-guest protocol=udp dst-port=53,67 action=accept'));assert(code(r).indexOf('chain=input action=drop\n')<code(r).indexOf('vlan-filtering=yes'));assert(r.winbox.some(x=>x.title.includes('Гостевой VLAN')));
+s.devices[4].cfg.mode='static';s.devices[4].cfg.ip='192.168.99.25/24';s.devices[4].cfg.gw='192.168.99.1';r=E.run(s);assert.deepStrictEqual(r.errors,[]);assert.equal(r.model.assignments.a.ip,'192.168.99.25/24');
+s=guestState();s.devices=s.devices.filter(d=>d.id!=='p'&&d.id!=='s');s.links=s.links.filter(l=>l.a!=='s'&&l.b!=='s');r=E.run(s);assert.deepStrictEqual(r.errors,[]);assert(r.warnings.some(x=>/порта основной LAN/.test(x)));
+s=guestState();s.devices[1].cfg.guestNet='192.168.88.0/24';fails(s,/пересекаются/);
+s=guestState();s.devices[1].cfg.guestVlan='1';fails(s,/VLAN ID/);
+s=guestState();s.devices[1].cfg.firewall=false;fails(s,/изоляции/);
+s=guestState();s.devices[1].cfg.guestDhcp=false;fails(s,/DHCP-сервер нужного сегмента/);
+s=guestState();s.links=s.links.filter(l=>l.b!=='a');s.links.push({a:'s',b:'a'});fails(s,/неуправляемый коммутатор/);
+s=guestState();s.devices[4].cfg.mode='static';s.devices[4].cfg.gw='192.168.88.1';fails(s,/выбранном сегменте/);
+// Wi-Fi настройки, VLAN-гость, порядок безопасной активации и отсутствие секретов в ошибки.
+s=guestState();Object.assign(s.devices[1].cfg,{wifiAp:true,wifiIf:'wifi1',wifiCountry:'Belarus',wifiSsid:'Work Net',wifiPass:'StrongPassword',wifiGuest:true,wifiGuestSsid:'Guest Net',wifiGuestPass:'GuestPassword'});r=E.run(s);assert.deepStrictEqual(r.errors,[]);let generated=code(r);
+assert(generated.includes('security.authentication-types=wpa2-psk security.passphrase="StrongPassword"'));assert(generated.includes('master-interface="wifi1" disabled=yes'));assert(generated.includes('untagged=ether3,wifi-guest vlan-ids=20'));assert(generated.indexOf('add name=wifi-guest')<generated.indexOf('untagged=ether3,wifi-guest'));assert(generated.indexOf('chain=forward action=drop')<generated.indexOf('vlan-filtering=yes'));assert(generated.indexOf('vlan-filtering=yes')<generated.indexOf('[find name=wifi-guest] disabled=no'));assert(r.winbox.some(x=>x.title.includes('Wi-Fi')));
+s=make(); Object.assign(s.devices[1].cfg,{wifiAp:true,wifiIf:'wifi1',wifiCountry:'Belarus',wifiSsid:'Main',wifiPass:'StrongPassword',wifiGuest:false});r=E.run(s);assert.deepStrictEqual(r.errors,[]);assert(code(r).includes('/interface wifi set [find name="wifi1"] disabled=yes'));assert(!code(r).includes('name=wifi-guest'));assert(!code(r).includes('vlan-filtering=yes'));assert(code(r).indexOf('chain=forward action=drop')<code(r).indexOf('[find name="wifi1"] disabled=no'));
+// Точка доступа может быть создана без нарисованного проводного клиента, но радио не эмулируется.
+s=make();Object.assign(s.devices[1].cfg,{wifiAp:true,wifiIf:'wifi1',wifiCountry:'Belarus',wifiSsid:'Main',wifiPass:'StrongPassword'});s.devices=s.devices.filter(x=>x.type==='router'||x.type==='isp');s.links=s.links.filter(x=>x.a==='i'&&x.b==='r');r=E.run(s);assert.deepStrictEqual(r.errors,[]);assert(r.warnings.some(x=>/Беспроводные клиенты/.test(x)));assert.equal(r.model.router.lanPorts.length,0);
+s=guestState();s.devices[1].cfg.guestDhcp=false;Object.assign(s.devices[4].cfg,{mode:'static',ip:'192.168.99.10/24',gw:'192.168.99.1'});r=E.run(s);assert.deepStrictEqual(r.errors,[]);assert(!code(r).includes('name=dhcp-guest'));assert(code(r).includes('name=vlan-guest'));
+s=guestState();Object.assign(s.devices[1].cfg,{wifiAp:true,wifiIf:'wifi1',wifiCountry:'Belarus',wifiSsid:'Work',wifiPass:'StrongPassword',wifiGuest:true,wifiGuestSsid:'Guest',wifiGuestPass:'GuestPassword'});r=E.run(s);
+s.devices[1].cfg.wifiPass='short';fails(s,/пароль WPA2/);
+s=guestState();Object.assign(s.devices[1].cfg,{wifiAp:true,wifiIf:'wifi1',wifiCountry:'Belarus',wifiSsid:'a'.repeat(33),wifiPass:'StrongPassword'});fails(s,/SSID/);
+s=guestState();Object.assign(s.devices[1].cfg,{wifiAp:true,wifiIf:'wifi1',wifiCountry:'',wifiSsid:'x',wifiPass:'StrongPassword'});fails(s,/страну/);
+s=guestState();Object.assign(s.devices[1].cfg,{wifiAp:false,wifiGuest:true});fails(s,/требует включённой/);
+s=guestState();Object.assign(s.devices[1].cfg,{vpn:true,vpnType:'wireguard',vpnPort:'13231',vpnPool:'192.168.99.0/24'});fails(s,/VPN и гостевая/);
 
 console.log('Лаборатория: проверки модели, адресов, топологии и генерации прошли.');

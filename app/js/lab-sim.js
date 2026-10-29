@@ -45,6 +45,18 @@ function publications(state) {
     return { id:d.id, name:d.name, ip:(d.cfg.ip || '').split('/')[0], proto:d.cfg.extProto, external:d.cfg.extPort, local:d.cfg.localPort };
   });
 }
+function guestDevice(d) { return !!(d.cfg && d.cfg.segment === 'guest'); }
+function utf8Length(s) { try { return encodeURIComponent(s).replace(/%[0-9A-F]{2}/gi, 'x').length; } catch (_) { return Infinity; } }
+function validWifiSsid(s) { return typeof s === 'string' && utf8Length(s) > 0 && utf8Length(s) <= 32 && !/[\x00-\x1f\x7f]/.test(s); }
+function validWifiPass(s) { return typeof s === 'string' && /^[\x20-\x7e]{8,63}$/.test(s); }
+function branchSegment(state, adj, routerId, neighborId) {
+  var found = Object.create(null);
+  (state.devices || []).filter(function(d) { return ENDPOINT[d.type]; }).forEach(function(d) {
+    var path = bfsPath(adj, routerId, d.id);
+    if (path && path[1] === neighborId) found[guestDevice(d) ? 'guest' : 'main'] = true;
+  });
+  return found.guest && found.main ? 'mixed' : found.guest ? 'guest' : 'main';
+}
 function analyze(state) {
   var ds = state.devices || [], ls = state.links || [], errors = [], warnings = [], ids = Object.create(null), pairs = Object.create(null);
   var routers = ds.filter(function (d) { return d.type === 'router'; });
@@ -58,7 +70,8 @@ function analyze(state) {
   if (isps.length === 2 && priority(isps[0], 0) === priority(isps[1], 1)) errors.push('Выберите одного основного и одного резервного провайдера.');
   if (isps.filter(function (d) { return d.cfg && d.cfg.kind === 'lte'; }).length > 1) errors.push('Поддерживается только один LTE-модем lte1.');
   if (isps.length === 2 && routers[0] && wanFailover(routers[0].cfg)) warnings.push('Переключение проверяется условно: distance=1/2. PPPoE/DHCP/LTE определяют разрыв сессии или интерфейса, но не обязательно потерю интернета за шлюзом. Реальную доступность и возврат проверьте на роутере; для контроля внешнего узла нужна дополнительная настройка.');
-  if (!endpoints.length) errors.push('Добавьте хотя бы один ПК, сервер или принтер для проверки трафика.');
+  if (!endpoints.length && !routers.some(function(d) { return d.cfg && d.cfg.wifiAp; })) errors.push('Добавьте хотя бы один ПК, сервер или принтер для проверки трафика либо включите точку Wi-Fi.');
+  if (!endpoints.length && routers.some(function(d) { return d.cfg && d.cfg.wifiAp; })) warnings.push('Беспроводные клиенты на карте не моделируются: для анимации добавьте проводной ПК, сервер или принтер.');
   ls.forEach(function (l) {
     var a = ids[l.a], b = ids[l.b], key = [l.a, l.b].sort().join('|');
     if (!a || !b || a === b || pairs[key]) { errors.push('Некорректная или повторная линия связи.'); return; }
@@ -67,7 +80,7 @@ function analyze(state) {
       errors.push('Провайдера подключайте непосредственно к MikroTik.');
     if (ENDPOINT[a.type] && ENDPOINT[b.type]) errors.push('Конечные устройства нельзя соединять напрямую: используйте коммутатор.');
   });
-  var adj = adjacency(state), rt = routers[0], net, pool, used = Object.create(null);
+  var adj = adjacency(state), rt = routers[0], net, pool, guestNet, guestPool, used = Object.create(null);
   if (rt && rt.cfg) {
     net = parseCidr(rt.cfg.lan);
     if (!net || net.prefix !== 24 || net.ipInt !== net.firstInt) { errors.push('LAN: пока поддерживается только адрес сети /24, например 192.168.88.0/24.'); net = null; }
@@ -78,6 +91,35 @@ function analyze(state) {
       else if (rt.cfg.dhcp && gw >= pool.startInt && gw <= pool.endInt) errors.push('IP шлюза не должен входить в пул DHCP ' + pool.start + '–' + pool.end + '.');
       else used[rt.cfg.gw] = 'MikroTik';
     }
+    if (rt.cfg.vlanGuest) {
+      guestNet = parseCidr(rt.cfg.guestNet);
+      if (!guestNet || guestNet.prefix !== 24 || guestNet.ipInt !== guestNet.firstInt) { errors.push('Гостевая сеть: укажите адрес подсети /24, например 192.168.99.0/24.'); guestNet = null; }
+      else {
+        guestPool = poolOf(guestNet);
+        var gg = ipToInt(rt.cfg.guestGw);
+        if (gg === null || !guestNet.contains(gg) || gg === guestNet.firstInt || gg === guestNet.lastInt) errors.push('Гостевой шлюз: нужен допустимый IP в гостевой подсети.');
+        else if (rt.cfg.guestDhcp && gg >= guestPool.startInt && gg <= guestPool.endInt) errors.push('Гостевой шлюз не должен входить в гостевой DHCP-пул.');
+        else used[rt.cfg.guestGw] = 'гостевой шлюз';
+        if (net && net.overlaps(guestNet)) errors.push('LAN и гостевая подсеть пересекаются.');
+        var vpnNet = rt.cfg.vpn && parseCidr(rt.cfg.vpnPool);
+        if (vpnNet && vpnNet.overlaps(guestNet)) errors.push('VPN и гостевая подсеть пересекаются.');
+      }
+      if (!/^\d{1,4}$/.test(String(rt.cfg.guestVlan || '')) || +rt.cfg.guestVlan < 2 || +rt.cfg.guestVlan > 4094) errors.push('Гостевой VLAN ID: целое число от 2 до 4094 (VLAN 1 используется для основной LAN).');
+      if (!rt.cfg.firewall) errors.push('Для изоляции гостевого VLAN включите Firewall.');
+      warnings.push('Гостевые порты — access VLAN; обычный коммутатор не разделяет сегменты на одном порту. Фильтрация VLAN может отключить доступ к роутеру: настройте безопасное восстановление и проверьте порты. Изоляция Wi-Fi-клиентов друг от друга отдельно не моделируется.');
+    }
+    if (rt.cfg.wifiAp) {
+      if (!/^[A-Za-z0-9_-]{1,30}$/.test(rt.cfg.wifiIf || '') || rt.cfg.wifiIf === 'wifi-guest') errors.push('Wi-Fi: укажите имя существующего радио-интерфейса (например wifi1).');
+      if (!validWifiSsid(rt.cfg.wifiSsid)) errors.push('Wi-Fi: SSID должен занимать от 1 до 32 байт UTF-8 без управляющих символов.');
+      if (!validWifiPass(rt.cfg.wifiPass)) errors.push('Wi-Fi: пароль WPA2 должен содержать 8–63 печатных ASCII-символа.');
+      if (!rt.cfg.wifiCountry || /[\x00-\x1f\x7f]/.test(rt.cfg.wifiCountry)) errors.push('Wi-Fi: укажите страну как в списке RouterOS.');
+      if (rt.cfg.wifiGuest) {
+        if (!rt.cfg.vlanGuest) errors.push('Гостевой Wi-Fi требует включённого гостевого VLAN.');
+        if (!validWifiSsid(rt.cfg.wifiGuestSsid) || rt.cfg.wifiGuestSsid === rt.cfg.wifiSsid) errors.push('Гостевой Wi-Fi: нужен отдельный SSID (1–32 байта).');
+        if (!validWifiPass(rt.cfg.wifiGuestPass)) errors.push('Гостевой Wi-Fi: пароль WPA2 должен содержать 8–63 печатных ASCII-символа.');
+      }
+      warnings.push('Wi-Fi: проект рассчитан на RouterOS 7.13+ и пакет wifi, поддерживающий режим AP и виртуальный SSID. Проверьте модель, список радио, лицензирование и страну; пакет wireless/wifiwave2 требует другой настройки.');
+    } else if (rt.cfg.wifiGuest) errors.push('Гостевой Wi-Fi требует включённой точки доступа Wi-Fi.');
     if (rt.cfg.vpn) {
       var vc = rt.cfg, vn = parseCidr(vc.vpnPool), vt = vc.vpnType || 'wireguard';
       if (['wireguard','ikev2','l2tp-ipsec'].indexOf(vt) < 0) errors.push('VPN: неизвестный тип.');
@@ -102,22 +144,27 @@ function analyze(state) {
     });
     if (ls.length !== ds.length - 1) errors.push('Схема должна быть связным деревом без петель и параллельных путей.');
     if ((adj[rt.id] || []).length > 5) errors.push('Для этой модели доступны порты ether1–ether5; добавьте коммутатор.');
+    (adj[rt.id] || []).forEach(function(id) { if (ids[id] && ids[id].type !== 'isp' && branchSegment(state, adj, rt.id, id) === 'mixed') errors.push('Один порт MikroTik и неуправляемый коммутатор не могут одновременно быть основной и гостевой сетью. Используйте отдельные access-порты.'); });
+    if (rt.cfg.vlanGuest && !rt.cfg.wifiAp && !(adj[rt.id] || []).some(function(id) { return ids[id] && ids[id].type !== 'isp' && branchSegment(state, adj, rt.id, id) === 'main'; })) warnings.push('На схеме нет порта основной LAN для управления после включения VLAN. Подготовьте консоль или отдельный порт управления.');
   }
   endpoints.forEach(function (d) {
-    var c = d.cfg || {};
-    if (c.mode === 'dhcp') { if (rt && !rt.cfg.dhcp) errors.push('«' + d.name + '»: включите DHCP-сервер MikroTik.'); return; }
+    var c = d.cfg || {}, guest = guestDevice(d), target = guest ? guestNet : net, targetPool = guest ? guestPool : pool;
+    var dhcpOn = rt && (guest ? rt.cfg.guestDhcp : rt.cfg.dhcp), targetGw = rt && (guest ? rt.cfg.guestGw : rt.cfg.gw);
+    if (guest && (!rt || !rt.cfg.vlanGuest)) errors.push('«' + d.name + '»: включите гостевой VLAN на MikroTik.');
+    if (c.mode === 'dhcp') { if (rt && !dhcpOn) errors.push('«' + d.name + '»: включите DHCP-сервер нужного сегмента MikroTik.'); return; }
     if (c.mode !== 'static') { errors.push('«' + d.name + '»: выберите DHCP или статический адрес.'); return; }
     var address = parseCidr(c.ip);
-    if (!address || !net || address.prefix !== net.prefix || !net.contains(address.ipInt) || address.ipInt === net.firstInt || address.ipInt === net.lastInt)
-      errors.push('«' + d.name + '»: нужен допустимый адрес LAN с маской /24.');
+    if (!address || !target || address.prefix !== target.prefix || !target.contains(address.ipInt) || address.ipInt === target.firstInt || address.ipInt === target.lastInt)
+      errors.push('«' + d.name + '»: нужен допустимый адрес LAN с маской /24 в выбранном сегменте.');
     else {
       if (used[address.ip]) errors.push('«' + d.name + '»: адрес ' + address.ip + ' уже занят (' + used[address.ip] + ').');
       used[address.ip] = d.name;
-      if (rt.cfg.dhcp && pool && address.ipInt >= pool.startInt && address.ipInt <= pool.endInt) errors.push('«' + d.name + '»: статический адрес находится в пуле DHCP ' + pool.start + '–' + pool.end + '.');
+      if (dhcpOn && targetPool && address.ipInt >= targetPool.startInt && address.ipInt <= targetPool.endInt) errors.push('«' + d.name + '»: статический адрес находится в пуле DHCP ' + targetPool.start + '–' + targetPool.end + '.');
     }
-    if (!rt || c.gw !== rt.cfg.gw) errors.push('«' + d.name + '»: укажите IP MikroTik как шлюз.');
+    if (!rt || c.gw !== targetGw) errors.push('«' + d.name + '»: укажите IP MikroTik как шлюз выбранного сегмента.');
     if (c.dns && !validIp(c.dns)) errors.push('«' + d.name + '»: неверный DNS.');
   });
+  if (rt && rt.cfg.vlanGuest && !rt.cfg.wifiGuest && !endpoints.some(guestDevice)) warnings.push('В гостевом VLAN пока нет клиентских устройств и гостевого Wi-Fi.');
   var extPorts = Object.create(null);
   publications(state).forEach(function(p) {
     var dev = ids[p.id], key = p.proto + '/' + String(+p.external);
@@ -129,7 +176,7 @@ function analyze(state) {
   });
   if (publications(state).length && isps.length === 2) warnings.push('Доступ извне на втором WAN может потребовать отдельной маршрутизации ответов; смена публичного IP при отказе не проверяется моделью.');
   if (publications(state).length) warnings.push('Публикация открывает выбранные сервисы в интернет. Защитите их, ограничьте доступ и проверьте внешний белый IP, CGNAT и правила вышестоящего роутера.');
-  if (pool && endpoints.filter(function (d) { return d.cfg && d.cfg.mode === 'dhcp'; }).length > 100) errors.push('Недостаточно адресов DHCP-пула.');
+  if (pool && endpoints.filter(function (d) { return d.cfg && d.cfg.mode === 'dhcp' && !guestDevice(d); }).length > 100 || guestPool && endpoints.filter(function (d) { return d.cfg && d.cfg.mode === 'dhcp' && guestDevice(d); }).length > 100) errors.push('Недостаточно адресов DHCP-пула.');
   isps.forEach(function (d) {
     var c = d.cfg || {};
     if (['pppoe', 'dhcp', 'static', 'lte'].indexOf(c.kind) < 0) errors.push('Выберите тип провайдера.');
@@ -141,6 +188,7 @@ function analyze(state) {
       if (!w || w.prefix > 30 || g === null || !w.contains(g) || g === w.ipInt || g === w.firstInt || g === w.lastInt || w.ipInt === w.firstInt || w.ipInt === w.lastInt)
         errors.push('WAN: укажите адрес и отличный от него шлюз в одной подсети (до /30).');
       else if (net && net.overlaps(w)) errors.push('Подсети LAN и WAN пересекаются.');
+      if (w && guestNet && w.overlaps(guestNet)) errors.push('Подсети гостевого VLAN и WAN пересекаются.');
       if (w && rt && rt.cfg.vpn && parseCidr(rt.cfg.vpnPool) && w.overlaps(parseCidr(rt.cfg.vpnPool))) errors.push('Подсети VPN и WAN пересекаются.');
       if (c.dns && !validIp(c.dns)) errors.push('WAN: неверный DNS.');
     }
@@ -169,14 +217,17 @@ function buildModel(state) {
   }).sort(function (a, b) { return a.priority === b.priority ? 0 : a.priority === 'primary' ? -1 : 1; });
   var dns = isps[0].kind === 'static' && isps[0].cfg.dns ? isps[0].cfg.dns + ',8.8.8.8' : '1.1.1.1,8.8.8.8';
   var assignments = {}; assignments[rt.id] = { ip: rt.cfg.gw + '/24', gw: '—', dns: dns, src: 'статический' };
-  var lease = pool.startInt;
+  var lease = pool.startInt, guestLease = rt.cfg.vlanGuest ? poolOf(parseCidr(rt.cfg.guestNet)).startInt : 0;
   ds.forEach(function (d) {
     if (!ENDPOINT[d.type]) return;
     var c = d.cfg;
-    assignments[d.id] = c.mode === 'dhcp' ? { ip: intToIp(lease++) + '/24', gw: rt.cfg.gw, dns: rt.cfg.gw, src: 'пример DHCP-аренды' } : { ip: c.ip, gw: c.gw, dns: c.dns || rt.cfg.gw, src: 'статический' };
+    var guest = guestDevice(d), gw = guest ? rt.cfg.guestGw : rt.cfg.gw;
+    assignments[d.id] = c.mode === 'dhcp' ? { ip: intToIp(guest ? guestLease++ : lease++) + '/24', gw: gw, dns: gw, src: guest ? 'пример DHCP (гостевой VLAN)' : 'пример DHCP-аренды' } : { ip: c.ip, gw: c.gw, dns: c.dns || gw, src: guest ? 'статический (гостевой VLAN)' : 'статический' };
   });
   isps.forEach(function (i) { assignments[i.id] = { ip: i.kind === 'static' ? i.cfg.ip : 'динамический', gw: i.kind === 'static' ? i.cfg.gw : 'от провайдера', dns: i.kind === 'static' ? (i.cfg.dns || 'не задан') : 'от провайдера', src: i.kind }; });
-  return { router: { id: rt.id, name: rt.name, cfg: rt.cfg, net: net, pool: pool, gw: rt.cfg.gw, dns: dns, lanPorts: ports.filter(function (p) { return p.dev.type !== 'isp'; }) },
+  var lanPorts = ports.filter(function (p) { return p.dev.type !== 'isp'; });
+  lanPorts.forEach(function(p) { p.segment = branchSegment(state, adj, rt.id, p.dev.id); });
+  return { router: { id: rt.id, name: rt.name, cfg: rt.cfg, net: net, pool: pool, gw: rt.cfg.gw, dns: dns, lanPorts: lanPorts },
     isps: isps, primaryIsp: isps[0], backupIsp: wanFailover(rt.cfg) ? (isps[1] || null) : null, publications: publications(state), assignments: assignments, adj: adj };
 }
 /* Активный путь — только для визуальной модели, без проверки реальных сетей. */
@@ -226,7 +277,7 @@ function genCommands(state, model) {
   var r = model.router, groups = [];
   function add(id, title, arr) { groups.push({ id: id, title: title, code: arr.join('\n') }); }
   var g = ['# Для RouterOS 7 на чистой конфигурации. Сверьте физические порты.', '/interface bridge add name=bridge-lan', '/interface list add name=LAN', '/interface list add name=WAN', '/interface list member add list=LAN interface=bridge-lan'];
-  r.lanPorts.forEach(function (p) { g.push('/interface bridge port add bridge=bridge-lan interface=' + p.phys); });
+  r.lanPorts.forEach(function (p) { g.push('/interface bridge port add bridge=bridge-lan interface=' + p.phys + (r.cfg.vlanGuest ? ' pvid=' + (p.segment === 'guest' ? r.cfg.guestVlan : '1') + ' frame-types=admit-only-untagged-and-priority-tagged ingress-filtering=yes' + (p.segment === 'guest' ? ' disabled=yes' : '') : '')); });
   add('iface', '1. Мост и порты LAN', g);
   add('addr', '2. Адрес LAN и DNS', ['/ip address add address=' + r.gw + '/24 interface=bridge-lan', '/ip dns set servers=' + r.dns + ' allow-remote-requests=yes']);
   g = [];
@@ -241,12 +292,32 @@ function genCommands(state, model) {
   });
   add('wan', '3. Подключение провайдера', g);
   if (r.cfg.dhcp) add('dhcp', '4. DHCP LAN', ['/ip pool add name=pool-lan ranges=' + r.pool.start + '-' + r.pool.end, '/ip dhcp-server add name=dhcp-lan interface=bridge-lan address-pool=pool-lan disabled=no', '/ip dhcp-server network add address=' + r.net.first + '/24 gateway=' + r.gw + ' dns-server=' + r.gw]);
+  if (r.cfg.wifiAp) {
+    var wifi = ['# RouterOS 7.13+, пакет wifi. Проверить имя радио и режим AP; временно выключаем радио.',
+      '/interface wifi set [find name=' + q(r.cfg.wifiIf) + '] disabled=yes configuration.mode=ap configuration.country=' + q(r.cfg.wifiCountry) + ' configuration.ssid=' + q(r.cfg.wifiSsid) + ' security.authentication-types=wpa2-psk security.passphrase=' + q(r.cfg.wifiPass),
+      '/interface bridge port add bridge=bridge-lan interface=' + q(r.cfg.wifiIf) + (r.cfg.vlanGuest ? ' pvid=1 frame-types=admit-only-untagged-and-priority-tagged ingress-filtering=yes' : '')];
+    if (r.cfg.wifiGuest) wifi.push('/interface wifi add name=wifi-guest master-interface=' + q(r.cfg.wifiIf) + ' disabled=yes configuration.mode=ap configuration.ssid=' + q(r.cfg.wifiGuestSsid) + ' security.authentication-types=wpa2-psk security.passphrase=' + q(r.cfg.wifiGuestPass),
+      '/interface bridge port add bridge=bridge-lan interface=wifi-guest pvid=' + r.cfg.guestVlan + ' frame-types=admit-only-untagged-and-priority-tagged ingress-filtering=yes');
+    add('wifi', 'Wi-Fi: параметры и порты (пока выключены)', wifi);
+  }
+  if (r.cfg.vlanGuest) {
+    var gn = parseCidr(r.cfg.guestNet), gp = poolOf(gn);
+    var guests = r.lanPorts.filter(function(p) { return p.segment === 'guest'; }).map(function(p) { return p.phys; });
+    if (r.cfg.wifiGuest) guests.push('wifi-guest');
+    var vlan = ['/interface vlan add name=vlan-guest interface=bridge-lan vlan-id=' + r.cfg.guestVlan,
+      '/ip address add address=' + r.cfg.guestGw + '/24 interface=vlan-guest',
+      '/interface bridge vlan add bridge=bridge-lan tagged=bridge-lan' + (guests.length ? ' untagged=' + guests.join(',') : '') + ' vlan-ids=' + r.cfg.guestVlan];
+    if (r.cfg.guestDhcp) vlan.push('/ip pool add name=pool-guest ranges=' + gp.start + '-' + gp.end, '/ip dhcp-server add name=dhcp-guest interface=vlan-guest address-pool=pool-guest disabled=no', '/ip dhcp-server network add address=' + gn.first + '/24 gateway=' + r.cfg.guestGw + ' dns-server=' + r.cfg.guestGw);
+    add('guest-vlan', 'Гостевой VLAN и DHCP', vlan);
+  }
   var vpn = r.cfg.vpn ? vpnConfig(r.cfg, r) : null;
   if (vpn) add('vpn', 'VPN — ' + r.cfg.vpnType, vpn.commands);
   if (r.cfg.firewall) {
     var filter = ['/ip firewall filter add chain=input action=accept connection-state=established,related,untracked', '/ip firewall filter add chain=input action=drop connection-state=invalid', '/ip firewall filter add chain=input action=accept protocol=icmp', '/ip firewall filter add chain=input action=accept in-interface-list=LAN', '/ip firewall filter add chain=input action=accept protocol=udp src-port=67 dst-port=68 in-interface-list=WAN'];
+    if (r.cfg.vlanGuest) filter.push('/ip firewall filter add chain=input in-interface=vlan-guest protocol=udp dst-port=53,67 action=accept', '/ip firewall filter add chain=input in-interface=vlan-guest protocol=tcp dst-port=53 action=accept');
     if (vpn) filter = filter.concat(vpn.input);
     filter.push('/ip firewall filter add chain=input action=drop', '/ip firewall filter add chain=forward action=accept connection-state=established,related,untracked', '/ip firewall filter add chain=forward action=drop connection-state=invalid', '/ip firewall filter add chain=forward action=accept in-interface-list=LAN out-interface-list=WAN');
+    if (r.cfg.vlanGuest) filter.push('/ip firewall filter add chain=forward in-interface=vlan-guest out-interface-list=WAN action=accept');
     if (vpn) filter = filter.concat(vpn.forward);
     model.publications.forEach(function(p) { filter.push('/ip firewall filter add chain=forward in-interface-list=WAN connection-nat-state=dstnat protocol=' + p.proto + ' dst-address=' + p.ip + ' dst-port=' + p.local + ' action=accept'); });
     filter.push('/ip firewall filter add chain=forward action=drop');
@@ -255,6 +326,16 @@ function genCommands(state, model) {
   var nat = ['/ip firewall nat add chain=srcnat out-interface-list=WAN action=masquerade'];
   model.publications.forEach(function(p) { nat.push('/ip firewall nat add chain=dstnat in-interface-list=WAN protocol=' + p.proto + ' dst-port=' + p.external + ' action=dst-nat to-addresses=' + p.ip + ' to-ports=' + p.local); });
   add('nat', '6. NAT и доступ извне', nat);
+  if (r.cfg.vlanGuest || r.cfg.wifiAp) {
+    var activate = ['# Внимание: VLAN filtering может отрезать управление. Используйте безопасный режим и консоль. Сначала проверьте таблицы и firewall.'];
+    if (r.cfg.vlanGuest) {
+      activate.push('/interface bridge set [find name=bridge-lan] vlan-filtering=yes');
+      r.lanPorts.filter(function(p) { return p.segment === 'guest'; }).forEach(function(p) { activate.push('/interface bridge port set [find where bridge=bridge-lan and interface=' + p.phys + '] disabled=no'); });
+    }
+    if (r.cfg.wifiAp) activate.push('/interface wifi set [find name=' + q(r.cfg.wifiIf) + '] disabled=no');
+    if (r.cfg.wifiGuest) activate.push('/interface wifi set [find name=wifi-guest] disabled=no');
+    add('activate-lan', 'Включение VLAN и Wi-Fi после проверки', activate);
+  }
   add('verify', '7. Проверка', ['/interface print', '/ip address print', '/ip route print', '/ip dhcp-server lease print', '/ping 1.1.1.1 count=5', '# Проверить DHCP и доступ с реального ПК.']);
   return groups;
 }
@@ -308,7 +389,7 @@ function winboxSteps(state, model) {
   ]);
   add('Мост и локальные порты', 'official/bridge-lan.png', [
     'Откройте Bridge → вкладка Bridge → +. В поле Name укажите bridge-lan, нажмите OK.',
-    'На вкладке Ports через + добавьте в Bridge = bridge-lan каждый из портов LAN: ' + r.lanPorts.map(function (p) { return p.phys + ' → ' + p.dev.name; }).join(', ') + '. Не добавляйте WAN-порты в мост.',
+    r.lanPorts.length ? 'На вкладке Ports через + добавьте в Bridge = bridge-lan каждый из портов LAN: ' + r.lanPorts.map(function (p) { return p.phys + ' → ' + p.dev.name + (r.cfg.vlanGuest ? ' (PVID ' + (p.segment === 'guest' ? r.cfg.guestVlan : '1') + ')' : ''); }).join(', ') + '. Не добавляйте WAN-порты в мост.' : 'На схеме нет проводных LAN-портов; WAN-порт не добавляйте в мост. Для Wi-Fi добавьте радио по отдельному шагу.',
     'В Interfaces → Interface List создайте списки LAN и WAN. В Members добавьте в LAN интерфейс bridge-lan. WAN-интерфейсы добавим после их настройки.'
   ]);
   add('Адрес LAN и DNS', 'official/ip-address.png', [
@@ -358,13 +439,23 @@ function winboxSteps(state, model) {
     '3. Chain = input, Protocol = icmp; Action = accept.',
     '4. Chain = input, In. Interface List = LAN; Action = accept.',
     '5. Chain = input, Protocol = udp, Src. Port = 67, Dst. Port = 68, In. Interface List = WAN; Action = accept (ответы DHCP-клиенту WAN).',
-    '6. До drop добавьте правила input для выбранного VPN из проекта команд ниже, если VPN включён.',
+    '6. До drop добавьте правила input для VPN и DNS/DHCP гостевого VLAN из проекта команд ниже, если они включены.',
     '7. Chain = input; Action = drop (остальной доступ к роутеру).',
     '7. Chain = forward, Connection State = established, related, untracked; Action = accept.',
     '8. Chain = forward, Connection State = invalid; Action = drop.',
     '9. Chain = forward, In. Interface List = LAN, Out. Interface List = WAN; Action = accept.',
-    '10. До завершающего drop добавьте разрешения VPN и опубликованных ресурсов из проекта команд ниже, если они включены.',
+    '10. До завершающего drop добавьте разрешения гостевого VLAN в WAN, VPN и опубликованных ресурсов из проекта команд ниже, если они включены.',
     '11. Chain = forward; Action = drop. Сверьте порядок и существующие правила: добавление рядом с заводскими правилами без анализа может заблокировать доступ.'
+  ]);
+  if (r.cfg.vlanGuest) add('Гостевой VLAN и изоляция', null, [
+    'В Bridge → Ports укажите PVID 1 для основной LAN и PVID ' + r.cfg.guestVlan + ' для гостевых access-портов; до включения фильтрации гостевые порты держите отключёнными. На одном неуправляемом коммутаторе нельзя смешивать сегменты.',
+    'В Interfaces → VLAN создайте vlan-guest на bridge-lan, VLAN ID ' + r.cfg.guestVlan + '; в Bridge → VLANs добавьте bridge-lan как tagged и гостевые порты как untagged. Назначьте ' + r.cfg.guestGw + '/24 и настройте DHCP гостевого сегмента по проекту команд.',
+    'В Firewall добавьте разрешения DNS/DHCP к роутеру и выхода гостей только в WAN до завершающих drop. Подготовьте консоль, затем включите VLAN Filtering и только после этого включите гостевые порты. Изоляция между гостевыми клиентами отдельно не настраивается.'
+  ]);
+  if (r.cfg.wifiAp) add('Wi-Fi RouterOS 7.13+ (пакет wifi)', null, [
+    'Откройте WiFi и настройте существующий ' + r.cfg.wifiIf + ': Mode = ap, Country = выбранная страна, SSID = ' + r.cfg.wifiSsid + ', Security = WPA2-PSK, пароль из проекта. Проверьте поддержку радио и лицензии.',
+    'Добавьте основное радио в bridge-lan. ' + (r.cfg.wifiGuest ? 'Создайте виртуальный интерфейс wifi-guest на ' + r.cfg.wifiIf + ' с отдельным SSID, добавьте его в bridge-lan как access-порт с PVID ' + r.cfg.guestVlan + '.' : 'Гостевой SSID отключён.') + ' До проверки VLAN и firewall держите Wi-Fi отключённым.',
+    'Включите радио после проверки. Радио, покрытие и подключение клиентов не моделируются; фактические меню и функции зависят от пакета и модели.'
   ]);
   if (r.cfg.vpn) add('VPN: ' + r.cfg.vpnType, null, [
     'Настройте выбранный VPN по проекту команд ниже. Для IKEv2 заранее импортируйте и проверьте сертификаты; для WireGuard обменяйтесь публичными ключами; для L2TP/IPsec задайте безопасные пароль и общий ключ.',
@@ -399,6 +490,7 @@ function runDual(state) {
   if (isps.length !== 2) errors.push('Для схемы двух MikroTik добавьте двух провайдеров: по одному на каждый роутер.');
   var common = (adj[routers[0].id] || []).filter(function(id) { return (adj[routers[1].id] || []).indexOf(id) !== -1 && devices.some(function(d){ return d.id === id && d.type === 'switch'; }); });
   if (common.length !== 1) errors.push('Оба MikroTik должны быть подключены к одному общему коммутатору LAN.');
+  if (routers[0].cfg.vlanGuest || routers[1].cfg.vlanGuest || routers[0].cfg.wifiAp || routers[1].cfg.wifiAp) errors.push('VLAN и Wi-Fi в двухроутерной модели пока не поддерживаются; используйте один MikroTik.');
   if (routers[0].cfg.lan !== routers[1].cfg.lan || routers[0].cfg.gw !== routers[1].cfg.gw) errors.push('На двух MikroTik задайте общую LAN-подсеть и виртуальный IP шлюза.');
   if (links.length !== devices.length - 1) errors.push('Схема должна быть связным деревом без петель и параллельных путей.');
   var runs = [];
