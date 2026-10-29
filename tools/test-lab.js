@@ -25,7 +25,7 @@ s=make(); s.devices[0].cfg.kind='static'; r=E.run(s); assert(code(r).includes('/
 s=make(); s.devices[0].cfg.kind='dhcp'; r=E.run(s); assert(r.winbox.some(x=>x.image===null && x.instructions.join(' ').includes('Interface = ether1'))); assert.deepStrictEqual(r.errors,[]); assert(code(r).includes('/ip dhcp-client add interface=ether1 add-default-route=yes'));
 s=make(); s.devices[0].cfg.kind='lte'; r=E.run(s); assert(r.winbox.some(x=>x.image===null && x.instructions.join(' ').includes('APN = internet'))); assert.deepStrictEqual(r.errors,[]); assert(code(r).includes('interface=lte1')); assert(code(r).includes('interface=ether1')); assert(r.warnings.length);
 s=make(); s.devices[0].cfg.pass='a"$b\\c'; r=E.run(s); assert(code(r).includes('password="a\\"\\$b\\\\c"'));
-s=make(); s.devices[1].cfg.vpn=true; fails(s,/VPN/);
+s=make(); Object.assign(s.devices[1].cfg,{vpn:true,vpnType:'wireguard',vpnPort:'13231',vpnPool:'10.10.10.0/24'}); r=E.run(s); assert.deepStrictEqual(r.errors,[]); assert(code(r).includes('/interface wireguard add')); assert(r.warnings.some(x=>/ключ клиента/.test(x)));
 s=make(); s.devices[1].cfg.lan='192.168.88.0/23'; fails(s,/\/24/);
 s=make(); s.devices[1].cfg.lan='invalid'; fails(s,/LAN/);
 s=make(); s.devices[1].cfg.gw='192.168.88.100'; fails(s,/пул/);
@@ -45,7 +45,7 @@ s=make(); s.devices.push({id:'i2',type:'isp',name:'Второй',cfg:{kind:'dhcp
 assert.deepStrictEqual(r.errors,[]); assert.strictEqual(r.model.isps.length,2);
 assert(code(r).includes('default-route-distance=1')); assert(code(r).includes('default-route-distance=2'));
 assert(code(r).includes('list=WAN interface=pppoe-out1')); assert(code(r).includes('list=WAN interface=ether3'));
-assert(r.timeline.some(x=>/через резерв/.test(x.proto || ''))); assert(r.warnings.some(x=>/условно/.test(x)));
+assert(r.timeline.some(x=>/Резерв включён/.test(x.text || ''))); assert(r.warnings.some(x=>/условно/.test(x)));
 s.devices[0].cfg.priority='backup'; s.devices[5].cfg.priority='primary'; r=E.run(s); assert.strictEqual(r.model.primaryIsp.id,'i2'); assert(code(r).includes('default-route-distance=2'));
 s.devices[0].cfg.priority='primary'; fails(s,/основного и одного резервного/);
 s=make(); s.devices.push({id:'i2',type:'isp',name:'PPPoE резерв',cfg:{kind:'pppoe',user:'backup',pass:'pass'}}); s.links.push({a:'i2',b:'r'}); r=E.run(s); assert.deepStrictEqual(r.errors,[]); assert(code(r).includes('name=pppoe-out2 interface=ether3')); assert(code(r).includes('list=WAN interface=pppoe-out2'));
@@ -55,4 +55,29 @@ s.devices[0].cfg.kind='static'; s.devices[5].cfg.ip='198.51.100.2/30'; s.devices
 s=make(); s.devices.push({id:'i2',type:'isp',name:'Резерв',cfg:{kind:'lte',apn:'internet'}}); s.links.push({a:'i2',b:'r'}); r=E.run(s); assert.deepStrictEqual(r.errors,[]); assert(code(r).includes('default-route-distance=2 apn=')); assert(code(r).includes('list=WAN interface=lte1')); assert.equal(r.model.isps[1].phys,'USB');
 s.devices[0].cfg.kind='lte'; fails(s,/только один LTE/);
 s=make(); s.devices[0].cfg.kind='static'; s.devices[0].cfg.gw='198.51.100.10'; fails(s,/WAN/);
+
+// Поддержка VPN: проверяем не только поля, но и порядок firewall до drop.
+s=make(); Object.assign(s.devices[1].cfg,{vpn:true,vpnType:'wireguard',vpnPort:'13231',vpnPool:'10.10.10.0/24',vpnPeer:'A'.repeat(43)+'='}); r=E.run(s);
+assert.deepStrictEqual(r.errors,[]); assert(code(r).includes('allowed-address=10.10.10.2/32')); assert(code(r).includes('in-interface=wg-lab out-interface-list=LAN')); assert(code(r).indexOf('dst-port=13231 action=accept') < code(r).indexOf('chain=input action=drop\n'));
+s.devices[1].cfg.vpnPool='192.168.88.0/24'; fails(s,/пересекаются/);
+s.devices[1].cfg.vpnPool='10.10.10.0/24';s.devices[1].cfg.vpnPort='65536';fails(s,/порт/);
+s=make(); Object.assign(s.devices[1].cfg,{vpn:true,vpnType:'ikev2',vpnPool:'10.10.10.0/24',vpnServerCert:'server1',vpnClientCert:'client1'});r=E.run(s);assert.deepStrictEqual(r.errors,[]);assert(code(r).includes('exchange-mode=ike2'));assert(code(r).includes('proposal=ike-lab'));assert(code(r).includes('pfs-group=none'));assert(code(r).includes('remote-certificate="client1"'));assert(code(r).includes('ipsec-policy=in,ipsec src-address=10.10.10.0/24'));
+s.devices[1].cfg.vpnClientCert='';fails(s,/сертификат/);
+s=make();Object.assign(s.devices[1].cfg,{vpn:true,vpnType:'l2tp-ipsec',vpnPool:'10.10.10.0/24',vpnUser:'vpn-user',vpnPass:'password123',vpnPsk:'longsecret'});r=E.run(s);assert.deepStrictEqual(r.errors,[]);assert(code(r).includes('use-ipsec=required ipsec-secret="longsecret"'));assert(code(r).includes('in-interface-list=VPN'));assert(code(r).includes('dst-port=1701 ipsec-policy=in,ipsec'));
+s.devices[1].cfg.vpnPsk='short'; fails(s,/общий ключ/);
+// Публикация: статический адрес, строго заданный WAN dstnat и разрешение forward до drop.
+s=make();Object.assign(s.devices[4].cfg,{external:true,extProto:'tcp',extPort:'8080',localPort:'80'});r=E.run(s);assert.deepStrictEqual(r.errors,[]);assert(code(r).includes('chain=dstnat in-interface-list=WAN protocol=tcp dst-port=8080 action=dst-nat to-addresses=192.168.88.20 to-ports=80'));assert(code(r).includes('connection-nat-state=dstnat protocol=tcp dst-address=192.168.88.20 dst-port=80 action=accept'));assert(code(r).indexOf('dst-address=192.168.88.20 dst-port=80 action=accept')<code(r).indexOf('chain=forward action=drop\n'));
+s.devices[4].cfg.mode='dhcp';fails(s,/статический LAN/);
+s=make();Object.assign(s.devices[3].cfg,{mode:'static',ip:'192.168.88.10/24',gw:'192.168.88.1',external:true,extProto:'tcp',extPort:'08080',localPort:'80'});Object.assign(s.devices[4].cfg,{external:true,extProto:'tcp',extPort:'8080',localPort:'80'});fails(s,/уже используется/);
+s=make();Object.assign(s.devices[1].cfg,{vpn:true,vpnType:'wireguard',vpnPort:'13231',vpnPool:'10.10.10.0/24'});Object.assign(s.devices[4].cfg,{external:true,extProto:'udp',extPort:'13231',localPort:'80'});fails(s,/занят VPN/);
+// Включение/отключение WAN, переключение по галочке и восстановление основного.
+s=make();s.devices.push({id:'i2',type:'isp',name:'Второй',cfg:{kind:'dhcp',priority:'backup'}});s.links.push({a:'i2',b:'r'});s.devices[0].cfg.priority='primary';s.devices[1].cfg.wanFailover=false;r=E.run(s);assert.deepStrictEqual(r.errors,[]);assert(code(r).includes('interface=ether3 add-default-route=no'));assert(!r.model.backupIsp);assert.equal(E.activeRoutes(s)[0].isp,'i');s.devices[0].on=false;assert.equal(E.activeRoutes(s).length,0);s.devices[1].cfg.wanFailover=true;assert.equal(E.activeRoutes(s)[0].isp,'i2');s.devices[0].on=true;assert.equal(E.activeRoutes(s)[0].isp,'i');s.devices[2].on=false;assert.equal(E.activeRoutes(s).length,0);
+// Два MikroTik, два провайдера и общий коммутатор: только учебный план VRRP.
+s=make();s.devices[0].cfg.priority='primary';s.devices[1].cfg.routerRole='primary';s.devices[1].cfg.wanFailover=true;s.devices[1].cfg.routerFailover=true;
+s.devices.push({id:'r2',type:'router',name:'Резервный MikroTik',cfg:{lan:'192.168.88.0/24',gw:'192.168.88.1',dhcp:true,nat:true,firewall:true,vpn:false,routerRole:'backup'}});
+s.devices.push({id:'i2',type:'isp',name:'Второй провайдер',cfg:{kind:'dhcp',priority:'backup'}});s.links.push({a:'r2',b:'s'},{a:'i2',b:'r2'});
+r=E.run(s);assert.deepStrictEqual(r.errors,[]);assert(r.dual);assert(r.groups.every(g=>g.code.split('\n').every(line=>!line || line.startsWith('#'))));assert.equal(E.activeRoutes(s)[0].router,'r');
+s.devices[1].on=false;assert.equal(E.activeRoutes(s)[0].router,'r2');s.devices[1].on=true;assert.equal(E.activeRoutes(s)[0].router,'r');s.devices[0].on=false;assert.equal(E.activeRoutes(s)[0].router,'r2');s.devices[1].cfg.wanFailover=false;assert.equal(E.activeRoutes(s).length,0);s.devices[1].on=false;s.devices[1].cfg.routerFailover=false;assert.equal(E.activeRoutes(s).length,0);
+s.devices[6].cfg.priority='backup'; s.devices[5].cfg.gw='192.168.88.2'; fails(s,/виртуальный IP/);
+
 console.log('Лаборатория: проверки модели, адресов, топологии и генерации прошли.');

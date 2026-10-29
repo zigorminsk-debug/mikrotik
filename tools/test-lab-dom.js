@@ -46,14 +46,21 @@ const {JSDOM,VirtualConsole} = require('jsdom');
  assert(!$('lab-modal').hidden); assert($('lm_kind')); assert($('lm_priority')); $('lm_kind').value='static'; $('lm_kind').dispatchEvent(new w.Event('change')); assert(!$('lm_g_static').hidden);
  $('lm_ip').value='203.0.113.2/30';$('lm_gw2').value='203.0.113.1';$('lm_dns').value='1.1.1.1';$('lm_save').click();
  assert.equal(w.Lab.state.devices.find(x=>x.id===isp2).cfg.kind,'static');
- d.querySelector('[data-id="'+rt+'"] .lab-gear').click(); assert($('lm_lan') && $('lm_gw') && $('lm_dhcp') && $('lm_nat') && $('lm_fw') && $('lm_vpn')); $('lm_save').click();
+ d.querySelector('[data-id="'+rt+'"] .lab-gear').click(); assert($('lm_lan') && $('lm_gw') && $('lm_dhcp') && $('lm_nat') && $('lm_fw') && $('lm_vpn') && $('lm_wan_failover')); $('lm_wan_failover').checked=true; $('lm_save').click();
  d.querySelector('[data-id="'+clients[0]+'"] .lab-gear').click(); assert($('lm_mode') && $('lm_ip2') && $('lm_ep_dns')); $('lm_save').click();
- $('lab_run').click(); assert($('lab-results').textContent.includes('Проверка учебной модели пройдена')); assert($('lab-results').textContent.includes('резервный')); assert($('lab-log-lines').textContent.includes('условно'));
+ $('lab_run').click(); assert($('lab-results').textContent.includes('Проверка учебной модели пройдена')); assert($('lab-results').textContent.includes('резервный')); assert($('lab-log-lines').textContent.includes('условно')); assert(d.querySelectorAll('.lab-flow-out').length); assert(d.querySelectorAll('.lab-flow-back').length);
+ // Отключение и возврат провайдера сразу меняют подсвеченный путь.
+ d.querySelector('[data-id="'+isp1+'"] .lab-power').click(); assert($('lab-flow-status').textContent.includes(w.Lab.state.devices.find(x=>x.id===isp2).name));
+ d.querySelector('[data-id="'+isp1+'"] .lab-power').click(); assert($('lab-flow-status').textContent.includes(w.Lab.state.devices.find(x=>x.id===isp1).name));
  // Переключение основного и резервного через форму провайдера.
  d.querySelector('[data-id="'+isp2+'"] .lab-gear').click(); $('lm_priority').value='primary';$('lm_save').click();
  assert.equal(w.Lab.state.devices.find(x=>x.id===isp1).cfg.priority,'backup');assert.equal(w.Lab.state.devices.find(x=>x.id===isp2).cfg.priority,'primary');
  w.Lab.setMode('select'); d.querySelector('[data-id="'+clients[1]+'"] .lab-ico').click(); assert(!$('lab-modal').hidden); $('lm_cancel').click();
 
+ // Включение VPN и публикация сервера с сохранением портов.
+ d.querySelector('[data-id="'+rt+'"] .lab-gear').click(); $('lm_vpn').checked=true; $('lm_vpn').dispatchEvent(new w.Event('change')); assert(!$('lm_vpn_box').hidden); $('lm_vpn_type').value='l2tp-ipsec'; $('lm_vpn_type').dispatchEvent(new w.Event('change')); assert(!$('lm_vpn_l2tp').hidden && $('lm_vpn_wg').hidden); $('lm_vpn_user').value='vpnuser'; $('lm_vpn_pass').value='password123'; $('lm_vpn_psk').value='longsecret'; $('lm_save').click();
+ d.querySelector('[data-id="'+clients[2]+'"] .lab-gear').click(); $('lm_external').checked=true; $('lm_external').dispatchEvent(new w.Event('change')); $('lm_ext_port').value='8443'; $('lm_local_port').value='443'; $('lm_save').click();
+ $('lab_run').click(); assert($('lab-results').textContent.includes('use-ipsec=required')); assert($('lab-results').textContent.includes('dst-port=8443'));
  // Кнопка удаления в окне устройства: отмена сохраняет, подтверждение убирает линии.
  d.querySelector('[data-id="'+clients[1]+'"] .lab-gear').click(); $('lm_delete').click(); assert(!$('lab-confirm').hidden); $('lab-confirm-cancel').click(); assert(!$('lab-modal').hidden); assert(w.Lab.state.devices.some(x=>x.id===clients[1]));
  $('lm_delete').click(); $('lab-confirm-ok').click(); assert($('lab-modal').hidden); assert(!w.Lab.state.devices.some(x=>x.id===clients[1])); assert(!w.Lab.state.links.some(x=>x.a===clients[1]||x.b===clients[1])); assert($('lab-results').hidden);
@@ -61,6 +68,19 @@ const {JSDOM,VirtualConsole} = require('jsdom');
  w.Lab.setMode('delete'); const linkCount=w.Lab.state.links.length; d.querySelector('.lab-link-hit').dispatchEvent(new w.MouseEvent('click',{bubbles:true})); assert(!$('lab-confirm').hidden); $('lab-confirm-cancel').click(); assert.equal(w.Lab.state.links.length,linkCount);
  d.querySelector('.lab-link-hit').dispatchEvent(new w.MouseEvent('click',{bubbles:true})); $('lab-confirm-ok').click(); assert.equal(w.Lab.state.links.length,linkCount-1);
  const n=w.Lab.state.devices.length; d.querySelector('[data-id="'+clients[0]+'"] .lab-ico').click(); assert(!$('lab-confirm').hidden); $('lab-confirm-ok').click(); assert.equal(w.Lab.state.devices.length,n-1);
+ // Встроенный пример с резервом сразу проходит проверку модели.
+ $('lab_example_backup').click(); assert.equal(w.Lab.state.devices.filter(x=>x.type==='router').length,2); $('lab_run').click(); assert($('lab-results').textContent.includes('Проверка учебной модели пройдена'));
+ // Два роутера: переключение на резерв при OFF и возврат на основной.
+ $('lab_reset').click(); const main=w.Lab.place('router',100,100), back=w.Lab.place('router',300,100), a=w.Lab.place('isp',40,20), b=w.Lab.place('isp',360,20), common=w.Lab.place('switch',200,230), host=w.Lab.place('pc',200,360);
+ w.Lab.link(main,a); w.Lab.link(back,b); w.Lab.link(main,common); w.Lab.link(back,common); w.Lab.link(common,host);
+ $('lab_run').click(); assert($('lab-results').textContent.includes('план')); assert($('lab-flow-status').textContent.includes(w.Lab.state.devices.find(x=>x.id===main).name));
+ d.querySelector('[data-id="'+main+'"] .lab-power').click(); assert($('lab-flow-status').textContent.includes(w.Lab.state.devices.find(x=>x.id===back).name));
+ d.querySelector('[data-id="'+main+'"] .lab-power').click(); assert($('lab-flow-status').textContent.includes(w.Lab.state.devices.find(x=>x.id===main).name));
+ // При включённом резервном интернете в двухроутерной схеме WAN тоже переключает путь.
+ d.querySelector('[data-id="'+main+'"] .lab-gear').click(); $('lm_wan_failover').checked=true; $('lm_save').click(); $('lab_run').click(); d.querySelector('[data-id="'+a+'"] .lab-power').click(); assert($('lab-flow-status').textContent.includes(w.Lab.state.devices.find(x=>x.id===back).name));
+ d.querySelector('[data-id="'+common+'"] .lab-power').click(); assert($('lab-flow-status').textContent.includes('Нет активного пути')); assert(!d.querySelector('.lab-flow-out'));
+ // Настройка доступа извне непосредственно через линию ПК — MikroTik.
+ $('lab_reset').click(); const directRouter=w.Lab.place('router',100,100), directIsp=w.Lab.place('isp',100,0), directPc=w.Lab.place('pc',100,220); w.Lab.link(directRouter,directIsp); const link=w.Lab.link(directRouter,directPc); w.Lab.selectLink(link); assert($('insp_ext')); $('insp_ext').click(); assert($('lm_external')); $('lm_cancel').click();
  // Обычный раздел учебника использует тот же просмотр, не только лаборатория.
  w.location.hash='firewall'; await new Promise(resolve=>setTimeout(resolve,20));
  const guideImg=d.querySelector('#content figure.shot img'); assert(guideImg && guideImg.getAttribute('src').includes('official/'));

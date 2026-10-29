@@ -36,8 +36,8 @@ var TYPES = {
   router: { label: 'MikroTik', cls: 'router',
     defName: function (n) { return n <= 1 ? 'MikroTik' : 'MikroTik ' + n; },
     cfg: function () { return { lan: '192.168.88.0/24', gw: '192.168.88.1',
-      dhcp: true, nat: true, firewall: true, vpn: false,
-      vpnType: 'wireguard', vpnPort: '13231', vpnPool: '10.10.10.0/24' }; } },
+      dhcp: true, nat: true, firewall: true, vpn: false, wanFailover: false, routerFailover: true,
+      vpnType: 'wireguard', vpnPort: '13231', vpnPool: '10.10.10.0/24', vpnPeer: '', vpnUser: '', vpnPass: '', vpnPsk: '', vpnServerCert: '', vpnClientCert: '' }; } },
   switch: { label: 'Коммутатор', cls: 'switch',
     defName: function (n) { return n <= 1 ? 'Коммутатор' : 'Коммутатор ' + n; },
     cfg: function () { return {}; } },
@@ -60,7 +60,7 @@ var linkFrom = null;            /* первая точка линии */
 var selected = null;            /* {kind:'dev'|'link', id} */
 var lastModel = null;           /* адресная карта после успешного запуска */
 var playToken = 0, playCtl = null;
-var currentRes = null;
+var currentRes = null, flowEnabled = false;
 
 function nid(p) { state.seq++; return p + state.seq; }
 function byId(id) { return state.devices.filter(function (d) { return d.id === id; })[0]; }
@@ -82,7 +82,7 @@ function renderDevices() {
     var el = document.createElement('div');
     el.className = 'lab-dev t-' + t.cls +
       (selected && selected.kind === 'dev' && selected.id === d.id ? ' sel' : '') +
-      (linkFrom === d.id ? ' linksrc' : '');
+      (linkFrom === d.id ? ' linksrc' : '') + (d.on === false ? ' powered-off' : '');
     el.dataset.id = d.id;
     el.style.left = d.x + 'px';
     el.style.top = d.y + 'px';
@@ -106,7 +106,12 @@ function renderDevices() {
     }
     el.innerHTML = '<div class="lab-ico">' + ICONS[d.type] + '</div>' +
       '<div class="lab-nm">' + esc(d.name) + '</div>' + badge +
+      '<button type="button" class="lab-power" aria-label="' + (d.on === false ? 'Включить ' : 'Выключить ') + esc(d.name) + '" title="' + (d.on === false ? 'Включить' : 'Выключить') + '" aria-pressed="' + (d.on !== false) + '">' + (d.on === false ? 'OFF' : 'ON') + '</button>' +
       '<button type="button" class="lab-gear" aria-label="Настроить ' + esc(d.name) + '" title="Настроить ' + esc(d.name) + '">⚙</button>';
+    var power = el.querySelector('.lab-power');
+    power.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+    power.addEventListener('touchstart', function(e) { e.stopPropagation(); });
+    power.addEventListener('click', function(e) { e.stopPropagation(); togglePower(d.id); });
     var gear = el.querySelector('.lab-gear');
     gear.addEventListener('mousedown', function (e) { e.stopPropagation(); });
     gear.addEventListener('touchstart', function (e) { e.stopPropagation(); });
@@ -148,6 +153,33 @@ function renderLinks() {
     mid.textContent = wan ? 'WAN' : 'LAN';
     svg.appendChild(mid);
   });
+  if (flowEnabled && typeof LabEngine !== 'undefined') {
+    var drawn = Object.create(null), routes = LabEngine.activeRoutes(state);
+    routes.forEach(function(route) {
+      for (var i = 0; i < route.path.length - 1; i++) {
+        var from = route.path[i], to = route.path[i + 1], key = [from,to].sort().join('|');
+        if (drawn[key]) continue; drawn[key] = true;
+        var a = byId(from), b = byId(to); if (!a || !b) continue;
+        var A = center(a), B = center(b);
+        svg.appendChild(svgEl('line', { class:'lab-flow lab-flow-out', x1:A.x, y1:A.y-3, x2:B.x, y2:B.y-3 }));
+        svg.appendChild(svgEl('line', { class:'lab-flow lab-flow-back', x1:B.x, y1:B.y+3, x2:A.x, y2:A.y+3 }));
+      }
+    });
+    var status = $('lab-flow-status');
+    if (status) {
+      status.hidden = false;
+      if (!routes.length) status.textContent = 'Нет активного пути в модели: проверьте ON/OFF и резервирование.';
+      else { var r = byId(routes[0].router), i = byId(routes[0].isp); status.textContent = 'Учебный трафик туда/обратно: ' + r.name + ' → ' + i.name + '. Реальные пакеты не отправляются.'; }
+    }
+  }
+}
+
+function togglePower(id) {
+  var d = byId(id); if (!d) return;
+  d.on = d.on === false;
+  if (playCtl) { clearTimeout(playCtl.timer); playCtl = null; playToken++; skipBtn.hidden = true; if (currentRes) { lastModel = currentRes.model; renderResults(currentRes); } }
+  renderAll();
+  if (flowEnabled) appendLog('info', d.name + (d.on ? ': ON. ' : ': OFF. ') + (LabEngine.activeRoutes(state).length ? 'Маршрут модели пересчитан.' : 'Активного пути нет.'));
 }
 
 function updateHint() {
@@ -200,9 +232,11 @@ function renderInspect() {
     var l = state.links.filter(function (x) { return x.id === selected.id; })[0];
     var a = l && byId(l.a), b = l && byId(l.b);
     if (!l || !a || !b) { selected = null; renderInspect(); return; }
+    var direct = (a.type === 'router' && (b.type === 'pc' || b.type === 'server')) ? b : (b.type === 'router' && (a.type === 'pc' || a.type === 'server')) ? a : null;
     inspectEl.innerHTML = '<div class="insp-t">🔗 Линия связи: ' + esc(a.name) + ' — ' + esc(b.name) + '</div>' +
       '<div class="insp-sub">' + esc((a.type === 'isp' || b.type === 'isp') && (a.type === 'router' || b.type === 'router') ? 'WAN-канал' : 'LAN-сегмент') + '</div>' +
-      '<div class="insp-acts"><button type="button" class="btn danger-ghost" id="insp_del">✕ Удалить линию</button></div>';
+      '<div class="insp-acts">' + (direct ? '<button type="button" class="btn ghost" id="insp_ext">⚙ Доступ извне и порты</button>' : '') + '<button type="button" class="btn danger-ghost" id="insp_del">✕ Удалить линию</button></div>';
+    if (direct) $('insp_ext').addEventListener('click', function () { openSettings(direct.id); });
     inspectEl.hidden = false;
     $('insp_del').addEventListener('click', function () { requestDelete('link', l.id); });
     return;
@@ -216,7 +250,7 @@ function renderInspect() {
     if (d.cfg.nat) roles.push('NAT');
     if (d.cfg.firewall) roles.push('Firewall');
     if (d.cfg.vpn) roles.push('VPN');
-    sub = esc(d.cfg.lan) + ' · роли: ' + esc(roles.join(', ') || 'не заданы');
+    sub = esc(d.cfg.lan) + ' · ' + (d.cfg.routerRole === 'backup' ? 'резервный' : 'основной') + ' · роли: ' + esc(roles.join(', ') || 'не заданы');
   } else if (d.type === 'isp') {
     sub = { pppoe: 'PPPoE: логин/пароль', dhcp: 'DHCP — авто', static: 'Статический IP', lte: 'USB 3G/LTE' }[d.cfg.kind];
     sub = esc(sub) + ' · ' + (d.cfg.priority === 'backup' ? 'резервный' : 'основной');
@@ -280,6 +314,7 @@ function place(type, x, y) {
     x: Math.round(clamp(x, 0, Math.max(0, maxW))),
     y: Math.round(clamp(y, 0, Math.max(0, maxH))),
     cfg: t.cfg() };
+  if (type === 'router') d.cfg.routerRole = countType('router') ? 'backup' : 'primary';
   if (type === 'isp') {
     d.cfg.priority = countType('isp') ? 'backup' : 'primary';
     if (countType('isp')) { d.cfg.ip = '203.0.113.2/30'; d.cfg.gw = '203.0.113.1'; d.cfg.dns = '1.1.1.1'; }
@@ -364,14 +399,14 @@ document.addEventListener('touchend', endDrag);
 /* перепривязка после каждого renderDevices — используем делегирование: */
 function bindDragDelegates() {
   canvas.addEventListener('mousedown', function (e) {
-    if (e.target.closest && e.target.closest('.lab-gear')) return;
+    if (e.target.closest && e.target.closest('.lab-gear, .lab-power')) return;
     var el = e.target.closest ? e.target.closest('.lab-dev') : null;
     if (!el || !el.dataset.id) return;
     var d = byId(el.dataset.id);
     if (d) startDrag(d, el, e.clientX, e.clientY);
   });
   canvas.addEventListener('touchstart', function (e) {
-    if (e.target.closest && e.target.closest('.lab-gear')) return;
+    if (e.target.closest && e.target.closest('.lab-gear, .lab-power')) return;
     var el = e.target.closest ? e.target.closest('.lab-dev') : null;
     if (!el || !el.dataset.id || !e.touches[0]) return;
     var d = byId(el.dataset.id);
@@ -424,6 +459,8 @@ function flyPacket(ev) {
 function invalidate() {
   if (playCtl) { clearTimeout(playCtl.timer); playCtl = null; playToken++; }
   currentRes = null;
+  flowEnabled = false;
+  if ($('lab-flow-status')) $('lab-flow-status').hidden = true;
   lastModel = null;
   if (resultsEl) { resultsEl.hidden = true; resultsEl.innerHTML = ''; }
   if (logBox) { logBox.hidden = true; logLines.innerHTML = ''; }
@@ -464,6 +501,9 @@ function run(opts) {
   var instant = !!opts.instant || typeof window !== 'undefined' && window.LAB_INSTANT === true;
   if (playCtl) { clearTimeout(playCtl.timer); playCtl = null; }
   playToken++;
+  flowEnabled = false;
+  if ($('lab-flow-status')) $('lab-flow-status').hidden = true;
+  renderLinks();
   resultsEl.hidden = true;
   resultsEl.innerHTML = '';
   logLines.innerHTML = '';
@@ -481,6 +521,8 @@ function run(opts) {
     return;
   }
   res.warnings.forEach(function (w) { appendLog('warn', '⚠ ' + w); });
+  flowEnabled = true;
+  renderLinks();
 
   if (instant) {
     res.timeline.forEach(function (ev) { if (ev.t === 'log') appendLog(ev.level, ev.text); });
@@ -504,7 +546,7 @@ function renderResults(res) {
       '</div></div>';
   } else {
     html += '<div class="res-summary"><h3>✅ Проверка учебной модели пройдена</h3>' +
-      '<p>Показан предполагаемый путь, реальные пакеты не отправлялись. DHCP-адреса на карте — примеры. Ниже — проект настроек для проверки на реальном оборудовании.</p></div>';
+      '<p>Показан предполагаемый путь, реальные пакеты не отправлялись. DHCP-адреса на карте — примеры. ' + (res.dual ? 'Для двух роутеров ниже приведён только план VRRP, настройка выполняется вручную.' : 'Ниже — проект настроек для проверки на реальном оборудовании.') + '</p></div>';
     if (res.warnings.length) {
       html += '<div class="res-card"><div class="res-head">⚠ Предупреждения: ' + res.warnings.length + '</div><div class="res-body"><ul class="check-list">' +
         res.warnings.map(function (w) { return '<li class="warn"><span class="ci">⚠</span><span>' + esc(w) + '</span></li>'; }).join('') +
@@ -516,10 +558,10 @@ function renderResults(res) {
         return '<tr>' + r.map(function (c) { return '<td>' + esc(c) + '</td>'; }).join('') + '</tr>';
       }).join('') +
       '</tbody></table></div></div></div>';
-    html += '<div class="note">Порты назначаются по порядку создания линий к MikroTik. Подключите кабели согласно карте ниже; для DHCP-клиентов настройте автоматическое получение IP, для статических — адрес, шлюз и DNS из таблицы. Пароль PPPoE присутствует в командах: не публикуйте их.</div>';
+    html += '<div class="note">' + (res.dual ? 'При двух роутерах номера портов согласуйте вручную. ' : 'Порты назначаются по порядку создания линий к MikroTik. ' ) + ' Подключите кабели согласно карте ниже; для DHCP-клиентов настройте автоматическое получение IP, для статических — адрес, шлюз и DNS из таблицы. Пароли и ключи могут присутствовать в командах: не публикуйте их.</div>';
     html += '<div class="res-card"><div class="res-head">🔌 Подключения MikroTik</div><div class="res-body"><ul>' +
-      res.model.isps.map(function(i) { return '<li>' + esc(i.phys) + ' → ' + esc(i.name) + ' (' + esc(i.kind) + ', ' + (i.priority === 'primary' ? 'основной' : 'резервный') + ')</li>'; }).join('') +
-      res.model.router.lanPorts.map(function(p) { return '<li>' + esc(p.phys) + ' → ' + esc(p.dev.name) + '</li>'; }).join('') + '</ul></div></div>';
+      (res.dual ? '<li>Два MikroTik: см. соединения на схеме; номера портов и VRRP необходимо согласовать вручную.</li>' : res.model.isps.map(function(i) { return '<li>' + esc(i.phys) + ' → ' + esc(i.name) + ' (' + esc(i.kind) + ', ' + (i.priority === 'primary' ? 'основной' : 'резервный') + ')</li>'; }).join('') +
+      res.model.router.lanPorts.map(function(p) { return '<li>' + esc(p.phys) + ' → ' + esc(p.dev.name) + '</li>'; }).join('')) + '</ul></div></div>';
     html += '<div class="res-card" id="lab-winbox"><div class="res-head">🖥 Пошаговая настройка через WinBox</div><div class="res-body">' +
       '<div class="note">Снимки ниже — подлинные примеры из документации MikroTik, не снимки вашего роутера. Вводите значения из текста и карты адресов. Интерфейс зависит от версии RouterOS.</div>';
     res.winbox.forEach(function (step, i) {
@@ -528,13 +570,13 @@ function renderResults(res) {
         '<ol>' + step.instructions.map(function (item) { return '<li>' + esc(item) + '</li>'; }).join('') + '</ol></section>';
     });
     html += '</div></div>';
-    html += '<div class="res-card"><div class="res-head">⚙ Проект настроек RouterOS</div><div class="res-body">';
+    html += '<div class="res-card"><div class="res-head">⚙ ' + (res.dual ? 'План VRRP — требуется ручная настройка' : 'Проект настроек RouterOS') + '</div><div class="res-body">';
     res.groups.forEach(function (g, i) {
       html += '<details class="cmd-group"' + (i < 2 ? ' open' : '') + '><summary>' + esc(g.title) + '</summary><div class="cg-body">' +
         '<div class="codeblock"><div class="code-head"><span class="ch-lang">RouterOS</span><button type="button" class="copy-btn" data-copy="labg' + i + '">Копировать</button></div><pre><code id="labg' + i + '">' + esc(g.code) + '</code></pre></div>' +
         '</div></details>';
     });
-    html += '<p class="fs-hint">Проект рассчитан на чистую конфигурацию RouterOS 7. Перед применением сделайте резервную копию, сверьте порты, модель и существующие правила; выполняйте группы по порядку с локальным доступом. Протестируйте на реальном оборудовании.</p>';
+    html += '<p class="fs-hint">' + (res.dual ? 'Для двух роутеров выше приведён только план, не готовый проект команд. ' : '') + 'Проект рассчитан на чистую конфигурацию RouterOS 7. Перед применением сделайте резервную копию, сверьте порты, модель и существующие правила; выполняйте группы по порядку с локальным доступом. Протестируйте на реальном оборудовании.</p>';
     html += '</div></div>';
   }
   resultsEl.innerHTML = html;
@@ -562,18 +604,23 @@ function openSettings(id) {
   var c = d.cfg;
   var html = f('lm_name', 'Название устройства', 'text', d.name, 'spellcheck="false"');
   if (d.type === 'router') {
+    html += sel('lm_router_role', 'Роль MikroTik', [['primary', 'Основной'], ['backup', 'Резервный']], c.routerRole || 'primary');
     html += '<div class="lm-grid">' + f('lm_lan', 'Подсеть LAN (CIDR)', 'text', c.lan, 'spellcheck="false" list="dl-net"') +
       f('lm_gw', 'IP роутера (шлюз)', 'text', c.gw, 'list="dl-ip" inputmode="decimal"') + '</div>';
     html += '<div class="lm-t">Роли MikroTik:</div>' +
       chk('lm_dhcp', 'DHCP-сервер в LAN', c.dhcp) +
       chk('lm_nat', 'NAT (masquerade) — выход в интернет', c.nat) +
       chk('lm_fw', 'Firewall — правила защиты', c.firewall) +
+      chk('lm_wan_failover', 'Резервный интернет с автопереключением (при двух провайдерах)', c.wanFailover !== false) +
+      chk('lm_router_failover', 'Учебное переключение на резервный MikroTik (задаётся на основном)' , c.routerFailover !== false) +
       chk('lm_vpn', 'VPN-сервер', c.vpn) +
-      '<p class="fs-hint">VPN пока не моделируется: при включении карта команд не формируется. Для VPN используйте отдельный раздел учебника.</p>';
+      '<p class="fs-hint">Переключение в модели условное. Для реальной доступности интернета и резервирования двух роутеров нужна отдельная проверка оборудования и VRRP.</p>';
     html += '<div id="lm_vpn_box"' + (c.vpn ? '' : ' hidden') + '><div class="lm-grid">' +
       sel('lm_vpn_type', 'Тип VPN', [['wireguard', 'WireGuard'], ['ikev2', 'IPsec IKEv2'], ['l2tp-ipsec', 'L2TP/IPsec']], c.vpnType) +
-      f('lm_vpn_port', 'Порт/слушать', 'text', c.vpnPort, 'list="dl-port" inputmode="numeric"') +
-      f('lm_vpn_pool', 'Пул VPN (CIDR)', 'text', c.vpnPool, 'list="dl-net"') + '</div></div>';
+      f('lm_vpn_pool', 'Подсеть VPN (CIDR)', 'text', c.vpnPool, 'list="dl-net"') + '</div>' +
+      '<div id="lm_vpn_wg">' + f('lm_vpn_port', 'Порт WireGuard UDP', 'text', c.vpnPort || '13231', 'inputmode="numeric"') + f('lm_vpn_peer', 'Публичный ключ клиента WireGuard (необязательно)', 'text', c.vpnPeer || '', 'spellcheck="false"') + '<p class="fs-hint">Без ключа клиент не подключится — его можно добавить позже.</p></div>' +
+      '<div id="lm_vpn_ike">' + f('lm_vpn_server_cert', 'Имя импортированного сертификата сервера', 'text', c.vpnServerCert || '', 'spellcheck="false"') + f('lm_vpn_client_cert', 'Имя доверенного сертификата клиента', 'text', c.vpnClientCert || '', 'spellcheck="false"') + '<p class="fs-hint">Сертификаты и закрытые ключи подготовьте и импортируйте заранее; настройте доверие и имя сервера на клиенте.</p></div>' +
+      '<div id="lm_vpn_l2tp">' + f('lm_vpn_user', 'Имя пользователя L2TP', 'text', c.vpnUser || '', 'spellcheck="false"') + f('lm_vpn_pass', 'Пароль (не менее 8 символов)', 'password', c.vpnPass || '', 'autocomplete="new-password"') + f('lm_vpn_psk', 'Общий ключ IPsec (не менее 8 символов)', 'password', c.vpnPsk || '', 'autocomplete="new-password"') + '</div></div>';
   } else if (d.type === 'isp') {
     html += sel('lm_priority', 'Роль канала', [['primary', 'Основной'], ['backup', 'Резервный']], c.priority || 'primary');
     html += sel('lm_kind', 'Тип подключения', [['pppoe', 'PPPoE (логин/пароль)'], ['dhcp', 'DHCP (авто)'], ['static', 'Статический IP'], ['lte', 'USB 3G/LTE-модем']], c.kind);
@@ -593,6 +640,15 @@ function openSettings(id) {
       f('lm_gw2', 'Шлюз', 'text', c.gw, 'list="dl-ip" inputmode="decimal"') +
       f('lm_ep_dns', 'DNS (необязательно)', 'text', c.dns || '', 'list="dl-dns" inputmode="decimal"') + '</div>' +
       '<button type="button" class="btn ghost lm-mini" id="lm_fill_gw">↳ подставить IP роутера</button></div>';
+    if (d.type === 'pc' || d.type === 'server') {
+      html += '<div class="lm-t">Публикация в интернете</div>' + chk('lm_external', 'Разрешить доступ извне к этому устройству', c.external) +
+        '<div id="lm_external_box"' + (c.external ? '' : ' hidden') + '><div class="lm-grid">' +
+        sel('lm_ext_proto', 'Протокол', [['tcp', 'TCP'], ['udp', 'UDP']], c.extProto || 'tcp') +
+        f('lm_ext_port', 'Внешний порт', 'text', c.extPort || '8080', 'inputmode="numeric"') +
+        f('lm_local_port', 'Локальный порт', 'text', c.localPort || '80', 'inputmode="numeric"') + '</div>' +
+        '<p class="fs-hint">Нужен статический LAN-адрес вне DHCP-пула и доступный белый IP. Публикация открывает сервис в интернет; защитите его. Эти же настройки доступны на прямой линии ПК/сервер — MikroTik.</p></div>';
+    }
+
   } else {
     html += '<p class="fs-hint">В этой модели коммутатор работает как неуправляемый L2. Он просто объединяет сегменты в один широковещательный домен.</p>';
   }
@@ -603,7 +659,7 @@ function openSettings(id) {
   lmErr.hidden = true;
   modal.hidden = false;
 
-  var kindSel = $('lm_kind'), modeSel = $('lm_mode'), vpnChk = $('lm_vpn');
+  var kindSel = $('lm_kind'), modeSel = $('lm_mode'), vpnChk = $('lm_vpn'), vpnType = $('lm_vpn_type'), extChk = $('lm_external');
   function applyVis() {
     if (kindSel) {
       $('lm_g_pppoe').hidden = kindSel.value !== 'pppoe';
@@ -612,8 +668,10 @@ function openSettings(id) {
     }
     if (modeSel) $('lm_g_static_ep').hidden = modeSel.value !== 'static';
     if (vpnChk) $('lm_vpn_box').hidden = !vpnChk.checked;
+    if (vpnType) { $('lm_vpn_wg').hidden = vpnType.value !== 'wireguard'; $('lm_vpn_ike').hidden = vpnType.value !== 'ikev2'; $('lm_vpn_l2tp').hidden = vpnType.value !== 'l2tp-ipsec'; }
+    if (extChk) $('lm_external_box').hidden = !extChk.checked;
   }
-  [kindSel, modeSel, vpnChk].forEach(function (e2) {
+  [kindSel, modeSel, vpnChk, vpnType, extChk].forEach(function (e2) {
     if (e2) e2.addEventListener('change', applyVis);
   });
   var fill = $('lm_fill_gw');
@@ -631,7 +689,7 @@ function saveSettings() {
   var d = byId(editingId);
   if (!d) { modal.hidden = true; return; }
   var name = ($('lm_name').value || '').trim() || TYPES[d.type].defName(countType(d.type) + 1);
-  var c = d.cfg;
+  var c = Object.assign({}, d.cfg);
   var E = (typeof LabEngine !== 'undefined') ? LabEngine : null;
 
   if (d.type === 'router') {
@@ -643,11 +701,16 @@ function saveSettings() {
       return lmFail('Сетевой и широковещательный адрес нельзя назначать роутеру');
     var vpn = $('lm_vpn').checked;
     var vp = { lan: lan, gw: gw, dhcp: $('lm_dhcp').checked, nat: $('lm_nat').checked,
-      firewall: $('lm_fw').checked, vpn: vpn,
-      vpnType: $('lm_vpn_type').value, vpnPort: $('lm_vpn_port').value.trim(), vpnPool: $('lm_vpn_pool').value.trim() };
+      firewall: $('lm_fw').checked, vpn: vpn, routerRole: $('lm_router_role').value, wanFailover: $('lm_wan_failover').checked, routerFailover: $('lm_router_failover').checked,
+      vpnType: $('lm_vpn_type').value, vpnPort: $('lm_vpn_port').value.trim(), vpnPool: $('lm_vpn_pool').value.trim(),
+      vpnPeer: $('lm_vpn_peer').value.trim(), vpnServerCert: $('lm_vpn_server_cert').value.trim(), vpnClientCert: $('lm_vpn_client_cert').value.trim(),
+      vpnUser: $('lm_vpn_user').value.trim(), vpnPass: $('lm_vpn_pass').value, vpnPsk: $('lm_vpn_psk').value };
     if (vpn && !E.parseCidr(vp.vpnPool)) return lmFail('Пул VPN задан неверно — нужен вид 10.10.10.0/24');
-    if (vpn && !/^\d{1,5}$/.test(vp.vpnPort)) return lmFail('Порт VPN — число');
+    if (vpn && vp.vpnType === 'wireguard' && (!/^\d{1,5}$/.test(vp.vpnPort) || +vp.vpnPort < 1 || +vp.vpnPort > 65535)) return lmFail('Порт WireGuard — число от 1 до 65535');
+    if (vpn && vp.vpnType === 'ikev2' && (!vp.vpnServerCert || !vp.vpnClientCert)) return lmFail('Для IKEv2 укажите имена сертификатов сервера и клиента');
+    if (vpn && vp.vpnType === 'l2tp-ipsec' && (!vp.vpnUser || vp.vpnPass.length < 8 || vp.vpnPsk.length < 8)) return lmFail('Для L2TP/IPsec нужны имя, пароль и общий ключ не короче 8 символов');
     Object.assign(c, vp);
+    state.devices.forEach(function(other) { if (other.type === 'router' && other.id !== d.id) other.cfg.routerRole = vp.routerRole === 'primary' ? 'backup' : 'primary'; });
   } else if (d.type === 'isp') {
     var kind = $('lm_kind').value;
     var nc = { kind: kind };
@@ -682,6 +745,13 @@ function saveSettings() {
       Object.assign(c, { mode: 'dhcp' });
     }
   }
+  if (d.type === 'pc' || d.type === 'server') {
+    var external = $('lm_external').checked, ep = $('lm_ext_port').value.trim(), lp = $('lm_local_port').value.trim();
+    if (external && c.mode !== 'static') return lmFail('Для доступа извне выберите статический IP.');
+    if (external && (!/^\d{1,5}$/.test(ep) || +ep < 1 || +ep > 65535 || !/^\d{1,5}$/.test(lp) || +lp < 1 || +lp > 65535)) return lmFail('Внешний и локальный порты должны быть от 1 до 65535.');
+    Object.assign(c, { external: external, extProto: $('lm_ext_proto').value, extPort: ep, localPort: lp });
+  }
+  d.cfg = c;
   d.name = name;
   modal.hidden = true;
   editingId = null;
@@ -742,6 +812,18 @@ function init() {
     addLink(isp, rt); addLink(rt, sw); addLink(sw, pc); addLink(sw, server);
     setMode('select');
   });
+  $('lab_example_backup').addEventListener('click', function () {
+    resetBtn.click();
+    var w = canvas.clientWidth || 800, left = Math.max(0, w * .08), right = Math.max(0, w - 110), middle = Math.max(0, (w - DEV_W) / 2);
+    var isp1 = place('isp', left, 5), isp2 = place('isp', right, 5);
+    var rt1 = place('router', left, 120), rt2 = place('router', right, 120);
+    var sw = place('switch', middle, 245), pc = place('pc', left, 365), server = place('server', right, 365);
+    byId(rt1).cfg.wanFailover = true;
+    byId(rt1).cfg.routerFailover = true;
+    byId(pc).cfg.mode = 'dhcp';
+    addLink(isp1, rt1); addLink(isp2, rt2); addLink(rt1, sw); addLink(rt2, sw); addLink(sw, pc); addLink(sw, server);
+    setMode('select');
+  });
   resetBtn.addEventListener('click', function () {
     if (playCtl) { clearTimeout(playCtl.timer); playCtl = null; playToken++; }
     state.devices = [];
@@ -787,6 +869,7 @@ window.Lab = {
   openSettings: openSettings,
   select: select,
   selectLink: selectLink,
+  togglePower: togglePower,
   get lastModel() { return lastModel; },
   get mode() { return mode; }
 };
