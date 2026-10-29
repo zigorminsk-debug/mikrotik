@@ -314,16 +314,16 @@ function genCommands(plan) {
     if (i.routeKind === 'iface') {
       g3.push('/interface pppoe-client add name=' + i.iface + ' interface=' + i.phys +
         ' user=' + q(i.user) + ' password=' + q(i.pass) +
-        ' add-default-route=no disabled=no allow=pap,chap,mschapv2 comment="WAN: ' + i.name + '"');
+        ' add-default-route=no use-peer-dns=no disabled=no allow=pap,chap,mschapv2 comment="WAN: ' + i.name + '"');
     } else if (i.routeKind === 'dhcp') {
       g3.push('/ip dhcp-client add interface=' + i.iface +
         ' add-default-route=no use-peer-dns=yes disabled=no comment="WAN: ' + i.name + '"');
     } else if (i.routeKind === 'gw') {
       g3.push('# ' + i.name + ': IP-адрес назначен в разделе 2, шлюз укажем в маршрутах (раздел 8).');
     } else {
-      g3.push('/interface lte apn add name=apn-' + i.idx + ' apn=' + i.apn + ' use-network-apn=no',
-        '/interface lte set [ find name=' + i.iface + ' ] apn=apn-' + i.idx +
-        ' add-default-route=no comment="WAN: ' + i.name + '"',
+      g3.push('/interface lte apn add name=apn-' + i.idx + ' apn=' + q(i.apn) + ' add-default-route=no',
+        '/interface lte set [ find name=' + q(i.iface) + ' ] apn-profiles=apn-' + i.idx,
+        '# Проверьте синтаксис APN для вашей версии RouterOS: apn-profiles устарел в 7.26.',
         '# Модем получит IP автоматически; проверьте: /interface lte print status');
     }
   });
@@ -450,66 +450,38 @@ function genCommands(plan) {
     var only = plan.primary;
     if (only) {
       if (only.routeKind === 'iface')
-        g9.push('/ip route add dst-address=0.0.0.0/0 gateway=' + only.iface + ' distance=1 check-gateway=ping comment="Default → ' + only.name + '"');
+        g9.push('/ip route add dst-address=0.0.0.0/0 gateway=' + only.iface + ' distance=1 comment="Default → ' + only.name + '"');
       else if (only.routeKind === 'dhcp')
         g9.push('/ip dhcp-client set [ find interface=' + only.iface + ' ] add-default-route=yes default-route-distance=1 use-peer-dns=yes');
       else if (only.routeKind === 'gw')
         g9.push('/ip route add dst-address=0.0.0.0/0 gateway=' + only.gw + ' distance=1 check-gateway=ping comment="Default → ' + only.name + '"');
       else
-        g9.push('/interface lte set [ find name=' + only.iface + ' ] add-default-route=yes default-route-distance=1');
+        g9.push('/interface lte apn set [ find name=apn-' + only.idx + ' ] add-default-route=yes default-route-distance=1');
     }
     g9.push('# Резервный канал не запрошен: при отключении провайдера интернета не будет.');
   } else {
     var pri = plan.primary, bak = plan.backup, T = inp.foTime;
     g9.push('# Два маршрута по умолчанию: основной distance=1, резервный distance=2.',
-      '# check-gateway=ping — проверка шлюза каждые ' + T + ' с; ~' + (T * 3) + '–' + (T * 4) + ' с без ответа → переключение.');
+      '# Для статического WAN check-gateway проверяет шлюз, но не интернет за ним.',
+      '# DHCP/PPPoE/LTE зависят от состояния клиента; время и сохранность сессий не гарантируются.');
     [[pri, 1, 'ОСНОВНОЙ'], [bak, 2, 'РЕЗЕРВ']].forEach(function (pair) {
       var isp = pair[0], dist = pair[1], role = pair[2];
       if (isp.routeKind === 'iface')
         g9.push('/ip route add dst-address=0.0.0.0/0 gateway=' + isp.iface + ' distance=' + dist +
-          ' check-gateway=ping gateway-ping-interval=' + T + ' comment="' + role + ': ' + isp.name + '"');
+          ' comment="' + role + ': ' + isp.name + '"');
       else if (isp.routeKind === 'gw')
         g9.push('/ip route add dst-address=0.0.0.0/0 gateway=' + isp.gw + ' distance=' + dist +
-          ' check-gateway=ping gateway-ping-interval=' + T + ' comment="' + role + ': ' + isp.name + '"');
+          ' check-gateway=ping comment="' + role + ': ' + isp.name + '"');
       else if (isp.routeKind === 'dhcp')
         g9.push('/ip dhcp-client set [ find interface=' + isp.iface + ' ] add-default-route=yes default-route-distance=' + dist + ' use-peer-dns=yes',
           '# (' + role + ': шлюз DHCP ' + isp.name + ' известен динамически, расстояние задаётся здесь)');
       else
-        g9.push('/interface lte set [ find name=' + isp.iface + ' ] add-default-route=yes default-route-distance=' + dist,
+        g9.push('/interface lte apn set [ find name=apn-' + isp.idx + ' ] add-default-route=yes default-route-distance=' + dist,
           '# (' + role + ': LTE-шлюз динамический, расстояние задаётся здесь)');
     });
 
-    if (gwKnown(pri) && gwKnown(bak)) {
-      g9.push('', '# --- Необязательно, но рекомендуется: метки маршрутов (связность сессий).',
-        '# Существующие соединения не рвутся при восстановлении основного канала: сессии,',
-        '# однажды ушедшие в резерв, продолжают работать по резервному столу до завершения. ---',
-        '/routing table add name=to-primary fib',
-        '/routing table add name=to-backup fib',
-        '', '# 1) Помечаем новые соединения:',
-        '/ip firewall mangle add chain=prerouting in-interface-list=LAN connection-state=new connection-mark=no-mark new-connection-mark=conn-primary passthrough=yes comment="новые из LAN → основной"',
-        '/ip firewall mangle add chain=output connection-state=new connection-mark=no-mark new-connection-mark=conn-primary passthrough=yes comment="новые от роутера → основной"',
-        '/ip firewall mangle add chain=postrouting out-interface=' + bak.iface + ' connection-state=new new-connection-mark=conn-backup passthrough=no comment="ушедшие в резерв — остаются в резерве"',
-        plan.guest ? '/ip firewall mangle add chain=prerouting in-interface=bridge-guest connection-state=new connection-mark=no-mark new-connection-mark=conn-primary passthrough=yes comment="новые из гостей → основной"' : null,
-        '', '# 2) Метка соединения → стол маршрутов:',
-        '/ip firewall mangle add chain=prerouting in-interface-list=LAN connection-mark=conn-primary new-routing-mark=to-primary passthrough=yes',
-        '/ip firewall mangle add chain=prerouting in-interface-list=LAN connection-mark=conn-backup new-routing-mark=to-backup passthrough=yes',
-        '/ip firewall mangle add chain=output connection-mark=conn-primary new-routing-mark=to-primary passthrough=no',
-        '/ip firewall mangle add chain=output connection-mark=conn-backup new-routing-mark=to-backup passthrough=no',
-        plan.guest ? '/ip firewall mangle add chain=prerouting in-interface=bridge-guest connection-mark=conn-backup new-routing-mark=to-backup passthrough=yes' : null,
-        plan.guest ? '/ip firewall mangle add chain=prerouting in-interface=bridge-guest connection-mark=conn-primary new-routing-mark=to-primary passthrough=yes' : null,
-        '', '# 3) Маршруты для каждого стола (внутри стола тоже есть резерв):',
-        '/ip route add dst-address=0.0.0.0/0 gateway=' + gwOf(pri) + ' distance=1 routing-mark=to-primary check-gateway=ping gateway-ping-interval=' + T,
-        '/ip route add dst-address=0.0.0.0/0 gateway=' + gwOf(bak) + ' distance=2 routing-mark=to-primary check-gateway=ping gateway-ping-interval=' + T,
-        '/ip route add dst-address=0.0.0.0/0 gateway=' + gwOf(bak) + ' distance=1 routing-mark=to-backup check-gateway=ping gateway-ping-interval=' + T,
-        '/ip route add dst-address=0.0.0.0/0 gateway=' + gwOf(pri) + ' distance=2 routing-mark=to-backup check-gateway=ping gateway-ping-interval=' + T,
-        '', '# 4) Основной стол (main, без метки) — страховка для прочего трафика:',
-        '/ip route add dst-address=0.0.0.0/0 gateway=' + gwOf(pri) + ' distance=1 check-gateway=ping gateway-ping-interval=' + T + ' comment="main: основной"',
-        '/ip route add dst-address=0.0.0.0/0 gateway=' + gwOf(bak) + ' distance=2 check-gateway=ping gateway-ping-interval=' + T + ' comment="main: резерв"');
-    } else {
-      g9.push('', '# Шлюзы DHCP/LTE известны динамически: переключение выполняется',
-      '# средствами distance (см. выше) — это надёжно и не требует меток.');
-    }
-    g9.push('', '# Контроль каналов (диагностика):',
+    g9.push('', '# Метки соединений и policy routing не генерируются. Существующие соединения могут оборваться при переключении.');
+    g9.push('', '# Netwatch ниже только диагностирует выбранный адрес по активному пути, НЕ переключает маршруты:',
       '/tool netwatch add host=8.8.8.8 type=icmp interval=' + T + 's timeout=1s comment="Проверка интернета"',
       '# Оповещение при потечении канала (настройте /tool e-mail):',
       '#   up-script=:log info "Интернет OK"; down-script=:log warning "НЕТ ИНТЕРНЕТА — проверьте каналы"');
@@ -665,8 +637,8 @@ function buildImplementation(plan, groups) {
   steps.push({ t: 'Firewall (защита)', d: 'Вставьте правила filter строго в указанном порядке: разрешены established/related, запрещён транзит из интернета,LAN→роутер разрешён, гости изолированы от LAN.', g: 'filter' });
   steps.push({ t: 'NAT и публикация', d: 'masquerade даёт выход в интернет; dstnat-правила открывают нужные внутренние ресурсы наружу (разрешающие forward-правила уже сгенерированы в разделе firewall).', g: 'nat' });
   steps.push({ t: 'Маршруты и резерв', d: plan.failover
-      ? 'Основной канал distance=1, резерв distance=2 с check-gateway=ping: при потере основного шлюза переключение произойдёт автоматически за ~' + (plan.inp.foTime * 3) + '–' + (plan.inp.foTime * 4) + ' с, при восстановлении — обратно. Метки маршрутов сохранят активные сессии.'
-      : 'Маршрут по умолчанию через вашего провайдера включён с проверкой шлюза.', g: 'route' });
+      ? 'Основной маршрут distance=1, резерв distance=2. Проверка статического шлюза не обнаруживает все отказы интернета; динамические каналы зависят от клиента. Проверьте переключение на оборудовании, сессии могут оборваться.'
+      : 'Маршрут по умолчанию через провайдера. Для статического шлюза включена проверка ping; динамические каналы зависят от клиента.', g: 'route' });
   if (has('vpn')) steps.push({ t: 'VPN', d: 'Разверните выбранный VPN-сервер, заведите пользователя/пира, установите конфигурацию на клиент.', g: 'vpn' });
   steps.push({ t: 'Проверка работоспособности', d: 'Выполните команды проверки: маршрут активен, клиенты получают адреса, интернет работает. Затем физически отключите основной канал на ~30 с — трафик должен уйти в резерв; верните кабель — переключение обратно. Публикации проверьте из внешней сети.', g: 'verify' });
   steps.push({ t: 'Сохранение конфигурации', d: 'Сохраните бэкап с паролем и включите расписание автосохранения — настройки не потеряются при сбое питания.',

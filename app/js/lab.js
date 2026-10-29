@@ -37,6 +37,9 @@ var TYPES = {
     defName: function (n) { return n <= 1 ? 'MikroTik' : 'MikroTik ' + n; },
     cfg: function () { return { lan: '192.168.88.0/24', gw: '192.168.88.1',
       dhcp: true, nat: true, firewall: true, vpn: false, wanFailover: false, routerFailover: true,
+      wanMonitor: false, monitorHost: '9.9.9.9', staticRoute: false, routeDst: '10.20.0.0/24', routeGw: '192.168.88.254', routeDistance: '1',
+      dnsCache: true, customDns: false, dnsPrimary: '1.1.1.1', dnsSecondary: '8.8.8.8', dnsStatic: false, dnsStaticName: 'server.lan', dnsStaticIp: '192.168.88.10',
+      ntpClient: false, ntpServer: 'pool.ntp.org', timeZone: 'Etc/UTC', cloudDdns: false, identityOn: false, systemIdentity: 'MikroTik-Lab',
       vlanGuest: false, guestVlan: '20', guestNet: '192.168.99.0/24', guestGw: '192.168.99.1', guestDhcp: true,
       wifiAp: false, wifiIf: 'wifi1', wifiCountry: '', wifiSsid: 'MikroTik-LAN', wifiPass: '', wifiGuest: false, wifiGuestSsid: 'MikroTik-Guest', wifiGuestPass: '',
       vpnType: 'wireguard', vpnPort: '13231', vpnPool: '10.10.10.0/24', vpnPeer: '', vpnUser: '', vpnPass: '', vpnPsk: '', vpnServerCert: '', vpnClientCert: '' }; } },
@@ -186,6 +189,14 @@ function togglePower(id) {
   if (flowEnabled) appendLog('info', d.name + (d.on ? ': ON. ' : ': OFF. ') + (LabEngine.activeRoutes(state).length ? 'Маршрут модели пересчитан.' : 'Активного пути нет.'));
 }
 
+function toggleProbe(id) {
+  var d = byId(id); if (!d || d.type !== 'router' || !d.cfg.wanMonitor) return;
+  d.probeOn = d.probeOn === false;
+  if (playCtl) { clearTimeout(playCtl.timer); playCtl = null; playToken++; skipBtn.hidden = true; if (currentRes) { lastModel = currentRes.model; renderResults(currentRes); } }
+  renderAll();
+  if (flowEnabled) appendLog('warn', 'Контрольный узел: ' + (d.probeOn ? 'условно восстановлен' : 'условно недоступен') + '. Реальный ping не выполнялся; маршрут модели пересчитан.');
+}
+
 function updateHint() {
   var t = '';
   if (mode === 'place')
@@ -268,9 +279,11 @@ function renderInspect() {
   inspectEl.innerHTML = '<div class="insp-t">' + esc(d.name) + '</div><div class="insp-sub">' + sub + '</div>' +
     '<div class="insp-acts">' +
     '<button type="button" class="btn ghost" id="insp_cfg">⚙ Настроить</button>' +
+    (d.type === 'router' && d.cfg.wanMonitor ? '<button type="button" class="btn ghost" id="insp_probe">' + (d.probeOn === false ? '↻ Узел: восстановить' : '⚡ Узел: имитировать сбой') + '</button>' : '') +
     '<button type="button" class="btn danger-ghost" id="insp_del">✕ Удалить</button></div>';
   inspectEl.hidden = false;
   $('insp_cfg').addEventListener('click', function () { openSettings(d.id); });
+  if ($('insp_probe')) $('insp_probe').addEventListener('click', function() { toggleProbe(d.id); });
   $('insp_del').addEventListener('click', function () { requestDelete('dev', d.id); });
 }
 
@@ -642,6 +655,23 @@ function openSettings(id) {
       f('lm_wifi_guest_pass', 'Пароль гостей WPA2', 'password', c.wifiGuestPass || '', 'autocomplete="new-password"') + '</div></div>' +
       '<p class="fs-hint">RouterOS 7.13+ с пакетом wifi и поддержкой AP/виртуального интерфейса. Для старого wireless и wifiwave2 команды отличаются; радио и покрытие не эмулируются. Пароли попадут в проект команд.</p></div>' +
       '<p class="fs-hint"><a id="lm_network_guide" href="#networks">Подробные инструкции по LAN, VLAN и Wi‑Fi в учебнике</a></p>';
+    html += '<div class="lm-t">Маршрутизация и системные службы</div>' +
+      chk('lm_wan_monitor', 'Проверять основной WAN по внешнему IPv4 (статический WAN)', c.wanMonitor) +
+      '<div id="lm_monitor_box"' + (c.wanMonitor ? '' : ' hidden') + '>' + f('lm_monitor_host', 'Контрольный IPv4 (ICMP)', 'text', c.monitorHost || '9.9.9.9', 'inputmode="decimal"') + '<p class="fs-hint">Для двух каналов и включённого резервирования: рекурсивный маршрут проверяет один узел. DHCP, PPPoE и LTE как основной в этом режиме пока не поддерживаются. При выборе MikroTik можно условно имитировать сбой узла.</p></div>' +
+      chk('lm_static_route', 'Статический маршрут через шлюз в основной LAN', c.staticRoute) +
+      '<div id="lm_route_box"' + (c.staticRoute ? '' : ' hidden') + '><div class="lm-grid">' + f('lm_route_dst', 'Подсеть назначения', 'text', c.routeDst || '10.20.0.0/24', 'spellcheck="false"') + f('lm_route_gw', 'Шлюз в основной LAN', 'text', c.routeGw || '192.168.88.254', 'inputmode="decimal"') + f('lm_route_distance', 'Distance (1–254)', 'text', c.routeDistance || '1', 'inputmode="numeric"') + '</div><p class="fs-hint">Один маршрут к другой сети за LAN-шлюзом. Доступность следующего роутера и обратный маршрут не проверяются.</p></div>' +
+      chk('lm_dns_cache', 'DNS-кэш роутера для клиентов', c.dnsCache !== false) +
+      '<p class="fs-hint">Если выключить кэш, DHCP будет выдавать клиентам первый вышестоящий DNS вместо IP роутера.</p>' +
+      chk('lm_custom_dns', 'Задать DNS-серверы вручную', c.customDns) +
+      '<div id="lm_dns_box"' + (c.customDns ? '' : ' hidden') + '><div class="lm-grid">' + f('lm_dns_primary', 'Основной DNS IPv4', 'text', c.dnsPrimary || '1.1.1.1', 'inputmode="decimal"') + f('lm_dns_secondary', 'Второй DNS IPv4 (необязательно)', 'text', c.dnsSecondary || '', 'inputmode="decimal"') + '</div></div>' +
+      chk('lm_dns_static', 'Добавить локальную DNS-запись A', c.dnsStatic) +
+      '<div id="lm_dns_static_box"' + (c.dnsStatic ? '' : ' hidden') + '><div class="lm-grid">' + f('lm_dns_name', 'Имя хоста', 'text', c.dnsStaticName || 'server.lan', 'spellcheck="false"') + f('lm_dns_ip', 'IPv4 хоста', 'text', c.dnsStaticIp || '192.168.88.10', 'inputmode="decimal"') + '</div><p class="fs-hint">Клиенты должны использовать DNS роутера; существование хоста модель не проверяет.</p></div>' +
+      chk('lm_ntp', 'Синхронизация времени NTP', c.ntpClient) +
+      '<div id="lm_ntp_box"' + (c.ntpClient ? '' : ' hidden') + '><div class="lm-grid">' + f('lm_ntp_server', 'NTP-сервер (имя или IPv4)', 'text', c.ntpServer || 'pool.ntp.org', 'spellcheck="false"') + f('lm_timezone', 'Часовой пояс RouterOS', 'text', c.timeZone || 'Etc/UTC', 'spellcheck="false"') + '</div><p class="fs-hint">Пояс выберите для своего региона, например Europe/Minsk. Модель время не синхронизирует.</p></div>' +
+      chk('lm_cloud', 'IP Cloud DDNS от MikroTik', c.cloudDdns) + '<p class="fs-hint">IP Cloud обращается к серверам MikroTik; DDNS не обходит CGNAT и не гарантирует доступ извне.</p>' +
+      chk('lm_identity', 'Задать системное имя роутера', c.identityOn) +
+      '<div id="lm_identity_box"' + (c.identityOn ? '' : ' hidden') + '>' + f('lm_identity_name', 'Системное имя', 'text', c.systemIdentity || 'MikroTik-Lab', 'spellcheck="false"') + '</div>' +
+      '<p class="fs-hint"><a id="lm_routing_guide" href="#routing">Маршрутизация в учебнике</a> · <a id="lm_failover_guide" href="#failover">Резервирование в учебнике</a></p>';
     html += '<div id="lm_vpn_box"' + (c.vpn ? '' : ' hidden') + '><div class="lm-grid">' +
       sel('lm_vpn_type', 'Тип VPN', [['wireguard', 'WireGuard'], ['ikev2', 'IPsec IKEv2'], ['l2tp-ipsec', 'L2TP/IPsec']], c.vpnType) +
       f('lm_vpn_pool', 'Подсеть VPN (CIDR)', 'text', c.vpnPool, 'list="dl-net"') + '</div>' +
@@ -687,7 +717,7 @@ function openSettings(id) {
   lmErr.hidden = true;
   modal.hidden = false;
 
-  var kindSel = $('lm_kind'), modeSel = $('lm_mode'), vpnChk = $('lm_vpn'), vpnType = $('lm_vpn_type'), extChk = $('lm_external'), guestChk = $('lm_guest_vlan'), wifiChk = $('lm_wifi_ap'), wifiGuestChk = $('lm_wifi_guest');
+  var kindSel = $('lm_kind'), modeSel = $('lm_mode'), vpnChk = $('lm_vpn'), vpnType = $('lm_vpn_type'), extChk = $('lm_external'), guestChk = $('lm_guest_vlan'), wifiChk = $('lm_wifi_ap'), wifiGuestChk = $('lm_wifi_guest'), monitorChk = $('lm_wan_monitor'), routeChk = $('lm_static_route'), dnsChk = $('lm_custom_dns'), staticDnsChk = $('lm_dns_static'), ntpChk = $('lm_ntp'), identityChk = $('lm_identity');
   function applyVis() {
     if (kindSel) {
       $('lm_g_pppoe').hidden = kindSel.value !== 'pppoe';
@@ -701,12 +731,12 @@ function openSettings(id) {
     if (guestChk) $('lm_guest_vlan_box').hidden = !guestChk.checked;
     if (wifiChk) { $('lm_wifi_box').hidden = !wifiChk.checked; if (!wifiChk.checked && wifiGuestChk) wifiGuestChk.checked = false; }
     if (wifiGuestChk) $('lm_wifi_guest_box').hidden = !wifiGuestChk.checked;
+    [[monitorChk,'lm_monitor_box'],[routeChk,'lm_route_box'],[dnsChk,'lm_dns_box'],[staticDnsChk,'lm_dns_static_box'],[ntpChk,'lm_ntp_box'],[identityChk,'lm_identity_box']].forEach(function(pair) { if (pair[0]) $(pair[1]).hidden = !pair[0].checked; });
   }
-  [kindSel, modeSel, vpnChk, vpnType, extChk, guestChk, wifiChk, wifiGuestChk].forEach(function (e2) {
+  [kindSel, modeSel, vpnChk, vpnType, extChk, guestChk, wifiChk, wifiGuestChk, monitorChk, routeChk, dnsChk, staticDnsChk, ntpChk, identityChk].forEach(function (e2) {
     if (e2) e2.addEventListener('change', applyVis);
   });
-  var guideLink = $('lm_network_guide');
-  if (guideLink) guideLink.addEventListener('click', function () { modal.hidden = true; editingId = null; });
+  ['lm_network_guide', 'lm_routing_guide', 'lm_failover_guide'].forEach(function(id) { var link = $(id); if (link) link.addEventListener('click', function () { modal.hidden = true; editingId = null; }); });
   var fill = $('lm_fill_gw');
   if (fill) fill.addEventListener('click', function () {
     var rt = state.devices.filter(function (x) { return x.type === 'router'; })[0];
@@ -743,11 +773,20 @@ function saveSettings() {
     var vpn = $('lm_vpn').checked;
     var vp = { lan: lan, gw: gw, dhcp: $('lm_dhcp').checked, nat: $('lm_nat').checked,
       firewall: $('lm_fw').checked, vpn: vpn, routerRole: $('lm_router_role').value, wanFailover: $('lm_wan_failover').checked, routerFailover: $('lm_router_failover').checked,
+      wanMonitor: $('lm_wan_monitor').checked, monitorHost: $('lm_monitor_host').value.trim(), staticRoute: $('lm_static_route').checked, routeDst: $('lm_route_dst').value.trim(), routeGw: $('lm_route_gw').value.trim(), routeDistance: $('lm_route_distance').value.trim(),
+      dnsCache: $('lm_dns_cache').checked, customDns: $('lm_custom_dns').checked, dnsPrimary: $('lm_dns_primary').value.trim(), dnsSecondary: $('lm_dns_secondary').value.trim(), dnsStatic: $('lm_dns_static').checked, dnsStaticName: $('lm_dns_name').value.trim(), dnsStaticIp: $('lm_dns_ip').value.trim(),
+      ntpClient: $('lm_ntp').checked, ntpServer: $('lm_ntp_server').value.trim(), timeZone: $('lm_timezone').value.trim(), cloudDdns: $('lm_cloud').checked, identityOn: $('lm_identity').checked, systemIdentity: $('lm_identity_name').value.trim(),
       vlanGuest: $('lm_guest_vlan').checked, guestVlan: $('lm_guest_vlan_id').value.trim(), guestNet: $('lm_guest_net').value.trim(), guestGw: $('lm_guest_gw').value.trim(), guestDhcp: $('lm_guest_dhcp').checked,
       wifiAp: $('lm_wifi_ap').checked, wifiIf: $('lm_wifi_if').value.trim(), wifiCountry: $('lm_wifi_country').value.trim(), wifiSsid: $('lm_wifi_ssid').value, wifiPass: $('lm_wifi_pass').value, wifiGuest: $('lm_wifi_guest').checked, wifiGuestSsid: $('lm_wifi_guest_ssid').value, wifiGuestPass: $('lm_wifi_guest_pass').value,
       vpnType: $('lm_vpn_type').value, vpnPort: $('lm_vpn_port').value.trim(), vpnPool: $('lm_vpn_pool').value.trim(),
       vpnPeer: $('lm_vpn_peer').value.trim(), vpnServerCert: $('lm_vpn_server_cert').value.trim(), vpnClientCert: $('lm_vpn_client_cert').value.trim(),
       vpnUser: $('lm_vpn_user').value.trim(), vpnPass: $('lm_vpn_pass').value, vpnPsk: $('lm_vpn_psk').value };
+    if (vp.wanMonitor && (!vp.wanFailover || !E.validIp(vp.monitorHost))) return lmFail('Для контроля WAN включите резервирование и укажите IPv4 контрольного узла.');
+    if (vp.customDns && (!E.validIp(vp.dnsPrimary) || (vp.dnsSecondary && !E.validIp(vp.dnsSecondary)))) return lmFail('Укажите корректные IPv4 DNS-серверов.');
+    if (vp.dnsStatic && (!vp.dnsCache || !vp.dnsStaticName || !E.validIp(vp.dnsStaticIp))) return lmFail('Для локальной DNS-записи включите DNS-кэш и укажите имя и IPv4.');
+    if (vp.staticRoute && (!E.parseCidr(vp.routeDst) || !E.validIp(vp.routeGw) || !/^\d{1,3}$/.test(vp.routeDistance) || +vp.routeDistance < 1 || +vp.routeDistance > 254)) return lmFail('Укажите сеть маршрута, IPv4 шлюза и distance 1–254.');
+    if (vp.ntpClient && (!vp.ntpServer || !vp.timeZone)) return lmFail('Укажите NTP-сервер и часовой пояс.');
+    if (vp.identityOn && !vp.systemIdentity) return lmFail('Введите системное имя роутера.');
     if (vp.vlanGuest && (!E.parseCidr(vp.guestNet) || !E.validIp(vp.guestGw))) return lmFail('Укажите подсеть и шлюз гостевого VLAN.');
     if (vp.vlanGuest && (!/^\d{1,4}$/.test(vp.guestVlan) || +vp.guestVlan < 2 || +vp.guestVlan > 4094)) return lmFail('VLAN ID должен быть от 2 до 4094.');
     if (vp.vlanGuest && !vp.firewall) return lmFail('Для изоляции гостей включите Firewall.');
@@ -920,6 +959,7 @@ window.Lab = {
   select: select,
   selectLink: selectLink,
   togglePower: togglePower,
+  toggleProbe: toggleProbe,
   get lastModel() { return lastModel; },
   get mode() { return mode; }
 };

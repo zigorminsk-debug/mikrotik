@@ -98,15 +98,14 @@ ok(!/undefined|\[object Object\]|IPF0|comment-not-supported/.test(all), 'нет 
 ok(all.includes('/interface pppoe-client add'), 'есть PPPoE-клиент');
 ok(all.includes('add-default-route=no'), 'PPPoE без авто-маршрута (для failover)');
 ok(all.includes('action=masquerade'), 'есть masquerade');
-ok(all.includes('check-gateway=ping'), 'есть check-gateway');
+ok(!all.includes('check-gateway=ping'), 'PPPoE/DHCP не выдают проверку внешнего узла за готовую');
 ok(all.includes('distance=1') && all.includes('distance=2'), 'есть маршруты distance 1/2');
 ok(all.includes('chain=dstnat'), 'есть публикация dstnat');
 ok(all.includes('to-addresses=192.168.88.10'), 'dstnat указывает внутренний IP');
 ok(all.includes('bridge-guest'), 'есть гостевой мост');
 ok(all.includes('dhcp-guest'), 'есть DHCP для гостей');
 ok(all.includes('/tool netwatch add'), 'есть netwatch');
-// (для pppoe+dhcp метки не генерируются — шлюз DHCP динамический; проверяется ниже на pppoe+static)
-// метки маршрутов — когда оба шлюза статичны (pppoe + static)
+// PPPoE + статика: опасные метки и неподдерживаемый параметр интервала не генерируются.
 v = baseInput();
 v.isps = [
   { name: 'Провайдер А', type: 'pppoe', user: 'u', pass: 'p' },
@@ -115,9 +114,10 @@ v.isps = [
 r = run(v);
 const allM = r.groups.map(g => g.code).join('\n');
 ok(!r.checks.errors.length, 'сценарий pppoe+static без ошибок');
-ok(allM.includes('/routing table add name=to-primary'), 'метки: таблицы v7');
-ok(allM.includes('new-connection-mark=conn-backup'), 'метки: связность сессий');
-ok(allM.includes('routing-mark=to-primary'), 'маршруты с routing-mark');
+ok(!allM.includes('/routing table add name=to-primary'), 'опасные таблицы не генерируются');
+ok(!allM.includes('new-connection-mark=conn-backup'), 'сохранность сессий не обещается правилами');
+ok(!allM.includes('gateway-ping-interval='), 'неподдерживаемый параметр не применяется к маршруту');
+ok(allM.includes('gateway=198.51.100.1 distance=2 check-gateway=ping'), 'статический резерв проверяет шлюз');
 r = run(baseInput());
 ok(r.groups.map(g => g.code).join('\n').includes('distance=2'),
   'dhcp-резерв работает через distance (без меток — корректно)');
@@ -134,7 +134,7 @@ v = baseInput(); v.failover = false;
 r = run(v);
 const all2 = r.groups.map(g => g.code).join('\n');
 ok(!all2.includes('routing-mark=to-primary'), 'без failover → без меток');
-ok(all2.includes('check-gateway=ping'), 'одиночный маршрут тоже с check-gateway');
+ok(!all2.includes('check-gateway=ping'), 'PPPoE-маршрут не обещает проверку внешнего узла');
 
 for (const vpn of ['wireguard', 'ikev2', 'l2tp-ipsec', 'ipsec-s2s', 'pptp', 'l2tp', 'sstp', 'ovpn']) {
   v = baseInput(); v.vpnType = vpn; v.failover = false;

@@ -1,148 +1,47 @@
-/* Раздел: Резервный канал интернет (failover) */
+/* Резервирование WAN: примеры для RouterOS 7. */
 section({
-  id: 'failover',
-  icon: '🔁',
-  title: 'Резервный канал (failover)',
-  badge: 'важное',
-  lead: 'Два провайдера: основной работает постоянно, резервный включается автоматически при падении основного — ' +
-        'и наоборот, при восстановлении основного трафик возвращается на него. Без участия администратора.',
+  id: 'failover', icon: '🔁', title: 'Резервный канал (failover)', badge: 'важное',
+  lead: 'Два провайдера: маршруты с разным приоритетом, проверка шлюза или внешнего узла и проверка отказа на оборудовании.',
   steps: [
-    { t: 'Принцип работы авто-переключения', b: [
-      IMG('assets/img/topology.svg', 'Два провайдера подключены к разным WAN-портам роутера'),
-      P('В RouterOS переключение строится на **двух маршрутах по умолчанию** с разным `distance`:'),
-      TBL(['Параметр', 'Основной канал', 'Резервный канал'], [
-        ['distance', '**1** (приоритет выше)', '**2** (используется, когда distance-1 неактивен)'],
-        ['check-gateway', 'ping — проверка шлюза', 'ping — проверка шлюза'],
-        ['gateway-ping-interval', '10 с (ваш выбор 5–30)', '10 с'],
-        ['Итог', 'Активен, пока шлюз отвечает', 'Включается через ~30–40 с молчания шлюза основного']
+    { t: 'Что действительно проверяется', b: [
+      IMG('assets/img/topology.svg', 'Два провайдера и резервный WAN'),
+      P('При равном префиксе RouterOS предпочитает активный маршрут с меньшим distance. Основному назначают 1, резервному 2. Когда первый маршрут неактивен, используется второй; при восстановлении активный первый снова предпочтителен.'),
+      TBL(['Способ', 'Что обнаруживает', 'Ограничение'], [
+        ['Только distance', 'Разницу приоритетов активных маршрутов', 'Не проверяет наличие интернета'],
+        ['check-gateway=ping', 'Отсутствие ICMP-ответа от указанного шлюза', 'Живой шлюз не гарантирует работу сети за ним'],
+        ['Рекурсивный маршрут с ping', 'Ответ выбранного внешнего IPv4 через основной шлюз', 'Сам контрольный узел может перестать отвечать или блокировать ICMP']
       ]),
-      P('Шлюз молчит → маршрут основного становится **inactive** → таблица маршрутов берёт следующий (резервный). Шлюз вернулся → через 3–4 проверки активируется обратно. Переключение **автоматическое в обе стороны**.'),
-      NOTE('Метки маршрутов (mangle) добавляются дополнительно, чтобы разорвавшиеся не должны были — реально работающие TCP-сессии оставались в том же канале до завершения. Их конфиг генерирует стенд автоматически.')
+      WARN('Существующие соединения, VPN и публикации могут оборваться при смене внешнего адреса. Метки соединений не гарантируют сохранность сессий. Скорость обнаружения зависит от настроек и условий; проверяйте на оборудовании.')
     ]},
-
-    { t: 'Подготовка двух WAN-интерфейсов', b: [
-      P('Оба провайдера настраиваются как в разделе «Подключение провайдера» (PPPoE/DHCP/статика/LTE), но **с маршрутом по умолчанию вручную**.'),
-      CMD(
-`# Пример: провайдер А = PPPoE (основной), провайдер Б = DHCP (резерв)
-/interface pppoe-client add name=pppoe-out1 interface=ether1 \\
-    user="ISP_A" password="PASS_A" add-default-route=no disabled=no
-
-/ip dhcp-client add interface=ether2 add-default-route=no \\
-    use-peer-dns=yes disabled=no comment="ISP_B"
-
-# Список всех WAN-портов (для правил NAT/firewall):
-/interface list add name=WAN
-/interface list member add list=WAN interface=pppoe-out1
-/interface list member add list=WAN interface=ether2
-
-# Проверяем, что оба провайдера «живы»:
-/interface print
-/ip address print
-/ip dhcp-client print`,
-        'Два канала'),
-      WARN('Оба провайдера **не должны** сами добавлять маршрут по умолчанию (`add-default-route=no`), иначе появятся два конкурирующих маршрута distance=1 — трафик начнёт «прыгать» между каналами.')
+    { t: 'Два статических WAN: простой вариант', b: [
+      P('Пример для чистой RouterOS 7: ether1 и ether2 уже настроены, шлюзы каждого провайдера достижимы в своей WAN-подсети. Подставьте свои адреса, заранее проверьте существующие маршруты и подготовьте доступ через LAN или консоль.'),
+      CMD(`# Примерные шлюзы документации, замените реальными
+/ip route add dst-address=0.0.0.0/0 gateway=198.51.100.1 distance=1 check-gateway=ping comment="ISP1"
+/ip route add dst-address=0.0.0.0/0 gateway=203.0.113.1 distance=2 check-gateway=ping comment="ISP2"
+/ip route print detail where dst-address=0.0.0.0/0`),
+      P('Здесь проверяются именно шлюзы. Если нужно обнаруживать обрыв дальше шлюза, используйте отдельную проверку внешнего узла, как ниже. На действующем роутере не добавляйте параллельно конкурирующий старый основной маршрут.'),
+      WARN('Для динамического DHCP-шлюза не копируйте полученный адрес в статический маршрут навсегда: шлюз может измениться. DHCP/PPPoE/LTE могут добавлять динамический маршрут с default-route-distance=1 или 2; их разрыв не обязательно обнаруживает потерю интернета за живым интерфейсом. Параметры зависят от версии и типа интерфейса.')
     ]},
-
-    { t: 'Маршруты с check-gateway — сердце failover', b: [
-      CMD(
-`/ip route
-add dst-address=0.0.0.0/0 gateway=pppoe-out1 distance=1 \\
-    check-gateway=ping gateway-ping-interval=10s \\
-    comment="ОСНОВНОЙ: ISP_A"
-
-add dst-address=0.0.0.0/0 gateway=192.0.2.1 distance=2 \\
-    check-gateway=ping gateway-ping-interval=10s \\
-    comment="РЕЗЕРВ: ISP_B (шлюз DHCP-провайдера)"
-
-# Посмотреть активный маршрут (флаг A = active):
-/ip route print where dst-address=0.0.0.0/0`,
-        'Два маршрута по умолчанию'),
-      P('Как проверять: `/ip route print detail` → у активного маршрута флаг `A`, поле `gateway-status` показывает состояние шлюза (`reachable` / `unreachable`).'),
-      UL([
-        'Переключение занимает `gateway-ping-interval × 3–4` (при 10 с ≈ 30–40 с);',
-        'Для PPPoE шлюзом выступает имя интерфейса (`gateway=pppoe-out1`);',
-        'Для DHCP резерва шлюз известен из `/ip dhcp-client print detail` (поле gateway); можно задать статиком, если провайдер выдаёт постоянный шлюз.',
-        'Оба маршрута **обязаны** иметь check-gateway — иначе RouterOS не заметит падение и продолжит слать трафик в мёртвый канал.'
-      ])
+    { t: 'Рекурсивный маршрут: проверка внешнего адреса', b: [
+      P('Основной провайдер имеет статический, непосредственно достижимый шлюз `198.51.100.1`. На резервном уже настроен маршрут с distance=2. Выберите отвечающий на ICMP внешний IPv4 и проверяйте его политику использования; здесь 1.1.1.1 — только пример.'),
+      CMD(`# Замените шлюз, заранее удалите/отключите старый основной default route
+/ip route add dst-address=1.1.1.1/32 gateway=198.51.100.1 scope=10 comment="Проба ISP1"
+/ip route add dst-address=0.0.0.0/0 gateway=1.1.1.1 distance=1 target-scope=11 check-gateway=ping comment="ISP1 recursive"
+/ip route print detail
+/ping 1.1.1.1 count=4`),
+      P('Маршрут /32 закрепляет путь до контрольного узла через основной WAN даже при работе резерва: не используйте этот адрес как единственный DNS или критичный сервис. Основной default разрешается рекурсивно через него, а check-gateway проверяет ответ узла. Убедитесь в активных маршрутах, отсутствии конфликтующих более специфичных маршрутов и работе NAT/firewall на обоих WAN.'),
+      WARN('Один внешний адрес — единая точка ложного срабатывания. При необходимости проектируют несколько независимых проверок; приведённый проект этого не делает. Динамический основной DHCP/PPPoE/LTE требует отдельного решения для обновления шлюза и в лаборатории пока не поддерживается.')
     ]},
-
-    { t: 'Метки соединений: сессии не рвутся при переключении', b: [
-      P('Без меток при восстановлении основного все TCP-соединения (включая работающие RDP-сессии) мгновенно вернутся на основной и оборвутся. **Mangle** решает это:'),
-      CMD(
-`# Таблицы маршрутизации (RouterOS v7):
-/routing table add name=to-primary fib
-/routing table add name=to-backup fib
-
-/ip firewall mangle
-# новые соединения из LAN → основной канал:
-add chain=prerouting in-interface-list=LAN connection-state=new \\
-    connection-mark=no-mark new-connection-mark=conn-primary passthrough=yes
-add chain=output connection-state=new connection-mark=no-mark \\
-    new-connection-mark=conn-primary passthrough=yes
-# те, что ушли в резерв, остаются в резерве:
-add chain=postrouting out-interface=ether2 connection-state=new \\
-    new-connection-mark=conn-backup passthrough=no
-# метка соединения → стол маршрутов:
-add chain=prerouting in-interface-list=LAN connection-mark=conn-primary \\
-    new-routing-mark=to-primary passthrough=yes
-add chain=prerouting in-interface-list=LAN connection-mark=conn-backup \\
-    new-routing-mark=to-backup passthrough=yes
-add chain=output connection-mark=conn-primary new-routing-mark=to-primary passthrough=no
-add chain=output connection-mark=conn-backup new-routing-mark=to-backup passthrough=no
-
-/ip route
-add dst-address=0.0.0.0/0 gateway=pppoe-out1 distance=1 routing-mark=to-primary check-gateway=ping
-add dst-address=0.0.0.0/0 gateway=192.0.2.1 distance=2 routing-mark=to-primary check-gateway=ping
-add dst-address=0.0.0.0/0 gateway=192.0.2.1 distance=1 routing-mark=to-backup check-gateway=ping
-add dst-address=0.0.0.0/0 gateway=pppoe-out1 distance=2 routing-mark=to-backup check-gateway=ping`,
-        'Mangle + маршруты по меткам'),
-      P('Поведение после настройки: новые сессии всегда идут на основной; **живые** сессии, оказавшиеся в резерве, доработают на резерве и завершатся спокойно; никаких обрывов при failback.'),
-      NOTE('Метки нужны только когда шлюзы статичны (PPPoE/статика). При DHCP/LTE-резерве достаточно distance + check-gateway — конфиг стенда это учитывает.')
-    ]},
-
-    { t: 'Netwatch: мониторинг каналов и уведомления', b: [
-      P('Netwatch периодически пингует контролируемые адреса и запускает скрипты при событии — удобно для журнала/почты.'),
-      CMD(
-`/tool netwatch add host=8.8.8.8 type=icmp interval=10s timeout=1s \\
-    comment="Интернет вообще"
-
-/tool netwatch add host=192.0.2.1 type=icmp interval=10s \\
-    comment="Шлюз ISP_B"
-
-# Пример событий (настройте /tool e-mail заранее):
-#   down-script=:log warning "НЕТ ИНТЕРНЕТА — канал down"
-#   up-script=:log info "Интернет восстановлен"
-
-# Журнал событий:
-/log print where topics~"netwatch"`,
-        'Netwatch'),
-      TIP('Для тонкой диагностики: `/ip route print detail` + `gateway-status`, `/interface monitor-traffic pppoe-out1 once` — видно биты/ошибки в реальном времени.')
-    ]},
-
-    { t: 'Тестирование failover в реальных условиях', b: [
+    { t: 'Проверка и учебная модель', b: [
       OL([
-        'Зафиксируйте активный маршрут: `/ip route print` (флаг `A` у distance=1).',
-        'Имитация аварии: отключите кабель **основного** провайдера (или `/interface disable pppoe-out1`).',
-        'Через ~30–40 с: `/ip route print` → активен distance=2, `ping 8.8.8.8` работает, сессии (например открытая страница) переживают переключение.',
-        'Верните канал: `/interface enable pppoe-out1` → через тот же интервал активным снова станет distance=1.',
-        'Проверьте журнал: `/log print` — события netwatch/линков.'
+        'Сохраните резервную копию и обеспечьте независимый доступ к управлению. В IP → Routes проверьте активный default route и состояние шлюзов.',
+        'Проверьте доступ через оба канала, затем временно отключите основной и убедитесь в переходе на резерв. Восстановите основной и проверьте возврат.',
+        'Отдельно проверьте случай: WAN-шлюз отвечает, а внешний узел недоступен; наблюдайте маршруты и журнал, затем восстановите связь.',
+        'Проверьте заново VPN, входящие подключения, DNS и существующие сессии: их сохранность не гарантируется.'
       ]),
-      CMD(
-`/interface disable [ find name=pppoe-out1 ]   # авария основного
-:delay 40s
-/ip route print where dst-address=0.0.0.0/0   # активен резерв?
-/interface enable [ find name=pppoe-out1 ]    # восстановление`,
-        'Скрипт проверки переключения'),
-      WARN('Протестируйте **до** выезда администратора: failover, проверенный только «на бумаге», в день аварии почти всегда требует ручной правки (типичные ошибки — оба канала сами добавили default-маршрут или нет check-gateway).')
-    ]},
-
-    { t: 'Три провайдера и балансировка — кратко', b: [
-      P('Сценарий: 1 основной + 2 резервных. Принцип тот же: добавьте третий маршрут `distance=3`:'),
-      CMD(
-`/ip route add dst-address=0.0.0.0/0 gateway=pppoe-out3 distance=3 \\
-    check-gateway=ping comment="ВТОРОЙ РЕЗЕРВ"`,
-        'Третий канал'),
-      P('Нагрузное распределение (PCC) между каналами — тема отдельной настройки (`/ip firewall mangle` + `routing-mark` по хешу src/dst): используйте, когда каналов несколько и нужна суммарная пропускная способность, а не просто резерв.')
+      P('В лаборатории выберите два WAN, включите резервирование и для статического основного WAN — проверку внешнего IPv4. На выбранном MikroTik можно имитировать сбой или восстановление узла. Это переключает путь на карте, но реальный ICMP, провайдеры и состояние интернета не эмулируются.'),
+      P('Два отдельных MikroTik в лаборатории — учебная схема VRRP, а не готовая конфигурация пары. Дополнительные маршруты и сервисы пока доступны только для одного MikroTik.'),
+      TIP('Официальный пример: https://help.mikrotik.com/docs/spaces/ROS/pages/26476608/Failover+WAN+Backup')
     ]}
   ]
 });

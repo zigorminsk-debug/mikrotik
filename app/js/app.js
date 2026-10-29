@@ -376,7 +376,7 @@ function planTable(plan, inp) {
   });
   if (plan.failover)
     rows.push(['Failover', inp.primaryIdx + 1 + ' → ' + (inp.backupIdx + 1) + ' (по индексу)',
-      'check-gateway ' + inp.foTime + ' с', 'авто-переключение в обе стороны']);
+      'Netwatch: ' + inp.foTime + ' с (диагностика)', 'проверяйте переключение на устройстве']);
   if (inp.vpn.type !== 'none')
     rows.push(['VPN', StandEngine.vpnTitle(inp.vpn.type), inp.vpn.pool, 'пользователь ' + inp.vpn.user]);
   inp.pubs.forEach(function (p, n) {
@@ -442,7 +442,7 @@ function renderResults(res) {
     '<li>Клиенты LAN получают адреса из указанного пула, шлюз и DNS корректны</li>' +
     '<li>Интернет работает: ping 8.8.8.8 с роутера и с клиента</li>' +
     (inp.guestOn ? '<li>Гостевой Wi-Fi подключается и видит только интернет (не видит LAN)</li>' : '') +
-    (inp.failover ? '<li>Отключение основного канала → переключение за ~' + (inp.foTime * 3) + '–' + (inp.foTime * 4) + ' с; возврат основного → переключение обратно</li>' : '') +
+    (inp.failover ? '<li>Проверьте переключение при отказе и восстановлении; время зависит от условий, сессии могут оборваться</li>' : '') +
     inp.pubs.map(function (p) {
       return '<li>Порт ' + esc(p.port) + '/' + esc(p.proto) + ' доступен снаружи и ведёт на ' + esc(p.ip) + ':' + esc(p.dport) + '</li>';
     }).join('') +

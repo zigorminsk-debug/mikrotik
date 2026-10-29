@@ -92,6 +92,17 @@ const {JSDOM,VirtualConsole} = require('jsdom');
  $('lab_run').click(); assert($('lab-results').textContent.includes('Проверка учебной модели пройдена')); assert($('lab-results').textContent.includes('192.168.99.100/24')); assert($('lab-results').textContent.includes('wifi-guest')); assert($('lab-results').textContent.includes('vlan-filtering=yes'));
  // Ссылка на учебник закрывает окно настроек.
  d.querySelector('[data-id="'+vr+'"] .lab-gear').click(); $('lm_network_guide').click(); assert($('lab-modal').hidden); await new Promise(resolve=>setTimeout(resolve,20)); assert(!$('content').hidden);
+ // Новые службы, статический маршрут и управляемый сбой контрольного узла.
+ $('lab_reset').click(); const nr=w.Lab.place('router',200,100), ni=w.Lab.place('isp',50,0), nb=w.Lab.place('isp',350,0), np=w.Lab.place('pc',200,240);
+ w.Lab.link(nr,ni);w.Lab.link(nr,nb);w.Lab.link(nr,np);
+ d.querySelector('[data-id="'+ni+'"] .lab-gear').click();$('lm_kind').value='static';$('lm_kind').dispatchEvent(new w.Event('change'));$('lm_ip').value='198.51.100.2/30';$('lm_gw2').value='198.51.100.1';$('lm_dns').value='1.1.1.1';$('lm_save').click();assert($('lab-modal').hidden);
+ d.querySelector('[data-id="'+nr+'"] .lab-gear').click();$('lm_wan_failover').checked=true;
+ for(const [id,box] of [['lm_wan_monitor','lm_monitor_box'],['lm_static_route','lm_route_box'],['lm_custom_dns','lm_dns_box'],['lm_dns_static','lm_dns_static_box'],['lm_ntp','lm_ntp_box'],['lm_identity','lm_identity_box']]) {$(id).checked=true;$(id).dispatchEvent(new w.Event('change'));assert(!$(box).hidden);}
+ $('lm_cloud').checked=true;$('lm_timezone').value='Europe/Minsk';$('lm_save').click();assert($('lab-modal').hidden);
+ $('lab_run').click();assert($('lab-results').textContent.includes('Проверка учебной модели пройдена'));assert($('lab-results').textContent.includes('target-scope=11'));assert($('lab-results').textContent.includes('dst-address=10.20.0.0/24'));assert($('lab-results').textContent.includes('server.lan'));assert($('lab-results').textContent.includes('Europe/Minsk'));assert($('lab-results').textContent.includes('ddns-enabled=yes'));
+ w.Lab.select(nr);assert($('insp_probe'));$('insp_probe').click();assert($('lab-flow-status').textContent.includes(w.Lab.state.devices.find(x=>x.id===nb).name));$('insp_probe').click();assert($('lab-flow-status').textContent.includes(w.Lab.state.devices.find(x=>x.id===ni).name));
+ d.querySelector('[data-id="'+nr+'"] .lab-gear').click();$('lm_dns_static').checked=false;$('lm_dns_cache').checked=false;$('lm_save').click();$('lab_run').click();assert($('lab-results').textContent.includes('allow-remote-requests=no'));assert($('lab-results').textContent.includes('dns-server=1.1.1.1'));
+ d.querySelector('[data-id="'+nr+'"] .lab-gear').click();$('lm_routing_guide').click();assert($('lab-modal').hidden);await new Promise(resolve=>setTimeout(resolve,20));assert(!$('content').hidden);
  // Обычный раздел учебника использует тот же просмотр, не только лаборатория.
  w.location.hash='firewall'; await new Promise(resolve=>setTimeout(resolve,20));
  const guideImg=d.querySelector('#content figure.shot img'); assert(guideImg && guideImg.getAttribute('src').includes('official/'));

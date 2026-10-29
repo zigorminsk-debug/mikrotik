@@ -57,6 +57,15 @@ function branchSegment(state, adj, routerId, neighborId) {
   });
   return found.guest && found.main ? 'mixed' : found.guest ? 'guest' : 'main';
 }
+function validHostname(s) {
+  if (typeof s !== 'string' || s.length < 1 || s.length > 253 || /^\d+(?:\.\d+){3}$/.test(s)) return false;
+  return s.split('.').every(function(part) { return part.length > 0 && part.length <= 63 && /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$/.test(part); });
+}
+function usableProbe(s) {
+  var n = ipToInt(s); if (n === null) return false;
+  var a = n >>> 24, b = (n >>> 16) & 255;
+  return a !== 0 && a !== 10 && a !== 127 && a < 224 && !(a === 169 && b === 254) && !(a === 172 && b >= 16 && b <= 31) && !(a === 192 && b === 168);
+}
 function analyze(state) {
   var ds = state.devices || [], ls = state.links || [], errors = [], warnings = [], ids = Object.create(null), pairs = Object.create(null);
   var routers = ds.filter(function (d) { return d.type === 'router'; });
@@ -69,7 +78,7 @@ function analyze(state) {
   if (isps.some(function (d, n) { return ['primary', 'backup'].indexOf(priority(d, n)) < 0; })) errors.push('Некорректная роль провайдера.');
   if (isps.length === 2 && priority(isps[0], 0) === priority(isps[1], 1)) errors.push('Выберите одного основного и одного резервного провайдера.');
   if (isps.filter(function (d) { return d.cfg && d.cfg.kind === 'lte'; }).length > 1) errors.push('Поддерживается только один LTE-модем lte1.');
-  if (isps.length === 2 && routers[0] && wanFailover(routers[0].cfg)) warnings.push('Переключение проверяется условно: distance=1/2. PPPoE/DHCP/LTE определяют разрыв сессии или интерфейса, но не обязательно потерю интернета за шлюзом. Реальную доступность и возврат проверьте на роутере; для контроля внешнего узла нужна дополнительная настройка.');
+  if (isps.length === 2 && routers[0] && wanFailover(routers[0].cfg) && !routers[0].cfg.wanMonitor) warnings.push('Переключение проверяется условно: distance=1/2. PPPoE/DHCP/LTE определяют разрыв сессии или интерфейса, но не обязательно потерю интернета за шлюзом. Реальную доступность и возврат проверьте на роутере; для контроля внешнего узла нужна дополнительная настройка.');
   if (!endpoints.length && !routers.some(function(d) { return d.cfg && d.cfg.wifiAp; })) errors.push('Добавьте хотя бы один ПК, сервер или принтер для проверки трафика либо включите точку Wi-Fi.');
   if (!endpoints.length && routers.some(function(d) { return d.cfg && d.cfg.wifiAp; })) warnings.push('Беспроводные клиенты на карте не моделируются: для анимации добавьте проводной ПК, сервер или принтер.');
   ls.forEach(function (l) {
@@ -90,6 +99,29 @@ function analyze(state) {
       if (gw === null || !net.contains(gw) || gw === net.firstInt || gw === net.lastInt) errors.push('LAN: задайте допустимый IP шлюза в подсети.');
       else if (rt.cfg.dhcp && gw >= pool.startInt && gw <= pool.endInt) errors.push('IP шлюза не должен входить в пул DHCP ' + pool.start + '–' + pool.end + '.');
       else used[rt.cfg.gw] = 'MikroTik';
+    }
+    if (rt.cfg.customDns && (!validIp(rt.cfg.dnsPrimary) || (rt.cfg.dnsSecondary && !validIp(rt.cfg.dnsSecondary)))) errors.push('DNS: укажите корректные IPv4-адреса серверов.');
+    if (rt.cfg.dnsStatic) {
+      if (rt.cfg.dnsCache === false) errors.push('Локальная DNS-запись требует включённого DNS-кэша роутера для клиентов.');
+      if (!validHostname(rt.cfg.dnsStaticName) || !validIp(rt.cfg.dnsStaticIp)) errors.push('Локальная DNS-запись: укажите корректное имя и IPv4-адрес.');
+    }
+    if (rt.cfg.ntpClient) {
+      if (!validHostname(rt.cfg.ntpServer) && !validIp(rt.cfg.ntpServer)) errors.push('NTP: укажите корректное имя сервера или IPv4.');
+      if (!/^[A-Za-z_+-]+(?:\/[A-Za-z_+\-]+){1,2}$/.test(rt.cfg.timeZone || '')) errors.push('NTP: укажите часовой пояс RouterOS, например Europe/Minsk или Etc/UTC.');
+      warnings.push('NTP: модель не проверяет синхронизацию; проверьте разрешение имени, доступ UDP/123 и корректность часового пояса на устройстве.');
+    }
+    if (rt.cfg.cloudDdns) warnings.push('IP Cloud связывается с сервисом MikroTik и публикует DDNS-имя. За CGNAT или внешним NAT имя не обеспечивает входящий доступ; модель доступность не проверяет.');
+    if (rt.cfg.identityOn && (!rt.cfg.systemIdentity || rt.cfg.systemIdentity.length > 64 || /[\x00-\x1f\x7f]/.test(rt.cfg.systemIdentity))) errors.push('Имя MikroTik: от 1 до 64 символов без управляющих символов.');
+    if (rt.cfg.staticRoute) {
+      var dest = parseCidr(rt.cfg.routeDst), next = ipToInt(rt.cfg.routeGw), dist = Number(rt.cfg.routeDistance);
+      if (!dest || dest.prefix === 0 || dest.ipInt !== dest.firstInt) errors.push('Статический маршрут: укажите адрес сети с маской, не маршрут по умолчанию.');
+      if (!net || next === null || !net.contains(next) || next === net.firstInt || next === net.lastInt || rt.cfg.routeGw === rt.cfg.gw) errors.push('Статический маршрут: шлюз должен быть другим допустимым IPv4 в основной LAN.');
+      if (!/^\d{1,3}$/.test(String(rt.cfg.routeDistance || '')) || dist < 1 || dist > 254) errors.push('Статический маршрут: distance должен быть от 1 до 254.');
+      if (dest && net && dest.overlaps(net)) errors.push('Статический маршрут пересекается с основной LAN.');
+      if (dest && rt.cfg.vlanGuest && parseCidr(rt.cfg.guestNet) && dest.overlaps(parseCidr(rt.cfg.guestNet))) errors.push('Статический маршрут пересекается с гостевой сетью.');
+      if (dest && rt.cfg.vpn && parseCidr(rt.cfg.vpnPool) && dest.overlaps(parseCidr(rt.cfg.vpnPool))) errors.push('Статический маршрут пересекается с VPN.');
+      if (rt.cfg.wanMonitor && dest && dest.contains(rt.cfg.monitorHost)) errors.push('Статический маршрут пересекается с адресом мониторинга WAN.');
+      warnings.push('Статический маршрут: модель не проверяет доступность следующего шлюза и обратный маршрут; проверьте firewall и обе стороны на оборудовании.');
     }
     if (rt.cfg.vlanGuest) {
       guestNet = parseCidr(rt.cfg.guestNet);
@@ -194,6 +226,19 @@ function analyze(state) {
     }
     if (c.kind === 'lte') warnings.push('LTE зависит от модели модема, версии RouterOS и имени lte1; проверьте его на устройстве.');
   });
+  if (rt && rt.cfg.wanMonitor) {
+    var primary = isps.filter(function(d, i) { return priority(d, i) === 'primary'; })[0];
+    var probe = rt.cfg.monitorHost;
+    if (isps.length !== 2 || !wanFailover(rt.cfg)) errors.push('Контроль интернета требует двух провайдеров и включённого резервного канала.');
+    if (!primary || primary.cfg.kind !== 'static') errors.push('Контроль внешнего узла пока поддерживает только статический WAN основного провайдера.');
+    if (!usableProbe(probe)) errors.push('Контроль WAN: укажите внешний unicast IPv4 для ping.');
+    if ((net && net.contains(probe)) || (guestNet && guestNet.contains(probe)) || (rt.cfg.vpn && parseCidr(rt.cfg.vpnPool) && parseCidr(rt.cfg.vpnPool).contains(probe)) || isps.some(function(d){ var w = d.cfg.kind === 'static' && parseCidr(d.cfg.ip); return w && w.contains(probe); })) errors.push('Контроль WAN: адрес проверки не должен находиться в LAN, VPN или подсети WAN.');
+    var directDns = rt.cfg.customDns ? rt.cfg.dnsPrimary : (primary && primary.cfg.kind === 'static' && primary.cfg.dns ? primary.cfg.dns : '1.1.1.1');
+    if (rt.cfg.dnsCache === false && probe === directDns) errors.push('Контроль WAN: выберите контрольный IPv4, отличный от DNS, выдаваемого клиентам напрямую: маршрут к этому узлу закреплён за основным WAN.');
+    warnings.push('Маршрут к контрольному IPv4 закреплён за основным WAN даже при переключении. Не используйте этот адрес как единственный DNS или критичный сервис на резерве.');
+    warnings.push('Основной статический WAN: рекурсивный маршрут проверяет один внешний IPv4 по ICMP. Узел может блокировать ping или быть недоступным сам; резерв и полная доступность интернета не проверяются. Существующие соединения могут оборваться.');
+  }
+  if (rt && rt.cfg.staticRoute && parseCidr(rt.cfg.routeDst) && isps.some(function(d){var w=d.cfg.kind === 'static' && parseCidr(d.cfg.ip); return w && w.overlaps(parseCidr(rt.cfg.routeDst));})) errors.push('Статический маршрут пересекается с подсетью WAN.');
   if (isps.length === 2 && isps[0].cfg.kind === 'static' && isps[1].cfg.kind === 'static') {
     var w0 = parseCidr(isps[0].cfg.ip), w1 = parseCidr(isps[1].cfg.ip);
     if (w0 && w1 && w0.overlaps(w1)) errors.push('Подсети двух WAN не должны пересекаться.');
@@ -215,19 +260,20 @@ function buildModel(state) {
     return { id: isp.id, name: isp.name, kind: isp.cfg.kind, cfg: isp.cfg, iface: iface,
       phys: wan ? wan.phys : 'USB', priority: priority(isp, index) };
   }).sort(function (a, b) { return a.priority === b.priority ? 0 : a.priority === 'primary' ? -1 : 1; });
-  var dns = isps[0].kind === 'static' && isps[0].cfg.dns ? isps[0].cfg.dns + ',8.8.8.8' : '1.1.1.1,8.8.8.8';
+  var dns = rt.cfg.customDns ? [rt.cfg.dnsPrimary, rt.cfg.dnsSecondary].filter(Boolean).join(',') : isps[0].kind === 'static' && isps[0].cfg.dns ? isps[0].cfg.dns + ',8.8.8.8' : '1.1.1.1,8.8.8.8';
+  var upstreamDns = dns.split(',')[0], cacheOn = rt.cfg.dnsCache !== false;
   var assignments = {}; assignments[rt.id] = { ip: rt.cfg.gw + '/24', gw: '—', dns: dns, src: 'статический' };
   var lease = pool.startInt, guestLease = rt.cfg.vlanGuest ? poolOf(parseCidr(rt.cfg.guestNet)).startInt : 0;
   ds.forEach(function (d) {
     if (!ENDPOINT[d.type]) return;
     var c = d.cfg;
-    var guest = guestDevice(d), gw = guest ? rt.cfg.guestGw : rt.cfg.gw;
-    assignments[d.id] = c.mode === 'dhcp' ? { ip: intToIp(guest ? guestLease++ : lease++) + '/24', gw: gw, dns: gw, src: guest ? 'пример DHCP (гостевой VLAN)' : 'пример DHCP-аренды' } : { ip: c.ip, gw: c.gw, dns: c.dns || gw, src: guest ? 'статический (гостевой VLAN)' : 'статический' };
+    var guest = guestDevice(d), gw = guest ? rt.cfg.guestGw : rt.cfg.gw, clientDns = cacheOn ? gw : upstreamDns;
+    assignments[d.id] = c.mode === 'dhcp' ? { ip: intToIp(guest ? guestLease++ : lease++) + '/24', gw: gw, dns: clientDns, src: guest ? 'пример DHCP (гостевой VLAN)' : 'пример DHCP-аренды' } : { ip: c.ip, gw: c.gw, dns: c.dns || clientDns, src: guest ? 'статический (гостевой VLAN)' : 'статический' };
   });
   isps.forEach(function (i) { assignments[i.id] = { ip: i.kind === 'static' ? i.cfg.ip : 'динамический', gw: i.kind === 'static' ? i.cfg.gw : 'от провайдера', dns: i.kind === 'static' ? (i.cfg.dns || 'не задан') : 'от провайдера', src: i.kind }; });
   var lanPorts = ports.filter(function (p) { return p.dev.type !== 'isp'; });
   lanPorts.forEach(function(p) { p.segment = branchSegment(state, adj, rt.id, p.dev.id); });
-  return { router: { id: rt.id, name: rt.name, cfg: rt.cfg, net: net, pool: pool, gw: rt.cfg.gw, dns: dns, lanPorts: lanPorts },
+  return { router: { id: rt.id, name: rt.name, cfg: rt.cfg, net: net, pool: pool, gw: rt.cfg.gw, dns: dns, clientDns: cacheOn ? rt.cfg.gw : upstreamDns, guestDns: cacheOn ? rt.cfg.guestGw : upstreamDns, lanPorts: lanPorts },
     isps: isps, primaryIsp: isps[0], backupIsp: wanFailover(rt.cfg) ? (isps[1] || null) : null, publications: publications(state), assignments: assignments, adj: adj };
 }
 /* Активный путь — только для визуальной модели, без проверки реальных сетей. */
@@ -242,7 +288,7 @@ function activeRoutes(state) {
   possible.some(function(candidate) {
     var providers = (all[candidate.id] || []).map(function(id) { return map[id]; }).filter(function(d) { return d && d.type === 'isp'; }).sort(function(a,b) { return (a.cfg.priority === 'backup' ? 1 : 0) - (b.cfg.priority === 'backup' ? 1 : 0); });
     if (providers.length > 1 && !wanFailover(candidate.cfg)) providers = providers.slice(0,1);
-    var found = providers.filter(function(d) { return d.on !== false; })[0];
+    var found = providers.filter(function(d, index) { return d.on !== false && !(index === 0 && candidate.cfg.wanMonitor && candidate.probeOn === false); })[0];
     if (!found) return false; active = candidate; isp = found; return true;
   });
   if (!active || !isp) return [];
@@ -279,19 +325,23 @@ function genCommands(state, model) {
   var g = ['# Для RouterOS 7 на чистой конфигурации. Сверьте физические порты.', '/interface bridge add name=bridge-lan', '/interface list add name=LAN', '/interface list add name=WAN', '/interface list member add list=LAN interface=bridge-lan'];
   r.lanPorts.forEach(function (p) { g.push('/interface bridge port add bridge=bridge-lan interface=' + p.phys + (r.cfg.vlanGuest ? ' pvid=' + (p.segment === 'guest' ? r.cfg.guestVlan : '1') + ' frame-types=admit-only-untagged-and-priority-tagged ingress-filtering=yes' + (p.segment === 'guest' ? ' disabled=yes' : '') : '')); });
   add('iface', '1. Мост и порты LAN', g);
-  add('addr', '2. Адрес LAN и DNS', ['/ip address add address=' + r.gw + '/24 interface=bridge-lan', '/ip dns set servers=' + r.dns + ' allow-remote-requests=yes']);
+  add('addr', '2. Адрес LAN и DNS', ['/ip address add address=' + r.gw + '/24 interface=bridge-lan', '/ip dns set servers=' + r.dns + ' allow-remote-requests=' + (r.cfg.dnsCache === false ? 'no' : 'yes')]);
   g = [];
   model.isps.forEach(function (i) {
     var c = i.cfg, dist = i.priority === 'primary' ? 1 : 2, routeOn = i.priority === 'primary' || wanFailover(r.cfg);
     g.push('# ' + (dist === 1 ? 'Основной' : 'Резервный') + ' канал: ' + i.phys);
     if (i.kind === 'pppoe') g.push('/interface pppoe-client add name=' + i.iface + ' interface=' + i.phys + ' user=' + q(c.user) + ' password=' + q(c.pass) + ' add-default-route=' + (routeOn ? 'yes' : 'no') + ' default-route-distance=' + dist + ' disabled=no');
     if (i.kind === 'dhcp') g.push('/ip dhcp-client add interface=' + i.phys + ' add-default-route=' + (routeOn ? 'yes' : 'no') + ' default-route-distance=' + dist + ' use-peer-dns=no disabled=no');
-    if (i.kind === 'static') g.push('/ip address add address=' + c.ip + ' interface=' + i.phys, '/ip route add dst-address=0.0.0.0/0 gateway=' + c.gw + ' distance=' + dist + ' check-gateway=ping' + (routeOn ? '' : ' disabled=yes'));
+    if (i.kind === 'static') {
+      g.push('/ip address add address=' + c.ip + ' interface=' + i.phys);
+      if (i.priority === 'primary' && r.cfg.wanMonitor) g.push('/ip route add dst-address=' + r.cfg.monitorHost + '/32 gateway=' + c.gw + ' scope=10 comment="Проверка основного WAN"', '/ip route add dst-address=0.0.0.0/0 gateway=' + r.cfg.monitorHost + ' distance=1 target-scope=11 check-gateway=ping comment="Рекурсивный основной WAN"');
+      else g.push('/ip route add dst-address=0.0.0.0/0 gateway=' + c.gw + ' distance=' + dist + ' check-gateway=ping' + (routeOn ? '' : ' disabled=yes'));
+    }
     if (i.kind === 'lte') g.push('/interface lte apn add name=lab-apn add-default-route=' + (routeOn ? 'yes' : 'no') + ' default-route-distance=' + dist + ' apn=' + q(c.apn), '/interface lte set [find name="lte1"] apn-profiles=lab-apn', '# Проверьте, что модем создал маршрут по умолчанию.');
     g.push('/interface list member add list=WAN interface=' + i.iface);
   });
   add('wan', '3. Подключение провайдера', g);
-  if (r.cfg.dhcp) add('dhcp', '4. DHCP LAN', ['/ip pool add name=pool-lan ranges=' + r.pool.start + '-' + r.pool.end, '/ip dhcp-server add name=dhcp-lan interface=bridge-lan address-pool=pool-lan disabled=no', '/ip dhcp-server network add address=' + r.net.first + '/24 gateway=' + r.gw + ' dns-server=' + r.gw]);
+  if (r.cfg.dhcp) add('dhcp', '4. DHCP LAN', ['/ip pool add name=pool-lan ranges=' + r.pool.start + '-' + r.pool.end, '/ip dhcp-server add name=dhcp-lan interface=bridge-lan address-pool=pool-lan disabled=no', '/ip dhcp-server network add address=' + r.net.first + '/24 gateway=' + r.gw + ' dns-server=' + r.clientDns]);
   if (r.cfg.wifiAp) {
     var wifi = ['# RouterOS 7.13+, пакет wifi. Проверить имя радио и режим AP; временно выключаем радио.',
       '/interface wifi set [find name=' + q(r.cfg.wifiIf) + '] disabled=yes configuration.mode=ap configuration.country=' + q(r.cfg.wifiCountry) + ' configuration.ssid=' + q(r.cfg.wifiSsid) + ' security.authentication-types=wpa2-psk security.passphrase=' + q(r.cfg.wifiPass),
@@ -307,17 +357,29 @@ function genCommands(state, model) {
     var vlan = ['/interface vlan add name=vlan-guest interface=bridge-lan vlan-id=' + r.cfg.guestVlan,
       '/ip address add address=' + r.cfg.guestGw + '/24 interface=vlan-guest',
       '/interface bridge vlan add bridge=bridge-lan tagged=bridge-lan' + (guests.length ? ' untagged=' + guests.join(',') : '') + ' vlan-ids=' + r.cfg.guestVlan];
-    if (r.cfg.guestDhcp) vlan.push('/ip pool add name=pool-guest ranges=' + gp.start + '-' + gp.end, '/ip dhcp-server add name=dhcp-guest interface=vlan-guest address-pool=pool-guest disabled=no', '/ip dhcp-server network add address=' + gn.first + '/24 gateway=' + r.cfg.guestGw + ' dns-server=' + r.cfg.guestGw);
+    if (r.cfg.guestDhcp) vlan.push('/ip pool add name=pool-guest ranges=' + gp.start + '-' + gp.end, '/ip dhcp-server add name=dhcp-guest interface=vlan-guest address-pool=pool-guest disabled=no', '/ip dhcp-server network add address=' + gn.first + '/24 gateway=' + r.cfg.guestGw + ' dns-server=' + r.guestDns);
     add('guest-vlan', 'Гостевой VLAN и DHCP', vlan);
   }
+  if (r.cfg.staticRoute) add('route', 'Статический маршрут к сети за LAN-шлюзом', ['/ip route add dst-address=' + r.cfg.routeDst + ' gateway=' + r.cfg.routeGw + ' distance=' + r.cfg.routeDistance]);
+  var services = [];
+  if (r.cfg.identityOn) services.push('/system identity set name=' + q(r.cfg.systemIdentity));
+  if (r.cfg.dnsStatic) services.push('/ip dns static add name=' + q(r.cfg.dnsStaticName) + ' address=' + r.cfg.dnsStaticIp + ' type=A');
+  if (r.cfg.ntpClient) services.push('/system clock set time-zone-autodetect=no time-zone-name=' + q(r.cfg.timeZone), '/system ntp client set enabled=yes', '/system ntp client servers add address=' + q(r.cfg.ntpServer));
+  if (r.cfg.cloudDdns) services.push('/ip cloud set ddns-enabled=yes', '# Проверьте /ip cloud print и доступность публичного адреса; CGNAT не обходится.');
+  if (services.length) add('services', 'DNS, время и сервисы', services);
   var vpn = r.cfg.vpn ? vpnConfig(r.cfg, r) : null;
   if (vpn) add('vpn', 'VPN — ' + r.cfg.vpnType, vpn.commands);
   if (r.cfg.firewall) {
     var filter = ['/ip firewall filter add chain=input action=accept connection-state=established,related,untracked', '/ip firewall filter add chain=input action=drop connection-state=invalid', '/ip firewall filter add chain=input action=accept protocol=icmp', '/ip firewall filter add chain=input action=accept in-interface-list=LAN', '/ip firewall filter add chain=input action=accept protocol=udp src-port=67 dst-port=68 in-interface-list=WAN'];
-    if (r.cfg.vlanGuest) filter.push('/ip firewall filter add chain=input in-interface=vlan-guest protocol=udp dst-port=53,67 action=accept', '/ip firewall filter add chain=input in-interface=vlan-guest protocol=tcp dst-port=53 action=accept');
+    if (r.cfg.vlanGuest) {
+      var guestUdp = []; if (r.cfg.dnsCache !== false) guestUdp.push('53'); if (r.cfg.guestDhcp) guestUdp.push('67');
+      if (guestUdp.length) filter.push('/ip firewall filter add chain=input in-interface=vlan-guest protocol=udp dst-port=' + guestUdp.join(',') + ' action=accept');
+      if (r.cfg.dnsCache !== false) filter.push('/ip firewall filter add chain=input in-interface=vlan-guest protocol=tcp dst-port=53 action=accept');
+    }
     if (vpn) filter = filter.concat(vpn.input);
     filter.push('/ip firewall filter add chain=input action=drop', '/ip firewall filter add chain=forward action=accept connection-state=established,related,untracked', '/ip firewall filter add chain=forward action=drop connection-state=invalid', '/ip firewall filter add chain=forward action=accept in-interface-list=LAN out-interface-list=WAN');
     if (r.cfg.vlanGuest) filter.push('/ip firewall filter add chain=forward in-interface=vlan-guest out-interface-list=WAN action=accept');
+    if (r.cfg.staticRoute) filter.push('/ip firewall filter add chain=forward in-interface=bridge-lan out-interface=bridge-lan dst-address=' + r.cfg.routeDst + ' action=accept');
     if (vpn) filter = filter.concat(vpn.forward);
     model.publications.forEach(function(p) { filter.push('/ip firewall filter add chain=forward in-interface-list=WAN connection-nat-state=dstnat protocol=' + p.proto + ' dst-address=' + p.ip + ' dst-port=' + p.local + ' action=accept'); });
     filter.push('/ip firewall filter add chain=forward action=drop');
@@ -353,7 +415,7 @@ function vpnConfig(c, r) {
     match = 'in-interface=wg-lab';
   } else if (type === 'l2tp-ipsec') {
     cmd.push('/interface list add name=VPN', '/ip pool add name=pool-vpn ranges=' + client + '-' + last,
-      '/ppp profile add name=profile-vpn local-address=' + first + ' remote-address=pool-vpn dns-server=' + r.gw + ' interface-list=VPN',
+      '/ppp profile add name=profile-vpn local-address=' + first + ' remote-address=pool-vpn dns-server=' + r.clientDns + ' interface-list=VPN',
       '/ppp secret add name=' + q(c.vpnUser) + ' password=' + q(c.vpnPass) + ' service=l2tp profile=profile-vpn',
       '/interface l2tp-server server set enabled=yes use-ipsec=required ipsec-secret=' + q(c.vpnPsk) + ' default-profile=profile-vpn authentication=mschap2');
     input.push('/ip firewall filter add chain=input in-interface-list=WAN protocol=udp dst-port=500,4500 action=accept', '/ip firewall filter add chain=input in-interface-list=WAN protocol=ipsec-esp action=accept', '/ip firewall filter add chain=input protocol=udp dst-port=1701 ipsec-policy=in,ipsec action=accept');
@@ -361,7 +423,7 @@ function vpnConfig(c, r) {
   } else {
     cmd.push('# Предварительно импортируйте сертификаты с ключом сервера и доверенным сертификатом клиента. Сверьте имена и цепочку доверия.',
       '/ip pool add name=pool-vpn ranges=' + client + '-' + last,
-      '/ip ipsec mode-config add name=ike-lab responder=yes address-pool=pool-vpn address-prefix-length=32 static-dns=' + r.gw + ' split-include=' + r.net.first + '/24',
+      '/ip ipsec mode-config add name=ike-lab responder=yes address-pool=pool-vpn address-prefix-length=32 static-dns=' + r.clientDns + ' split-include=' + r.net.first + '/24',
       '/ip ipsec profile add name=ike-lab',
       '/ip ipsec proposal add name=ike-lab pfs-group=none',
       '/ip ipsec policy group add name=ike-lab',
@@ -373,7 +435,7 @@ function vpnConfig(c, r) {
     input.push('/ip firewall filter add chain=input in-interface-list=WAN protocol=udp dst-port=500,4500 action=accept', '/ip firewall filter add chain=input in-interface-list=WAN protocol=ipsec-esp action=accept');
     match = 'ipsec-policy=in,ipsec src-address=' + c.vpnPool;
   }
-  input.push('/ip firewall filter add chain=input ' + match + ' protocol=udp dst-port=53 action=accept', '/ip firewall filter add chain=input ' + match + ' protocol=tcp dst-port=53 action=accept');
+  if (r.cfg.dnsCache !== false) input.push('/ip firewall filter add chain=input ' + match + ' protocol=udp dst-port=53 action=accept', '/ip firewall filter add chain=input ' + match + ' protocol=tcp dst-port=53 action=accept');
   forward.push('/ip firewall filter add chain=forward ' + match + ' out-interface-list=LAN action=accept');
   return { commands:cmd, input:input, forward:forward };
 }
@@ -394,7 +456,7 @@ function winboxSteps(state, model) {
   ]);
   add('Адрес LAN и DNS', 'official/ip-address.png', [
     'Откройте IP → Addresses → +: Address = ' + r.gw + '/24, Interface = bridge-lan. Нажмите OK.',
-    'Откройте IP → DNS: Servers = ' + r.dns + ', включите Allow Remote Requests и нажмите OK. Доступ к DNS с WAN будет закрыт правилами input, если включён Firewall.'
+    'Откройте IP → DNS: Servers = ' + r.dns + ', ' + (r.cfg.dnsCache === false ? 'выключите' : 'включите') + ' Allow Remote Requests и нажмите OK. DHCP выдаёт DNS ' + r.clientDns + '. Доступ к DNS с WAN будет закрыт правилами input, если включён Firewall.'
   ]);
   model.isps.forEach(function (i) {
     var c = i.cfg, dist = i.priority === 'primary' ? 1 : 2, routeOn = i.priority === 'primary' || wanFailover(r.cfg), list = [];
@@ -415,6 +477,7 @@ function winboxSteps(state, model) {
         'Откройте IP → Routes → +: Dst. Address = 0.0.0.0/0, Gateway = ' + c.gw + ', Distance = ' + dist + ', Check Gateway = ping. ' + (routeOn ? '' : 'Отключите маршрут. ') + 'Нажмите OK.',
         'Убедитесь, что шлюз провайдера отвечает на ping: иначе этот маршрут может считаться недоступным.'
       ];
+      if (i.priority === 'primary' && r.cfg.wanMonitor) list = ['Откройте IP → Addresses → +: Address = ' + c.ip + ', Interface = ' + i.phys + '.', 'Маршрут по умолчанию через шлюз напрямую не добавляйте: используйте рекурсивные маршруты из отдельного шага контроля WAN.'];
     } else {
       list = [
         'Подключите поддерживаемый LTE-модем и SIM. В Interfaces проверьте имя lte1; настройка зависит от версии RouterOS и модема.',
@@ -430,7 +493,7 @@ function winboxSteps(state, model) {
   if (r.cfg.dhcp) add('DHCP для локальной сети', 'official/dhcp-server.png', [
     'Откройте IP → Pool → +: Name = pool-lan, Addresses = ' + r.pool.start + '-' + r.pool.end + '. Нажмите OK.',
     'Откройте IP → DHCP Server → DHCP → +: Name = dhcp-lan, Interface = bridge-lan, Address Pool = pool-lan; убедитесь, что сервер включён.',
-    'На вкладке Networks → + задайте Address = ' + r.net.first + '/24, Gateway = ' + r.gw + ', DNS Servers = ' + r.gw + '. Нажмите OK. Проверьте выдачу в Leases.'
+    'На вкладке Networks → + задайте Address = ' + r.net.first + '/24, Gateway = ' + r.gw + ', DNS Servers = ' + r.clientDns + '. Нажмите OK. Проверьте выдачу в Leases.'
   ]);
   if (r.cfg.firewall) add('Firewall: правила в точном порядке', 'official/firewall-rule.png', [
     'Откройте IP → Firewall → Filter Rules. Каждое правило добавляется кнопкой +; Chain и условия задаются на вкладках General/Advanced, Action — на вкладке Action. На чистом роутере разместите сверху вниз в следующем порядке:',
@@ -447,6 +510,9 @@ function winboxSteps(state, model) {
     '10. До завершающего drop добавьте разрешения гостевого VLAN в WAN, VPN и опубликованных ресурсов из проекта команд ниже, если они включены.',
     '11. Chain = forward; Action = drop. Сверьте порядок и существующие правила: добавление рядом с заводскими правилами без анализа может заблокировать доступ.'
   ]);
+  if (r.cfg.wanMonitor) add('Контроль основного WAN через внешний узел', null, ['В IP → Routes настройте маршрут ' + r.cfg.monitorHost + '/32 через статический шлюз основного провайдера со Scope = 10, затем основной маршрут по умолчанию через этот узел с Target Scope = 11 и Check Gateway = ping. Резерв остаётся с Distance = 2.', 'Это один ICMP-узел: он может перестать отвечать независимо от канала. Проверьте маршруты, отказы и возврат на реальном оборудовании; модель ping не отправляет.']);
+  if (r.cfg.staticRoute) add('Маршрут к дополнительной сети', null, ['В IP → Routes добавьте Dst. Address = ' + r.cfg.routeDst + ', Gateway = ' + r.cfg.routeGw + ', Distance = ' + r.cfg.routeDistance + '. Шлюз находится в основной LAN.', 'В Firewall до завершающего drop добавьте разрешение LAN → указанная сеть из проекта команд. Проверьте обратный маршрут и реальную доступность шлюза.']);
+  if (r.cfg.identityOn || r.cfg.dnsStatic || r.cfg.ntpClient || r.cfg.cloudDdns) add('Имя роутера, DNS, время и IP Cloud', null, ['Включённые параметры приведены в проекте команд: System → Identity, IP → DNS → Static, System → NTP Client и IP → Cloud.', 'Проверьте DNS, время, часовой пояс и DDNS на устройстве. DDNS не обходит CGNAT, а модель не обращается к серверам.']);
   if (r.cfg.vlanGuest) add('Гостевой VLAN и изоляция', null, [
     'В Bridge → Ports укажите PVID 1 для основной LAN и PVID ' + r.cfg.guestVlan + ' для гостевых access-портов; до включения фильтрации гостевые порты держите отключёнными. На одном неуправляемом коммутаторе нельзя смешивать сегменты.',
     'В Interfaces → VLAN создайте vlan-guest на bridge-lan, VLAN ID ' + r.cfg.guestVlan + '; в Bridge → VLANs добавьте bridge-lan как tagged и гостевые порты как untagged. Назначьте ' + r.cfg.guestGw + '/24 и настройте DHCP гостевого сегмента по проекту команд.',
@@ -490,6 +556,7 @@ function runDual(state) {
   if (isps.length !== 2) errors.push('Для схемы двух MikroTik добавьте двух провайдеров: по одному на каждый роутер.');
   var common = (adj[routers[0].id] || []).filter(function(id) { return (adj[routers[1].id] || []).indexOf(id) !== -1 && devices.some(function(d){ return d.id === id && d.type === 'switch'; }); });
   if (common.length !== 1) errors.push('Оба MikroTik должны быть подключены к одному общему коммутатору LAN.');
+  if (routers.some(function(r) { return r.cfg.wanMonitor || r.cfg.staticRoute || r.cfg.customDns || r.cfg.dnsStatic || r.cfg.ntpClient || r.cfg.cloudDdns || r.cfg.identityOn || r.cfg.dnsCache === false; })) errors.push('Дополнительные маршруты и сервисы в двухроутерной модели пока не поддерживаются; используйте один MikroTik.');
   if (routers[0].cfg.vlanGuest || routers[1].cfg.vlanGuest || routers[0].cfg.wifiAp || routers[1].cfg.wifiAp) errors.push('VLAN и Wi-Fi в двухроутерной модели пока не поддерживаются; используйте один MikroTik.');
   if (routers[0].cfg.lan !== routers[1].cfg.lan || routers[0].cfg.gw !== routers[1].cfg.gw) errors.push('На двух MikroTik задайте общую LAN-подсеть и виртуальный IP шлюза.');
   if (links.length !== devices.length - 1) errors.push('Схема должна быть связным деревом без петель и параллельных путей.');
