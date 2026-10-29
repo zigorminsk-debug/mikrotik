@@ -23,6 +23,9 @@ args = [
     '-drive', f'file={images[0]},format=raw,if=ide',
     '-netdev', 'user,id=net0,hostfwd=tcp:127.0.0.1:18291-:8291',
     '-device', 'e1000,netdev=net0',
+    # A disposable local Ethernet cable links ether2 to ether3 for a PPPoE test.
+    '-netdev', 'socket,id=net1,listen=127.0.0.1:22333', '-device', 'e1000,netdev=net1',
+    '-netdev', 'socket,id=net2,connect=127.0.0.1:22333', '-device', 'e1000,netdev=net2',
 ]
 vm = pexpect.spawn('qemu-system-x86_64', args, encoding='utf-8', timeout=180, dimensions=(50, 160), echo=False)
 def settle():
@@ -61,10 +64,21 @@ try:
         # QEMU's user-mode network uses 10.0.2.0/24. Keep services bound to
         # the runner's localhost via hostfwd, never to a public interface.
         for command in [':if ([:len [/ip address find where address="10.0.2.15/24"]] = 0) do={/ip address add address=10.0.2.15/24 interface=ether1}',
-                        '/ip service enable winbox', '/system resource print']:
+                        '/ip service enable winbox',
+                        '/ip pool add name=example-pool ranges=192.0.2.10-192.0.2.20',
+                        '/ppp profile add name=example-profile local-address=192.0.2.1 remote-address=example-pool',
+                        '/ppp secret add name=example-user password=example-password service=pppoe profile=example-profile',
+                        '/interface pppoe-server server add interface=ether2 service-name=example-isp default-profile=example-profile disabled=no',
+                        '/interface pppoe-client add name=pppoe-out2 interface=ether3 user=example-user password=example-password add-default-route=yes default-route-distance=2 use-peer-dns=no disabled=no',
+                        '/interface list add name=WAN',
+                        '/interface list member add list=WAN interface=pppoe-out2',
+                        '/system resource print']:
             vm.sendline(command)
             vm.expect(r'\[admin@[^\]]+\]\s*>')
+            output = vm.before.lower()
             settle()
+            if 'failure:' in output or 'expected end of command' in output or 'bad command name' in output:
+                raise RuntimeError('RouterOS rejected test configuration: ' + command)
         vm.logfile_read = None
     binaries = [p for p in (base / 'winbox').rglob('*') if p.is_file() and p.name.lower() in ('winbox', 'winbox.exe')]
     if not binaries:
@@ -77,6 +91,9 @@ try:
 "$1" 127.0.0.1:18291 admin "$2" >"$3/winbox.log" 2>&1 &
 pid=$!
 sleep 35
+# Open PPP (actual GUI). The following capture is checked visually before use.
+xdotool mousemove 170 275 click 1
+sleep 6
 scrot "$3/winbox.png"
 kill "$pid" 2>/dev/null || true
 '''
