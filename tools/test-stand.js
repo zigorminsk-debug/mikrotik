@@ -142,6 +142,7 @@ for (const vpn of ['wireguard', 'ikev2', 'l2tp-ipsec', 'ipsec-s2s', 'pptp', 'l2t
   const code = r.groups.find(g => g.id === 'vpn');
   ok(!!code && !r.checks.errors.length, 'VPN ' + vpn + ' генерируется без ошибок');
   if (code) ok(!/undefined/.test(code.code), 'VPN ' + vpn + ': нет undefined');
+  if (code && vpn !== 'wireguard') ok(code.code.includes('не генерируется') && !code.code.includes('/interface l2tp-server server set'), 'VPN ' + vpn + ': вместо устаревшего шаблона показано ограничение');
 }
 
 /* статический провайдер */

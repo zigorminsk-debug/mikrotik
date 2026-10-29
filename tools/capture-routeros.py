@@ -24,7 +24,16 @@ args = [
     '-netdev', 'user,id=net0,hostfwd=tcp:127.0.0.1:18291-:8291',
     '-device', 'e1000,netdev=net0',
 ]
-vm = pexpect.spawn('qemu-system-x86_64', args, encoding='utf-8', timeout=180, dimensions=(50, 160))
+vm = pexpect.spawn('qemu-system-x86_64', args, encoding='utf-8', timeout=180, dimensions=(50, 160), echo=False)
+def settle():
+    # RouterOS redraws serial prompts. Consume duplicate display updates before
+    # replying, otherwise a stale prompt can be mistaken for the next question.
+    while True:
+        try:
+            vm.read_nonblocking(size=65536, timeout=1)
+        except pexpect.TIMEOUT:
+            return
+
 try:
     with (out / 'serial.log').open('w') as log:
         vm.logfile_read = log
@@ -38,6 +47,7 @@ try:
                            r'(?i)(?:new password|repeat new password)[^\r\n]*[>:]',
                            r'(?i)press (?:enter|return)', r'\[admin@[^\]]+\]\s*>',
                            r'(?i)password:'])
+            settle()
             if n == 0:
                 vm.sendline('n')
             elif n in (1, 4):
@@ -50,10 +60,11 @@ try:
             raise RuntimeError('RouterOS did not reach a command prompt')
         # QEMU's user-mode network uses 10.0.2.0/24. Keep services bound to
         # the runner's localhost via hostfwd, never to a public interface.
-        for command in ['/ip address add address=10.0.2.15/24 interface=ether1',
+        for command in [':if ([:len [/ip address find where address="10.0.2.15/24"]] = 0) do={/ip address add address=10.0.2.15/24 interface=ether1}',
                         '/ip service enable winbox', '/system resource print']:
             vm.sendline(command)
             vm.expect(r'\[admin@[^\]]+\]\s*>')
+            settle()
         vm.logfile_read = None
     binaries = [p for p in (base / 'winbox').rglob('*') if p.is_file() and p.name.lower() in ('winbox', 'winbox.exe')]
     if not binaries:

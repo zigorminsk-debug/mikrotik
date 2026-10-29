@@ -110,6 +110,7 @@ function analyze(state) {
       if (!/^[A-Za-z_+-]+(?:\/[A-Za-z_+\-]+){1,2}$/.test(rt.cfg.timeZone || '')) errors.push('NTP: укажите часовой пояс RouterOS, например Europe/Minsk или Etc/UTC.');
       warnings.push('NTP: модель не проверяет синхронизацию; проверьте разрешение имени, доступ UDP/123 и корректность часового пояса на устройстве.');
     }
+    if (rt.cfg.secureManagement) warnings.push('Ограничение управления отключает MAC WinBox, MAC Telnet и WebFig и ограничивает WinBox/SSH основной LAN. Проверьте IP-доступ и подготовьте консоль; IPv6 и существующие правила нужно оценить отдельно.');
     if (rt.cfg.cloudDdns) warnings.push('IP Cloud связывается с сервисом MikroTik и публикует DDNS-имя. За CGNAT или внешним NAT имя не обеспечивает входящий доступ; модель доступность не проверяет.');
     if (rt.cfg.identityOn && (!rt.cfg.systemIdentity || rt.cfg.systemIdentity.length > 64 || /[\x00-\x1f\x7f]/.test(rt.cfg.systemIdentity))) errors.push('Имя MikroTik: от 1 до 64 символов без управляющих символов.');
     if (rt.cfg.staticRoute) {
@@ -138,7 +139,7 @@ function analyze(state) {
       }
       if (!/^\d{1,4}$/.test(String(rt.cfg.guestVlan || '')) || +rt.cfg.guestVlan < 2 || +rt.cfg.guestVlan > 4094) errors.push('Гостевой VLAN ID: целое число от 2 до 4094 (VLAN 1 используется для основной LAN).');
       if (!rt.cfg.firewall) errors.push('Для изоляции гостевого VLAN включите Firewall.');
-      warnings.push('Гостевые порты — access VLAN; обычный коммутатор не разделяет сегменты на одном порту. Фильтрация VLAN может отключить доступ к роутеру: настройте безопасное восстановление и проверьте порты. Изоляция Wi-Fi-клиентов друг от друга отдельно не моделируется.');
+      warnings.push('Гостевые порты — access VLAN; обычный коммутатор не разделяет сегменты на одном порту. Фильтрация VLAN может отключить доступ к роутеру: настройте безопасное восстановление и проверьте порты. Изоляция клиентов в реальной сети не проверяется.');
     }
     if (rt.cfg.wifiAp) {
       if (!/^[A-Za-z0-9_-]{1,30}$/.test(rt.cfg.wifiIf || '') || rt.cfg.wifiIf === 'wifi-guest') errors.push('Wi-Fi: укажите имя существующего радио-интерфейса (например wifi1).');
@@ -149,9 +150,11 @@ function analyze(state) {
         if (!rt.cfg.vlanGuest) errors.push('Гостевой Wi-Fi требует включённого гостевого VLAN.');
         if (!validWifiSsid(rt.cfg.wifiGuestSsid) || rt.cfg.wifiGuestSsid === rt.cfg.wifiSsid) errors.push('Гостевой Wi-Fi: нужен отдельный SSID (1–32 байта).');
         if (!validWifiPass(rt.cfg.wifiGuestPass)) errors.push('Гостевой Wi-Fi: пароль WPA2 должен содержать 8–63 печатных ASCII-символа.');
+        if (rt.cfg.wifiGuestIsolation) warnings.push('Изоляция клиентов гостевого SSID относится к устройствам на этой точке доступа; она не изолирует автоматически проводных гостей или клиентов других AP. Проверьте реальное оборудование.');
       }
       warnings.push('Wi-Fi: проект рассчитан на RouterOS 7.13+ и пакет wifi, поддерживающий режим AP и виртуальный SSID. Проверьте модель, список радио, лицензирование и страну; пакет wireless/wifiwave2 требует другой настройки.');
     } else if (rt.cfg.wifiGuest) errors.push('Гостевой Wi-Fi требует включённой точки доступа Wi-Fi.');
+    if (rt.cfg.wifiGuestIsolation && (!rt.cfg.wifiAp || !rt.cfg.wifiGuest)) errors.push('Изоляция Wi-Fi-клиентов требует включённого гостевого Wi-Fi.');
     if (rt.cfg.vpn) {
       var vc = rt.cfg, vn = parseCidr(vc.vpnPool), vt = vc.vpnType || 'wireguard';
       if (['wireguard','ikev2','l2tp-ipsec'].indexOf(vt) < 0) errors.push('VPN: неизвестный тип.');
@@ -346,7 +349,7 @@ function genCommands(state, model) {
     var wifi = ['# RouterOS 7.13+, пакет wifi. Проверить имя радио и режим AP; временно выключаем радио.',
       '/interface wifi set [find name=' + q(r.cfg.wifiIf) + '] disabled=yes configuration.mode=ap configuration.country=' + q(r.cfg.wifiCountry) + ' configuration.ssid=' + q(r.cfg.wifiSsid) + ' security.authentication-types=wpa2-psk security.passphrase=' + q(r.cfg.wifiPass),
       '/interface bridge port add bridge=bridge-lan interface=' + q(r.cfg.wifiIf) + (r.cfg.vlanGuest ? ' pvid=1 frame-types=admit-only-untagged-and-priority-tagged ingress-filtering=yes' : '')];
-    if (r.cfg.wifiGuest) wifi.push('/interface wifi add name=wifi-guest master-interface=' + q(r.cfg.wifiIf) + ' disabled=yes configuration.mode=ap configuration.ssid=' + q(r.cfg.wifiGuestSsid) + ' security.authentication-types=wpa2-psk security.passphrase=' + q(r.cfg.wifiGuestPass),
+    if (r.cfg.wifiGuest) wifi.push('/interface wifi add name=wifi-guest master-interface=' + q(r.cfg.wifiIf) + ' disabled=yes configuration.mode=ap configuration.ssid=' + q(r.cfg.wifiGuestSsid) + ' security.authentication-types=wpa2-psk security.passphrase=' + q(r.cfg.wifiGuestPass) + (r.cfg.wifiGuestIsolation ? ' datapath.client-isolation=yes' : ''),
       '/interface bridge port add bridge=bridge-lan interface=wifi-guest pvid=' + r.cfg.guestVlan + ' frame-types=admit-only-untagged-and-priority-tagged ingress-filtering=yes');
     add('wifi', 'Wi-Fi: параметры и порты (пока выключены)', wifi);
   }
@@ -398,6 +401,17 @@ function genCommands(state, model) {
     if (r.cfg.wifiGuest) activate.push('/interface wifi set [find name=wifi-guest] disabled=no');
     add('activate-lan', 'Включение VLAN и Wi-Fi после проверки', activate);
   }
+  if (r.cfg.secureManagement) add('secure-management', 'Ограничение служб управления — только после проверки доступа', [
+    '# ВНИМАНИЕ: после применения MAC-доступ и WebFig будут выключены. Подготовьте консоль и проверьте IP-доступ из LAN.',
+    '/ip service set [find name=winbox] address=' + r.net.first + '/24',
+    '/ip service set [find name=ssh] address=' + r.net.first + '/24',
+    '/ip service disable [find where name=telnet or name=ftp or name=www or name=www-ssl or name=api or name=api-ssl]',
+    '/tool mac-server set allowed-interface-list=none',
+    '/tool mac-server mac-winbox set allowed-interface-list=none',
+    '/tool mac-server ping set enabled=no',
+    '/ip neighbor discovery-settings set discover-interface-list=LAN',
+    '# Ограничения IP Services не заменяют firewall; отдельно проверьте IPv6 и другие способы управления.'
+  ]);
   add('verify', '7. Проверка', ['/interface print', '/ip address print', '/ip route print', '/ip dhcp-server lease print', '/ping 1.1.1.1 count=5', '# Проверить DHCP и доступ с реального ПК.']);
   return groups;
 }
@@ -527,13 +541,14 @@ function winboxSteps(state, model) {
   if (r.cfg.vlanGuest) add('Гостевой VLAN и изоляция', null, [
     'В Bridge → Ports укажите PVID 1 для основной LAN и PVID ' + r.cfg.guestVlan + ' для гостевых access-портов; до включения фильтрации гостевые порты держите отключёнными. На одном неуправляемом коммутаторе нельзя смешивать сегменты.',
     'В Interfaces → VLAN создайте vlan-guest на bridge-lan, VLAN ID ' + r.cfg.guestVlan + '; в Bridge → VLANs добавьте bridge-lan как tagged и гостевые порты как untagged. Назначьте ' + r.cfg.guestGw + '/24 и настройте DHCP гостевого сегмента по проекту команд.',
-    'В Firewall добавьте разрешения DNS/DHCP к роутеру и выхода гостей только в WAN до завершающих drop. Подготовьте консоль, затем включите VLAN Filtering и только после этого включите гостевые порты. Изоляция между гостевыми клиентами отдельно не настраивается.'
+    'В Firewall добавьте разрешения DNS/DHCP к роутеру и выхода гостей только в WAN до завершающих drop. Подготовьте консоль, затем включите VLAN Filtering и только после этого включите гостевые порты. Изоляция проводных гостей и отдельных точек доступа не настраивается.'
   ]);
   if (r.cfg.wifiAp) add('Wi-Fi RouterOS 7.13+ (пакет wifi)', null, [
     'Откройте WiFi и настройте существующий ' + r.cfg.wifiIf + ': Mode = ap, Country = выбранная страна, SSID = ' + r.cfg.wifiSsid + ', Security = WPA2-PSK, пароль из проекта. Проверьте поддержку радио и лицензии.',
     'Добавьте основное радио в bridge-lan. ' + (r.cfg.wifiGuest ? 'Создайте виртуальный интерфейс wifi-guest на ' + r.cfg.wifiIf + ' с отдельным SSID, добавьте его в bridge-lan как access-порт с PVID ' + r.cfg.guestVlan + '.' : 'Гостевой SSID отключён.') + ' До проверки VLAN и firewall держите Wi-Fi отключённым.',
-    'Включите радио после проверки. Радио, покрытие и подключение клиентов не моделируются; фактические меню и функции зависят от пакета и модели.'
+    (r.cfg.wifiGuest && r.cfg.wifiGuestIsolation ? 'На интерфейсе wifi-guest включите Datapath → Client Isolation. Проверьте изоляцию двух клиентов на реальной точке; проводные и другие AP не охватываются.' : 'Изоляция клиентов Wi-Fi не включена.') + ' Включите радио после проверки. Радио и клиенты в модели не эмулируются.'
   ]);
+  if (r.cfg.secureManagement) add('Ограничение служб управления', null, ['После проверки IP-доступа откройте IP → Services: ограничьте WinBox и SSH подсетью ' + r.net.first + '/24; отключите telnet, ftp, www, www-ssl, api и api-ssl.', 'В Tools → MAC Server отключите MAC Telnet, MAC WinBox и MAC Ping. В IP → Neighbors → Discovery Settings ограничьте обнаружение списком LAN.', 'Проверьте IP-доступ из разрешённой LAN и консоль восстановления: MAC-управление и WebFig перестанут работать. Ограничения не заменяют firewall и проверку IPv6.']);
   if (r.cfg.vpn) add('VPN: ' + r.cfg.vpnType, null, [
     'Настройте выбранный VPN по проекту команд ниже. Для IKEv2 заранее импортируйте и проверьте сертификаты; для WireGuard обменяйтесь публичными ключами; для L2TP/IPsec задайте безопасные пароль и общий ключ.',
     'Разрешения VPN в firewall должны стоять до завершающих drop. Требуется доступный внешний IP и проверка с реального клиента.'
@@ -567,7 +582,7 @@ function runDual(state) {
   if (isps.length !== 2) errors.push('Для схемы двух MikroTik добавьте двух провайдеров: по одному на каждый роутер.');
   var common = (adj[routers[0].id] || []).filter(function(id) { return (adj[routers[1].id] || []).indexOf(id) !== -1 && devices.some(function(d){ return d.id === id && d.type === 'switch'; }); });
   if (common.length !== 1) errors.push('Оба MikroTik должны быть подключены к одному общему коммутатору LAN.');
-  if (routers.some(function(r) { return r.cfg.wanMonitor || r.cfg.staticRoute || r.cfg.customDns || r.cfg.dnsStatic || r.cfg.ntpClient || r.cfg.cloudDdns || r.cfg.identityOn || r.cfg.dnsCache === false; })) errors.push('Дополнительные маршруты и сервисы в двухроутерной модели пока не поддерживаются; используйте один MikroTik.');
+  if (routers.some(function(r) { return r.cfg.wanMonitor || r.cfg.staticRoute || r.cfg.customDns || r.cfg.dnsStatic || r.cfg.ntpClient || r.cfg.cloudDdns || r.cfg.identityOn || r.cfg.secureManagement || r.cfg.wifiGuestIsolation || r.cfg.dnsCache === false; })) errors.push('Дополнительные маршруты и сервисы в двухроутерной модели пока не поддерживаются; используйте один MikroTik.');
   if (routers[0].cfg.vlanGuest || routers[1].cfg.vlanGuest || routers[0].cfg.wifiAp || routers[1].cfg.wifiAp) errors.push('VLAN и Wi-Fi в двухроутерной модели пока не поддерживаются; используйте один MikroTik.');
   if (routers[0].cfg.lan !== routers[1].cfg.lan || routers[0].cfg.gw !== routers[1].cfg.gw) errors.push('На двух MikroTik задайте общую LAN-подсеть и виртуальный IP шлюза.');
   if (links.length !== devices.length - 1) errors.push('Схема должна быть связным деревом без петель и параллельных путей.');

@@ -537,85 +537,11 @@ function genVpn(plan) {
       'AllowedIPs = ' + (lan ? lan.first + '/' + lan.prefix : '192.168.88.0/24') + ', ' + v.pool + '   # 0.0.0.0/0 — весь трафик через VPN',
       '', '# Firewall:',
       '/ip firewall filter add chain=input protocol=udp dst-port=' + v.port + ' in-interface-list=WAN action=accept comment="WireGuard"');
-  } else if (v.type === 'ikev2') {
-    L.push(
-      '# Пул адресов VPN:', '/ip pool add name=vpn-pool ranges=' + poolRange,
-      '', '# Профиль, предложение, mode-config:',
-      '/ip ipsec profile set [ find default ] hash-algorithm=sha256 lifetime=8h dpd-interval=120s',
-      '/ip ipsec proposal set [ find default ] auth-algorithms=sha256 enc-algorithms=aes-256-gcm,aes-128-gcm lifetime=1h',
-      '/ip ipsec mode-config add name=mode-cfg address-pool=vpn-pool address-prefix-length=32 system-dns=yes static-dns=77.88.8.8',
-      '/ip ipsec policy group add name=ike2-group',
-      '/ip ipsec policy add group=ike2-group template=yes src-address=0.0.0.0/0 dst-address=0.0.0.0/0 proposal=default',
-      '/ip ipsec peer add exchange-mode=ike2 name=ike2-peer profile=default send-initial-contact=yes',
-      '/ip ipsec identity add peer=ike2-peer auth-method=pre-shared-key secret=' + q(psk) + ' generate-policy=port-strict policy-template-group=ike2-group',
-      '', '# Firewall:',
-      '/ip firewall filter add chain=input protocol=udp dst-port=500,4500 in-interface-list=WAN action=accept comment="IKEv2"',
-      '/ip firewall filter add chain=input protocol=ipsec-esp in-interface-list=WAN action=accept comment="IPsec ESP"',
-      '', '# Клиент: Windows 10/11 «VPN → Добавить →IKEv2», iOS/macOS/Android «IPsec IKEv2»:',
-      '#   сервер: <публичный IP>, общий ключ: ' + psk + ', логин/пароль: ' + v.user + ' / (задайте в /ppp secret при EAP)');
-  } else if (v.type === 'l2tp-ipsec') {
-    L.push(
-      '/ip pool add name=vpn-pool ranges=' + poolRange,
-      '/interface l2tp-server server set enabled=yes default-profile=default use-ipsec-required=yes ipsec-secrets=l2tp-psk',
-      '/ip ipsec peer add exchange-mode=main name=l2tp-remote profile=default',
-      '/ip ipsec identity add peer=l2tp-remote auth-method=pre-shared-key secret=' + q(psk),
-      '/ip ipsec proposal set [ find default ] enc-algorithms=aes-256-gcm lifetime=1h',
-      '/ppp profile add name=vpn-profile address-pool=vpn-pool use-encryption=required dns-server=77.88.8.8 local-address=' + plan.inp.lan.gw,
-      '/ppp secret add name=' + q(v.user) + ' password=' + q(v.pass) + ' profile=vpn-profile service=l2tp',
-      '# Общий ключ также пропишите в /ip ipsec secrets (add name=l2tp-psk secret=' + q(psk) + ')',
-      '', '# Firewall:',
-      '/ip firewall filter add chain=input protocol=udp dst-port=500,4500 in-interface-list=WAN action=accept comment="IKE"',
-      '/ip firewall filter add chain=input protocol=ipsec-esp in-interface-list=WAN action=accept comment="ESP"',
-      '/ip firewall filter add chain=input protocol=udp dst-port=1701 in-interface-list=WAN action=accept comment="L2TP"',
-      '', '# Клиент: встроенный VPN Windows/iOS/Android — L2TP/IPsec с общим ключом.');
-  } else if (v.type === 'ipsec-s2s') {
-    var localSub = lan ? (lan.first + '/' + lan.prefix) : '192.168.88.0/24';
-    L.push(
-      '# Два офиса: ' + localSub + '  ←→  ' + v.s2sRemoteSubnet + ' (шлюз ' + v.s2sRemoteGw + ')',
-      '/ip ipsec profile set [ find default ] lifetime=1d',
-      '/ip ipsec peer add name=office2 address=' + v.s2sRemoteGw + ' exchange-mode=ike2 profile=default',
-      '/ip ipsec identity add peer=office2 auth-method=pre-shared-key secret=' + q(psk),
-      '/ip ipsec policy group add name=office2',
-      '/ip ipsec proposal set [ find default ] enc-algorithms=aes-256-gcm lifetime=1h',
-      '/ip ipsec policy add group=office2 peer=office2 src-address=' + localSub + ' dst-address=' + v.s2sRemoteSubnet + ' proposal=default tunnel=yes',
-      '/ip firewall filter add chain=input protocol=udp dst-port=500,4500 in-interface-list=WAN action=accept comment="IPsec s2s"',
-      '/ip firewall filter add chain=input protocol=ipsec-esp in-interface-list=WAN action=accept',
-      '/ip firewall filter add chain=forward src-address=' + localSub + ' dst-address=' + v.s2sRemoteSubnet + ' action=accept comment="Офисы: LAN→LAN"',
-      '/ip firewall filter add chain=forward src-address=' + v.s2sRemoteSubnet + ' dst-address=' + localSub + ' action=accept',
-      '', '# ВО ВТОРОМ ОФИСЕ зеркально: src/dst поменять местами, тот же PSK, address=<ваш публичный IP>.');
-  } else if (v.type === 'pptp' || v.type === 'l2tp') {
-    var svc = v.type;
-    L.push(
-      (svc === 'pptp'
-        ? '/interface pptp-server server set enabled=yes default-profile=default'
-        : '/interface l2tp-server server set enabled=yes default-profile=default use-ipsec-required=no'),
-      '/ip pool add name=vpn-pool ranges=' + poolRange,
-      '/ppp profile add name=vpn-profile address-pool=vpn-pool use-encryption=required dns-server=77.88.8.8',
-      '/ppp secret add name=' + q(v.user) + ' password=' + q(v.pass) + ' profile=vpn-profile service=' + svc,
-      (svc === 'pptp'
-        ? '/ip firewall filter add chain=input protocol=tcp dst-port=1723 in-interface-list=WAN action=accept comment="PPTP"\n/ip firewall filter add chain=input protocol=gre in-interface-list=WAN action=accept comment="GRE"'
-        : '/ip firewall filter add chain=input protocol=udp dst-port=1701 in-interface-list=WAN action=accept comment="L2TP"'),
-      '',
-      '# ⚠ ' + (svc === 'pptp' ? 'PPTP' : 'L2TP без IPsec') + ' устарел и слабо защищён (SMTP/словарные атаки).',
-      '# Предпочтительнее WireGuard или IPsec IKEv2 — используйте их там, где возможно.');
-  } else if (v.type === 'sstp') {
-    L.push(
-      '/ip pool add name=vpn-pool ranges=' + poolRange,
-      '/interface sstp-server server set enabled=yes default-profile=default certificate=none auth-mschapv2=yes',
-      '/ppp profile add name=vpn-profile address-pool=vpn-pool use-encryption=required dns-server=77.88.8.8',
-      '/ppp secret add name=' + q(v.user) + ' password=' + q(v.pass) + ' profile=vpn-profile service=sstp',
-      '/ip firewall filter add chain=input protocol=tcp dst-port=' + (v.port || '443') + ' in-interface-list=WAN action=accept comment="SSTP"',
-      '# Для TLS-шифрования сертификатом: создайте сертификат (/certificate) и укажите certificate=<имя>.',
-      '# Клиент: Windows «Тип VPN: SSTP», адрес <публичный IP>, логин/пароль.');
-  } else if (v.type === 'ovpn') {
-    L.push(
-      '/ip pool add name=vpn-pool ranges=' + poolRange,
-      '/interface ovpn-server server set enabled=yes default-profile=default auth=sha1,sha256 cipher=aes256,aes128',
-      '/ppp profile add name=vpn-profile address-pool=vpn-pool use-encryption=required dns-server=77.88.8.8',
-      '/ppp secret add name=' + q(v.user) + ' password=' + q(v.pass) + ' profile=vpn-profile service=ovpn',
-      '/ip firewall filter add chain=input protocol=tcp dst-port=' + (v.port || '1194') + ' in-interface-list=WAN action=accept comment="OVPN tcp"',
-      '/ip firewall filter add chain=input protocol=udp dst-port=' + (v.port || '1194') + ' in-interface-list=WAN action=accept comment="OVPN udp"',
-      '# Клиент: OpenVPN GUI / Tunnelblick, импорт .ovpn: remote <IP> ' + (v.port || '1194'));
+  } else {
+    L.push('# ВНИМАНИЕ: готовая конфигурация этого VPN старым стендом пока не генерируется.',
+      '# Прежние шаблоны были неполными или использовали неверные параметры и удалены.',
+      '# Используйте учебник и проверенный проект для конкретной RouterOS и клиента.',
+      '# WireGuard, IKEv2 и L2TP/IPsec также доступны как проекты в графической лаборатории; проверяйте на оборудовании.');
   }
   return { id: 'vpn', title: 'VPN: ' + vpnTitle(v.type), code: L.join('\n') };
 }

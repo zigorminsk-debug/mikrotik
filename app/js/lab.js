@@ -39,9 +39,9 @@ var TYPES = {
       dhcp: true, nat: true, firewall: true, vpn: false, wanFailover: false, routerFailover: true,
       wanMonitor: false, monitorHost: '9.9.9.9', staticRoute: false, routeDst: '10.20.0.0/24', routeGw: '192.168.88.254', routeDistance: '1',
       dnsCache: true, customDns: false, dnsPrimary: '1.1.1.1', dnsSecondary: '8.8.8.8', dnsStatic: false, dnsStaticName: 'server.lan', dnsStaticIp: '192.168.88.10',
-      ntpClient: false, ntpServer: 'pool.ntp.org', timeZone: 'Etc/UTC', cloudDdns: false, identityOn: false, systemIdentity: 'MikroTik-Lab',
+      ntpClient: false, ntpServer: 'pool.ntp.org', timeZone: 'Etc/UTC', cloudDdns: false, secureManagement: false, identityOn: false, systemIdentity: 'MikroTik-Lab',
       vlanGuest: false, guestVlan: '20', guestNet: '192.168.99.0/24', guestGw: '192.168.99.1', guestDhcp: true,
-      wifiAp: false, wifiIf: 'wifi1', wifiCountry: '', wifiSsid: 'MikroTik-LAN', wifiPass: '', wifiGuest: false, wifiGuestSsid: 'MikroTik-Guest', wifiGuestPass: '',
+      wifiAp: false, wifiIf: 'wifi1', wifiCountry: '', wifiSsid: 'MikroTik-LAN', wifiPass: '', wifiGuest: false, wifiGuestIsolation: false, wifiGuestSsid: 'MikroTik-Guest', wifiGuestPass: '',
       vpnType: 'wireguard', vpnPort: '13231', vpnPool: '10.10.10.0/24', vpnPeer: '', vpnUser: '', vpnPass: '', vpnPsk: '', vpnServerCert: '', vpnClientCert: '' }; } },
   switch: { label: 'Коммутатор', cls: 'switch',
     defName: function (n) { return n <= 1 ? 'Коммутатор' : 'Коммутатор ' + n; },
@@ -678,7 +678,7 @@ function openSettings(id) {
       chk('lm_wifi_guest', 'Гостевой Wi‑Fi (виртуальный SSID в гостевом VLAN)', c.wifiGuest) +
       '<div id="lm_wifi_guest_box"' + (c.wifiGuest ? '' : ' hidden') + '><div class="lm-grid">' +
       f('lm_wifi_guest_ssid', 'SSID гостей', 'text', c.wifiGuestSsid || 'MikroTik-Guest', 'spellcheck="false"') +
-      f('lm_wifi_guest_pass', 'Пароль гостей WPA2', 'password', c.wifiGuestPass || '', 'autocomplete="new-password"') + '</div></div>' +
+      f('lm_wifi_guest_pass', 'Пароль гостей WPA2', 'password', c.wifiGuestPass || '', 'autocomplete="new-password"') + '</div>' + chk('lm_wifi_guest_isolation', 'Изолировать клиентов гостевого Wi-Fi на этой точке', c.wifiGuestIsolation) + '<p class="fs-hint">Относится к клиентам этой точки доступа; проводные гости и другие точки отдельно не изолируются. Требует проверки оборудования.</p></div>' +
       '<p class="fs-hint">RouterOS 7.13+ с пакетом wifi и поддержкой AP/виртуального интерфейса. Для старого wireless и wifiwave2 команды отличаются; радио и покрытие не эмулируются. Пароли попадут в проект команд.</p></div>' +
       '<p class="fs-hint"><a id="lm_network_guide" href="#networks">Подробные инструкции по LAN, VLAN и Wi‑Fi в учебнике</a></p>';
     html += '<div class="lm-t">Маршрутизация и системные службы</div>' +
@@ -694,6 +694,7 @@ function openSettings(id) {
       '<div id="lm_dns_static_box"' + (c.dnsStatic ? '' : ' hidden') + '><div class="lm-grid">' + f('lm_dns_name', 'Имя хоста', 'text', c.dnsStaticName || 'server.lan', 'spellcheck="false"') + f('lm_dns_ip', 'IPv4 хоста', 'text', c.dnsStaticIp || '192.168.88.10', 'inputmode="decimal"') + '</div><p class="fs-hint">Клиенты должны использовать DNS роутера; существование хоста модель не проверяет.</p></div>' +
       chk('lm_ntp', 'Синхронизация времени NTP', c.ntpClient) +
       '<div id="lm_ntp_box"' + (c.ntpClient ? '' : ' hidden') + '><div class="lm-grid">' + f('lm_ntp_server', 'NTP-сервер (имя или IPv4)', 'text', c.ntpServer || 'pool.ntp.org', 'spellcheck="false"') + f('lm_timezone', 'Часовой пояс RouterOS', 'text', c.timeZone || 'Etc/UTC', 'spellcheck="false"') + '</div><p class="fs-hint">Пояс выберите для своего региона, например Europe/Minsk. Модель время не синхронизирует.</p></div>' +
+      chk('lm_secure_management', 'Ограничить WinBox/SSH основной IPv4 LAN, отключить MAC и WebFig', c.secureManagement) + '<p class="fs-hint">Отключает MAC-управление и WebFig; подготовьте консоль и проверьте IP-доступ. IPv6 и другие способы доступа проверяются отдельно.</p>' +
       chk('lm_cloud', 'IP Cloud DDNS от MikroTik', c.cloudDdns) + '<p class="fs-hint">IP Cloud обращается к серверам MikroTik; DDNS не обходит CGNAT и не гарантирует доступ извне.</p>' +
       chk('lm_identity', 'Задать системное имя роутера', c.identityOn) +
       '<div id="lm_identity_box"' + (c.identityOn ? '' : ' hidden') + '>' + f('lm_identity_name', 'Системное имя', 'text', c.systemIdentity || 'MikroTik-Lab', 'spellcheck="false"') + '</div>' +
@@ -766,8 +767,8 @@ function openSettings(id) {
     if (vpnType) { $('lm_vpn_wg').hidden = vpnType.value !== 'wireguard'; $('lm_vpn_ike').hidden = vpnType.value !== 'ikev2'; $('lm_vpn_l2tp').hidden = vpnType.value !== 'l2tp-ipsec'; }
     if (extChk) $('lm_external_box').hidden = !extChk.checked;
     if (guestChk) $('lm_guest_vlan_box').hidden = !guestChk.checked;
-    if (wifiChk) { $('lm_wifi_box').hidden = !wifiChk.checked; if (!wifiChk.checked && wifiGuestChk) wifiGuestChk.checked = false; }
-    if (wifiGuestChk) $('lm_wifi_guest_box').hidden = !wifiGuestChk.checked;
+    if (wifiChk) { $('lm_wifi_box').hidden = !wifiChk.checked; if (!wifiChk.checked && wifiGuestChk) { wifiGuestChk.checked = false; if ($('lm_wifi_guest_isolation')) $('lm_wifi_guest_isolation').checked = false; } }
+    if (wifiGuestChk) { $('lm_wifi_guest_box').hidden = !wifiGuestChk.checked; if (!wifiGuestChk.checked && $('lm_wifi_guest_isolation')) $('lm_wifi_guest_isolation').checked = false; }
     [[monitorChk,'lm_monitor_box'],[routeChk,'lm_route_box'],[dnsChk,'lm_dns_box'],[staticDnsChk,'lm_dns_static_box'],[ntpChk,'lm_ntp_box'],[identityChk,'lm_identity_box']].forEach(function(pair) { if (pair[0]) $(pair[1]).hidden = !pair[0].checked; });
   }
   [kindSel, modeSel, vpnChk, vpnType, extChk, guestChk, wifiChk, wifiGuestChk, monitorChk, routeChk, dnsChk, staticDnsChk, ntpChk, identityChk, $('lm_nic_count')].forEach(function (e2) {
@@ -812,9 +813,9 @@ function saveSettings() {
       firewall: $('lm_fw').checked, vpn: vpn, routerRole: $('lm_router_role').value, wanFailover: $('lm_wan_failover').checked, routerFailover: $('lm_router_failover').checked,
       wanMonitor: $('lm_wan_monitor').checked, monitorHost: $('lm_monitor_host').value.trim(), staticRoute: $('lm_static_route').checked, routeDst: $('lm_route_dst').value.trim(), routeGw: $('lm_route_gw').value.trim(), routeDistance: $('lm_route_distance').value.trim(),
       dnsCache: $('lm_dns_cache').checked, customDns: $('lm_custom_dns').checked, dnsPrimary: $('lm_dns_primary').value.trim(), dnsSecondary: $('lm_dns_secondary').value.trim(), dnsStatic: $('lm_dns_static').checked, dnsStaticName: $('lm_dns_name').value.trim(), dnsStaticIp: $('lm_dns_ip').value.trim(),
-      ntpClient: $('lm_ntp').checked, ntpServer: $('lm_ntp_server').value.trim(), timeZone: $('lm_timezone').value.trim(), cloudDdns: $('lm_cloud').checked, identityOn: $('lm_identity').checked, systemIdentity: $('lm_identity_name').value.trim(),
+      ntpClient: $('lm_ntp').checked, ntpServer: $('lm_ntp_server').value.trim(), timeZone: $('lm_timezone').value.trim(), cloudDdns: $('lm_cloud').checked, secureManagement: $('lm_secure_management').checked, identityOn: $('lm_identity').checked, systemIdentity: $('lm_identity_name').value.trim(),
       vlanGuest: $('lm_guest_vlan').checked, guestVlan: $('lm_guest_vlan_id').value.trim(), guestNet: $('lm_guest_net').value.trim(), guestGw: $('lm_guest_gw').value.trim(), guestDhcp: $('lm_guest_dhcp').checked,
-      wifiAp: $('lm_wifi_ap').checked, wifiIf: $('lm_wifi_if').value.trim(), wifiCountry: $('lm_wifi_country').value.trim(), wifiSsid: $('lm_wifi_ssid').value, wifiPass: $('lm_wifi_pass').value, wifiGuest: $('lm_wifi_guest').checked, wifiGuestSsid: $('lm_wifi_guest_ssid').value, wifiGuestPass: $('lm_wifi_guest_pass').value,
+      wifiAp: $('lm_wifi_ap').checked, wifiIf: $('lm_wifi_if').value.trim(), wifiCountry: $('lm_wifi_country').value.trim(), wifiSsid: $('lm_wifi_ssid').value, wifiPass: $('lm_wifi_pass').value, wifiGuest: $('lm_wifi_guest').checked, wifiGuestIsolation: $('lm_wifi_guest_isolation').checked, wifiGuestSsid: $('lm_wifi_guest_ssid').value, wifiGuestPass: $('lm_wifi_guest_pass').value,
       vpnType: $('lm_vpn_type').value, vpnPort: $('lm_vpn_port').value.trim(), vpnPool: $('lm_vpn_pool').value.trim(),
       vpnPeer: $('lm_vpn_peer').value.trim(), vpnServerCert: $('lm_vpn_server_cert').value.trim(), vpnClientCert: $('lm_vpn_client_cert').value.trim(),
       vpnUser: $('lm_vpn_user').value.trim(), vpnPass: $('lm_vpn_pass').value, vpnPsk: $('lm_vpn_psk').value };

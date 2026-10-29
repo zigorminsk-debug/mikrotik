@@ -18,6 +18,24 @@ section({
       WARN('В RouterOS правила проверяются **сверху вниз**, первое совпадение побеждает (action не `passthrough`). Добавляйте строго в указанном порядке!')
     ]},
 
+    { t: 'Ограничение управляющих служб', b: [
+      P('В лаборатории можно включить ограничение служб управления для одного MikroTik. Проект ограничивает WinBox и SSH подсетью основной IPv4 LAN, отключает Telnet, FTP, WebFig и API, а также MAC Telnet, MAC WinBox и MAC Ping. Обнаружение соседей остаётся на списке LAN.'),
+      WARN('Выполняйте только после проверки IP-доступа из разрешённой сети. MAC-подключение и WebFig перестанут работать; подготовьте последовательную консоль или другой независимый способ восстановления. Правила firewall, VPN-доступ, IPv6 и работающие приложения необходимо проверить отдельно.'),
+      OL([
+        'В IP → Services откройте WinBox и SSH, установите Available From для вашей основной LAN. Другие управляющие службы отключайте только если они не нужны.',
+        'В Tools → MAC Server установите для MAC Telnet и MAC WinBox список none, отключите MAC Ping.',
+        'В IP → Neighbors → Discovery Settings выберите LAN. Убедитесь, что список LAN соответствует вашей сети.',
+        'Переподключитесь по IP и проверьте, что нежелательные способы входа недоступны. Для восстановления используйте независимую консоль.'
+      ]),
+      CMD(`/ip service set [find name=winbox] address=192.168.88.0/24
+/ip service set [find name=ssh] address=192.168.88.0/24
+/ip service disable [find where name=telnet or name=ftp or name=www or name=www-ssl or name=api or name=api-ssl]
+/tool mac-server set allowed-interface-list=none
+/tool mac-server mac-winbox set allowed-interface-list=none
+/tool mac-server ping set enabled=no
+/ip neighbor discovery-settings set discover-interface-list=LAN`, 'Пример: настройка служб после проверки доступа'),
+      NOTE('Снимка именно этого пункта пока нет. Официальные рекомендации: https://help.mikrotik.com/docs/spaces/ROS/pages/328353/Securing+your+router')
+    ]},
     { t: 'Защита роутера: input', b: [
       P('Базовый набор: разрешаем уже открытые соединения и LAN, всё остальное — запрещаем.'),
       IMG('assets/img/official/firewall-menu.png', 'WinBox: открыть IP → Firewall и добавить правило. Пример MikroTik.'),
