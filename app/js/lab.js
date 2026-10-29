@@ -137,12 +137,25 @@ function svgEl(name, attrs) {
   Object.keys(attrs).forEach(function (k) { e.setAttribute(k, attrs[k]); });
   return e;
 }
+function linkPoints(l) {
+  var a = byId(l.a), b = byId(l.b); if (!a || !b) return null;
+  var A = center(a), B = center(b);
+  var peers = state.links.filter(function(x) { return (x.a === l.a && x.b === l.b) || (x.a === l.b && x.b === l.a); });
+  var idx = peers.indexOf(l), delta = (idx - (peers.length - 1) / 2) * 18;
+  var dx = B.x - A.x, dy = B.y - A.y, len = Math.sqrt(dx*dx + dy*dy) || 1;
+  // Normal is calculated in canonical device order, even for reversed links.
+  var sign = l.a < l.b ? 1 : -1, nx = -dy / len * sign, ny = dx / len * sign;
+  return {A:{x:A.x + nx*delta,y:A.y + ny*delta}, B:{x:B.x + nx*delta,y:B.y + ny*delta}};
+}
+function cardsOf(d) { return ['nic1'].concat((d.cfg.nics || []).map(function(n) {return n.id;})); }
+function cardUsed(d, card, except) { return state.links.some(function(l) { return l.id !== except && (l.a === d.id || l.b === d.id) && (l.nicId || 'nic1') === card; }); }
+function cardName(id) { return 'Карта ' + String(id || 'nic1').slice(3); }
 function renderLinks() {
   while (svg.firstChild) svg.removeChild(svg.firstChild);
   state.links.forEach(function (l) {
     var a = byId(l.a), b = byId(l.b);
     if (!a || !b) return;
-    var A = center(a), B = center(b);
+    var geo = linkPoints(l), A = geo.A, B = geo.B;
     var isSel = selected && selected.kind === 'link' && selected.id === l.id;
     var line = svgEl('line', { class: 'lab-link' + (isSel ? ' sel' : ''),
       x1: A.x, y1: A.y, x2: B.x, y2: B.y });
@@ -157,17 +170,17 @@ function renderLinks() {
     svg.appendChild(hit);
     var wan = (a.type === 'router' && b.type === 'isp') || (b.type === 'router' && a.type === 'isp');
     var mid = svgEl('text', { class: 'lab-link-lbl', x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 - 6 });
-    mid.textContent = wan ? 'WAN' : 'LAN';
+    mid.textContent = wan ? 'WAN' : (l.nicId ? 'LAN · ' + cardName(l.nicId) : 'LAN');
     svg.appendChild(mid);
   });
   if (flowEnabled && typeof LabEngine !== 'undefined') {
     var drawn = Object.create(null), routes = LabEngine.activeRoutes(state);
     routes.forEach(function(route) {
       for (var i = 0; i < route.path.length - 1; i++) {
-        var from = route.path[i], to = route.path[i + 1], key = [from,to].sort().join('|');
+        var from = route.path[i], to = route.path[i + 1], linkId = route.linkIds && route.linkIds[i], key = linkId || [from,to].sort().join('|');
         if (drawn[key]) continue; drawn[key] = true;
-        var a = byId(from), b = byId(to); if (!a || !b) continue;
-        var A = center(a), B = center(b);
+        var lg = findLinkEl(from,to,linkId); if (!lg) continue;
+        var A = lg.reverse ? lg.B : lg.A, B = lg.reverse ? lg.A : lg.B;
         svg.appendChild(svgEl('line', { class:'lab-flow lab-flow-out', x1:A.x, y1:A.y-3, x2:B.x, y2:B.y-3 }));
         svg.appendChild(svgEl('line', { class:'lab-flow lab-flow-back', x1:B.x, y1:B.y+3, x2:A.x, y2:A.y+3 }));
       }
@@ -248,9 +261,13 @@ function renderInspect() {
     var a = l && byId(l.a), b = l && byId(l.b);
     if (!l || !a || !b) { selected = null; renderInspect(); return; }
     var direct = (a.type === 'router' && (b.type === 'pc' || b.type === 'server')) ? b : (b.type === 'router' && (a.type === 'pc' || a.type === 'server')) ? a : null;
+    var endpoint = (a.type === 'pc' || a.type === 'server') ? a : (b.type === 'pc' || b.type === 'server') ? b : null;
+    var cardOptions = endpoint ? cardsOf(endpoint).map(function(id) { return '<option value="' + esc(id) + '"' + ((l.nicId || 'nic1') === id ? ' selected' : '') + (cardUsed(endpoint,id,l.id) ? ' disabled' : '') + '>' + esc(cardName(id)) + (cardUsed(endpoint,id,l.id) ? ' (занята)' : '') + '</option>'; }).join('') : '';
     inspectEl.innerHTML = '<div class="insp-t">🔗 Линия связи: ' + esc(a.name) + ' — ' + esc(b.name) + '</div>' +
       '<div class="insp-sub">' + esc((a.type === 'isp' || b.type === 'isp') && (a.type === 'router' || b.type === 'router') ? 'WAN-канал' : 'LAN-сегмент') + '</div>' +
+      (endpoint ? '<label>Сетевая карта «' + esc(endpoint.name) + '» <select id="insp_nic">' + cardOptions + '</select></label>' : '') +
       '<div class="insp-acts">' + (direct ? '<button type="button" class="btn ghost" id="insp_ext">⚙ Доступ извне и порты</button>' : '') + '<button type="button" class="btn danger-ghost" id="insp_del">✕ Удалить линию</button></div>';
+    if (endpoint) $('insp_nic').addEventListener('change', function() { l.nicId = this.value; invalidate(); renderAll(); });
     if (direct) $('insp_ext').addEventListener('click', function () { openSettings(direct.id); });
     inspectEl.hidden = false;
     $('insp_del').addEventListener('click', function () { requestDelete('link', l.id); });
@@ -274,7 +291,7 @@ function renderInspect() {
   } else if (d.type === 'switch') {
     sub = 'Коммутатор L2 — просто соединяет сегменты';
   } else {
-    sub = (d.cfg.segment === 'guest' ? 'гостевой VLAN · ' : 'основная LAN · ') + (d.cfg.mode === 'dhcp' ? 'получает адрес по DHCP' : 'статический: ' + esc(d.cfg.ip));
+    sub = (d.type === 'pc' || d.type === 'server' ? 'Сетевых карт: ' + cardsOf(d).length + ' · ' : '') + (d.cfg.segment === 'guest' ? 'гостевой VLAN · ' : 'основная LAN · ') + (d.cfg.mode === 'dhcp' ? 'получает адрес по DHCP' : 'статический: ' + esc(d.cfg.ip));
   }
   inspectEl.innerHTML = '<div class="insp-t">' + esc(d.name) + '</div><div class="insp-sub">' + sub + '</div>' +
     '<div class="insp-acts">' +
@@ -359,12 +376,16 @@ function place(type, x, y) {
 function addLink(a, b) {
   if (!a || !b || a === b) return null;
   if (!byId(a) || !byId(b)) return null;
-  var dup = state.links.some(function (l) {
-    return (l.a === a && l.b === b) || (l.a === b && l.b === a);
-  });
-  if (dup) return null;
-  var id = nid('l');
-  state.links.push({ id: id, a: a, b: b });
+  var da = byId(a), db = byId(b);
+  var endpoint = (da.type === 'pc' || da.type === 'server') ? da : (db.type === 'pc' || db.type === 'server') ? db : null;
+  var otherEndpoint = endpoint && (da.type === 'pc' || da.type === 'server') && (db.type === 'pc' || db.type === 'server');
+  var dup = state.links.some(function (l) { return (l.a === a && l.b === b) || (l.a === b && l.b === a); });
+  if (otherEndpoint || (dup && !endpoint)) return null;
+  var free = endpoint && cardsOf(endpoint).filter(function(card) { return !cardUsed(endpoint,card); })[0];
+  if (endpoint && !free) return null;
+  var id = nid('l'), link = { id:id, a:a, b:b };
+  if (endpoint) link.nicId = free;
+  state.links.push(link);
   invalidate();
   renderAll();
   return id;
@@ -376,7 +397,7 @@ function onDeviceClick(d) {
     if (linkFrom === d.id) { linkFrom = null; renderAll(); return; }
     var made = addLink(linkFrom, d.id);
     linkFrom = null;
-    if (!made) { hintEl.textContent = 'Эти устройства уже соединены'; }
+    if (!made) { hintEl.textContent = 'Линию создать нельзя: проверьте свободную сетевую карту и типы устройств.'; }
     renderAll();
     return;
   }
@@ -442,18 +463,18 @@ function appendLog(level, text) {
   logBox.hidden = false;
   logLines.scrollTop = logLines.scrollHeight;
 }
-function findLinkEl(from, to) {
+function findLinkEl(from, to, linkId) {
   var l = state.links.filter(function (x) {
-    return (x.a === from && x.b === to) || (x.a === to && x.b === from);
+    return (!linkId || x.id === linkId) && ((x.a === from && x.b === to) || (x.a === to && x.b === from));
   })[0];
   if (!l) return null;
   var a = byId(l.a), b = byId(l.b);
   if (!a || !b) return null;
-  return { A: center(a), B: center(b), reverse: l.b === from };
+  var p = linkPoints(l); return { A: p.A, B: p.B, reverse: l.b === from };
 }
 function flyPacket(ev) {
   if (typeof window.requestAnimationFrame !== 'function') return;
-  var geo = findLinkEl(ev.from, ev.to);
+  var geo = findLinkEl(ev.from, ev.to, ev.linkId);
   if (!geo) return;
   var A = geo.reverse ? geo.B : geo.A;
   var B = geo.reverse ? geo.A : geo.B;
@@ -696,6 +717,7 @@ function openSettings(id) {
     html += '<div id="lm_g_lte"' + (c.kind === 'lte' ? '' : ' hidden') + '><div class="lm-grid">' +
       f('lm_apn', 'APN', 'text', c.apn || 'internet', 'spellcheck="false"') + '</div></div>';
   } else if (d.type !== 'switch') {
+    if (d.type === 'pc' || d.type === 'server') html += '<div class="lm-t">Сетевая карта 1 (основная)</div>';
     html += sel('lm_segment', 'Сегмент сети', [['main', 'Основная LAN'], ['guest', 'Гостевой VLAN']], c.segment || 'main');
     html += sel('lm_mode', 'Получение адреса', [['static', 'Статический IP'], ['dhcp', 'DHCP (авто)']], c.mode || 'static');
     html += '<div id="lm_g_static_ep"' + ((c.mode || 'static') === 'static' ? '' : ' hidden') + '><div class="lm-grid">' +
@@ -704,6 +726,15 @@ function openSettings(id) {
       f('lm_ep_dns', 'DNS (необязательно)', 'text', c.dns || '', 'list="dl-dns" inputmode="decimal"') + '</div>' +
       '<button type="button" class="btn ghost lm-mini" id="lm_fill_gw">↳ подставить адрес и шлюз выбранного сегмента</button></div>';
     if (d.type === 'pc' || d.type === 'server') {
+      var cardCount = 1 + (Array.isArray(c.nics) ? c.nics.length : 0);
+      html += '<div class="lm-t">Дополнительные сетевые карты</div>' + sel('lm_nic_count', 'Количество сетевых карт', [['1','1'],['2','2'],['3','3'],['4','4']], String(cardCount)) + '<p class="fs-hint">До четырёх независимых карт: каждая использует один кабель. При создании линии выбирается свободная карта; изменить назначение можно, выбрав линию. Публикация относится к карте 1.</p>';
+      for (var n=2; n<=4; n++) {
+        var nc = (c.nics || []).filter(function(x) { return x.id === 'nic' + n; })[0] || {mode:'dhcp', segment:'main',ip:'',gw:'',dns:''};
+        html += '<div id="lm_nic_box_' + n + '"' + (n <= cardCount ? '' : ' hidden') + '><div class="lm-t">Сетевая карта ' + n + '</div>' +
+          sel('lm_nic_segment_' + n, 'Сегмент карты ' + n, [['main','Основная LAN'],['guest','Гостевой VLAN']], nc.segment || 'main') +
+          sel('lm_nic_mode_' + n, 'Получение адреса карты ' + n, [['dhcp','DHCP (авто)'],['static','Статический IP']], nc.mode || 'dhcp') +
+          '<div class="lm-grid">' + f('lm_nic_ip_' + n, 'IP/маска при статике', 'text', nc.ip || '', 'inputmode="decimal"') + f('lm_nic_gw_' + n, 'Шлюз при статике', 'text', nc.gw || '', 'inputmode="decimal"') + f('lm_nic_dns_' + n, 'DNS (необязательно)', 'text', nc.dns || '', 'inputmode="decimal"') + '</div></div>';
+      }
       html += '<div class="lm-t">Публикация в интернете</div>' + chk('lm_external', 'Разрешить доступ извне к этому устройству', c.external) +
         '<div id="lm_external_box"' + (c.external ? '' : ' hidden') + '><div class="lm-grid">' +
         sel('lm_ext_proto', 'Протокол', [['tcp', 'TCP'], ['udp', 'UDP']], c.extProto || 'tcp') +
@@ -730,6 +761,7 @@ function openSettings(id) {
       $('lm_g_lte').hidden = kindSel.value !== 'lte';
     }
     if (modeSel) $('lm_g_static_ep').hidden = modeSel.value !== 'static';
+    if ($('lm_nic_count')) for (var n=2;n<=4;n++) $('lm_nic_box_' + n).hidden = n > Number($('lm_nic_count').value);
     if (vpnChk) $('lm_vpn_box').hidden = !vpnChk.checked;
     if (vpnType) { $('lm_vpn_wg').hidden = vpnType.value !== 'wireguard'; $('lm_vpn_ike').hidden = vpnType.value !== 'ikev2'; $('lm_vpn_l2tp').hidden = vpnType.value !== 'l2tp-ipsec'; }
     if (extChk) $('lm_external_box').hidden = !extChk.checked;
@@ -738,7 +770,7 @@ function openSettings(id) {
     if (wifiGuestChk) $('lm_wifi_guest_box').hidden = !wifiGuestChk.checked;
     [[monitorChk,'lm_monitor_box'],[routeChk,'lm_route_box'],[dnsChk,'lm_dns_box'],[staticDnsChk,'lm_dns_static_box'],[ntpChk,'lm_ntp_box'],[identityChk,'lm_identity_box']].forEach(function(pair) { if (pair[0]) $(pair[1]).hidden = !pair[0].checked; });
   }
-  [kindSel, modeSel, vpnChk, vpnType, extChk, guestChk, wifiChk, wifiGuestChk, monitorChk, routeChk, dnsChk, staticDnsChk, ntpChk, identityChk].forEach(function (e2) {
+  [kindSel, modeSel, vpnChk, vpnType, extChk, guestChk, wifiChk, wifiGuestChk, monitorChk, routeChk, dnsChk, staticDnsChk, ntpChk, identityChk, $('lm_nic_count')].forEach(function (e2) {
     if (e2) e2.addEventListener('change', applyVis);
   });
   ['lm_network_guide', 'lm_routing_guide', 'lm_failover_guide'].forEach(function(id) { var link = $(id); if (link) link.addEventListener('click', function () { modal.hidden = true; editingId = null; }); });
@@ -838,6 +870,16 @@ function saveSettings() {
     } else {
       Object.assign(c, { mode: 'dhcp' });
     }
+  }
+  if (d.type === 'pc' || d.type === 'server') {
+    var count = Number($('lm_nic_count').value), newNics = [];
+    for (var n=2; n<=4; n++) {
+      if (n > count) { if (cardUsed(d, 'nic' + n)) return lmFail('Сначала удалите или переназначьте линию сетевой карты ' + n + '.'); continue; }
+      var nic = {id:'nic' + n, segment:$('lm_nic_segment_' + n).value, mode:$('lm_nic_mode_' + n).value, ip:$('lm_nic_ip_' + n).value.trim(), gw:$('lm_nic_gw_' + n).value.trim(), dns:$('lm_nic_dns_' + n).value.trim()};
+      if (nic.mode === 'static' && (!E.parseCidr(nic.ip) || !E.validIp(nic.gw) || (nic.dns && !E.validIp(nic.dns)))) return lmFail('Карта ' + n + ': укажите IP/маску, шлюз и корректный DNS.');
+      newNics.push(nic);
+    }
+    c.nics = newNics;
   }
   if (d.type === 'pc' || d.type === 'server') {
     var external = $('lm_external').checked, ep = $('lm_ext_port').value.trim(), lp = $('lm_local_port').value.trim();

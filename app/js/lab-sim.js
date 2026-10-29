@@ -597,11 +597,81 @@ function runSingle(state) {
   if (!check.errors.length) model = buildModel(state);
   return { errors:check.errors, warnings:check.warnings, model:model, timeline:model ? buildTimeline(state,model) : [], groups:model ? genCommands(state,model) : [], winbox:model ? winboxSteps(state,model) : [], addrRows:model ? addrRows(state,model) : [] };
 }
+/* Разворачиваем независимые сетевые карты в отдельные конечные узлы графа.
+   ПК не становится мостом и не соединяет свои сети между собой. */
+function expandAdapters(state) {
+  var devices = state.devices || [], links = state.links || [], expanded = [], mapped = Object.create(null), errors = [], warnings = [], lookup = Object.create(null), linkMap = Object.create(null);
+  devices.forEach(function(d) { lookup[d.id] = d; });
+  devices.forEach(function(d) {
+    if (d.type !== 'pc' && d.type !== 'server') { expanded.push(d); return; }
+    var extras = Array.isArray(d.cfg && d.cfg.nics) ? d.cfg.nics : [];
+    var adapters = [{id:'nic1', cfg:d.cfg}].concat(extras.map(function(n) { return {id:n.id, cfg:n}; }));
+    if (extras.length > 3 || extras.some(function(n) { return !n || !/^nic[2-4]$/.test(n.id); }) || new Set(adapters.map(function(n){return n.id;})).size !== adapters.length) errors.push('«' + d.name + '»: допускается от одной до четырёх уникальных сетевых карт.');
+    var used = Object.create(null);
+    links.forEach(function(l) {
+      if (l.a !== d.id && l.b !== d.id) return;
+      var id = l.nicId || 'nic1';
+      if (!adapters.some(function(n) { return n.id === id; })) errors.push('«' + d.name + '»: линия назначена несуществующей сетевой карте.');
+      if (used[id]) errors.push('«' + d.name + '»: к одной сетевой карте можно подключить только один кабель.');
+      used[id] = true;
+    });
+    if (extras.length) warnings.push('«' + d.name + '»: сетевые карты показаны независимо, без моста. Выбор маршрута ОС, метрики и фактическую доступность между сетями модель не проверяет. Публикация относится только к первой карте.');
+    if (d.cfg.external && !used.nic1 && Object.keys(used).length) errors.push('«' + d.name + '»: подключите первую сетевую карту, на которую настроена публикация.');
+    adapters.forEach(function(n, index) {
+      if (!used[n.id] && (index || Object.keys(used).length)) {
+        warnings.push('«' + d.name + '»: сетевая карта ' + (index + 1) + ' не подключена и не участвует в расчётах.');
+        return;
+      }
+      var virtualId = index ? d.id + '::' + n.id : d.id;
+      if (index && lookup[virtualId]) errors.push('Конфликт идентификатора сетевой карты.');
+      var cfg = index ? Object.assign({}, n.cfg, {external:false}) : d.cfg;
+      var dev = Object.assign({}, d, {id:virtualId, name:d.name + (extras.length ? ' · сетевая карта ' + (index + 1) : ''), cfg:cfg});
+      expanded.push(dev); mapped[virtualId] = d.id;
+    });
+  });
+  var newLinks = links.map(function(l, index) {
+    var a = lookup[l.a], b = lookup[l.b], ep = a && (a.type === 'pc' || a.type === 'server') ? a : b && (b.type === 'pc' || b.type === 'server') ? b : null;
+    var id = ep && l.nicId && l.nicId !== 'nic1' ? ep.id + '::' + l.nicId : ep && ep.id;
+    var copy = Object.assign({}, l, {a:ep && l.a === ep.id ? id : l.a, b:ep && l.b === ep.id ? id : l.b});
+    linkMap[[copy.a,copy.b].sort().join('|')] = l.id || null;
+    return copy;
+  });
+  return { state:{devices:expanded, links:newLinks}, mapped:mapped, linkMap:linkMap, errors:errors, warnings:warnings };
+}
+function mapRoute(route, view) {
+  var path = route.path, edgeIds = [];
+  for (var i=0; i<path.length-1; i++) edgeIds.push(view.linkMap[[path[i],path[i+1]].sort().join('|')] || null);
+  return Object.assign({}, route, {endpoint:view.mapped[route.endpoint] || route.endpoint, path:path.map(function(id){return view.mapped[id] || id;}), linkIds:edgeIds});
+}
+function expandedRun(state) {
+  var view = expandAdapters(state);
+  if (view.errors.length) { var basic = analyze(view.state); return {errors:view.errors.concat(basic.errors),warnings:view.warnings.concat(basic.warnings),model:null,timeline:[],groups:[],winbox:[],addrRows:[]}; }
+  var expanded = view.state;
+  var res = expanded.devices.filter(function(d) {return d.type === 'router';}).length === 2 ? runDual(expanded) : runSingle(expanded);
+  res.warnings = res.warnings.concat(view.warnings);
+  if (res.model) {
+    res.timeline.forEach(function(ev) {
+      if (ev.t !== 'pkt') return;
+      ev.linkId = view.linkMap[[ev.from,ev.to].sort().join('|')] || null;
+      ev.from = view.mapped[ev.from] || ev.from; ev.to = view.mapped[ev.to] || ev.to;
+    });
+    (state.devices || []).forEach(function(d) {
+      if (!d.cfg || !Array.isArray(d.cfg.nics)) return;
+      if (!expanded.devices.some(function(x) {return x.id === d.id;})) res.addrRows.push([d.name + ' · сетевая карта 1', d.type === 'pc' ? 'ПК' : 'сервер', '—', '—', '—', 'не подключена']);
+      d.cfg.nics.forEach(function(n) {
+        if (!(state.links || []).some(function(l){ return (l.a === d.id || l.b === d.id) && l.nicId === n.id; }))
+          res.addrRows.push([d.name + ' · сетевая карта ' + n.id.slice(3), d.type === 'pc' ? 'ПК' : 'сервер', '—', '—', '—', 'не подключена']);
+      });
+    });
+  }
+  return res;
+}
 var LabEngine = { ipToInt: ipToInt, intToIp: intToIp, validIp: validIp, parseCidr: parseCidr, poolOf: poolOf, adjacency: adjacency, bfsPath: bfsPath,
-  analyze: analyze, buildModel: buildModel, buildTimeline: buildTimeline, activeRoutes: activeRoutes, genCommands: genCommands, addrRows: addrRows, winboxSteps: winboxSteps,
+  analyze: analyze, buildModel: buildModel, buildTimeline: buildTimeline, activeRoutes: function(state) { var v=expandAdapters(state); return v.errors.length ? [] : activeRoutes(v.state).map(function(r){return mapRoute(r,v);}); }, genCommands: genCommands, addrRows: addrRows, winboxSteps: winboxSteps,
   run: function (state) {
-    state = state || {};
-    return (state.devices || []).filter(function(d) { return d.type === 'router'; }).length === 2 ? runDual(state) : runSingle(state);
+    state = state || {devices:[],links:[]};
+    if (!state.devices) state.devices = []; if (!state.links) state.links = [];
+    return expandedRun(state);
   } };
 global.LabEngine = LabEngine;
 if (typeof module !== 'undefined' && module.exports) module.exports = LabEngine;

@@ -106,6 +106,18 @@ const {JSDOM,VirtualConsole} = require('jsdom');
  w.Lab.select(nr);assert($('insp_probe'));$('insp_probe').click();assert($('lab-flow-status').textContent.includes(w.Lab.state.devices.find(x=>x.id===nb).name));$('insp_probe').click();assert($('lab-flow-status').textContent.includes(w.Lab.state.devices.find(x=>x.id===ni).name));
  d.querySelector('[data-id="'+nr+'"] .lab-gear').click();$('lm_dns_static').checked=false;$('lm_dns_cache').checked=false;$('lm_save').click();$('lab_run').click();assert($('lab-results').textContent.includes('allow-remote-requests=no'));assert($('lab-results').textContent.includes('dns-server=1.1.1.1'));
  d.querySelector('[data-id="'+nr+'"] .lab-gear').click();$('lm_routing_guide').click();assert($('lab-modal').hidden);await new Promise(resolve=>setTimeout(resolve,20));assert(!$('content').hidden);
+ // Несколько физических карт: отдельные настройки и назначение каждого кабеля.
+ $('lab_reset').click();const mr=w.Lab.place('router',250,100), mi=w.Lab.place('isp',80,10), mp=w.Lab.place('pc',250,280), ms=w.Lab.place('server',430,280), mx=w.Lab.place('switch',440,180);
+ w.Lab.link(mr,mi);
+ d.querySelector('[data-id="'+mr+'"] .lab-gear').click();$('lm_guest_vlan').checked=true;$('lm_guest_vlan').dispatchEvent(new w.Event('change'));$('lm_save').click();
+ d.querySelector('[data-id="'+mp+'"] .lab-gear').click();$('lm_nic_count').value='2';$('lm_nic_count').dispatchEvent(new w.Event('change'));assert(!$('lm_nic_box_2').hidden);$('lm_nic_segment_2').value='guest';$('lm_save').click();
+ d.querySelector('[data-id="'+ms+'"] .lab-gear').click();$('lm_nic_count').value='2';$('lm_nic_count').dispatchEvent(new w.Event('change'));$('lm_save').click();
+ const ml1=w.Lab.link(mr,mp), ml2=w.Lab.link(mr,mp);assert(ml1&&ml2&&ml1!==ml2);assert(!w.Lab.link(mr,mp));w.Lab.link(mr,mx);const ml3=w.Lab.link(mx,ms),ml4=w.Lab.link(mx,ms);assert(ml3&&ml4);
+ assert.equal(w.Lab.state.links.find(x=>x.id===ml1).nicId,'nic1');assert.equal(w.Lab.state.links.find(x=>x.id===ml2).nicId,'nic2');
+ $('lab_run').click();assert($('lab-results').textContent.includes('Проверка учебной модели пройдена'));assert($('lab-results').textContent.includes('сетевая карта 2'));assert($('lab-results').textContent.includes('192.168.99.100/24'));assert.equal(w.LabEngine.activeRoutes(w.Lab.state).filter(x=>x.endpoint===mp).length,2);
+ const edgeEls=d.querySelectorAll('.lab-link');assert(edgeEls.length>=5);assert.notEqual(edgeEls[1].getAttribute('x1'),edgeEls[2].getAttribute('x1'));
+ w.Lab.selectLink(ml2);assert($('insp_nic'));assert.equal($('insp_nic').value,'nic2');assert($('insp_nic').querySelector('option[value="nic1"]').disabled);
+ d.querySelector('[data-id="'+mp+'"] .lab-gear').click();$('lm_nic_count').value='1';$('lm_nic_count').dispatchEvent(new w.Event('change'));$('lm_save').click();assert(!$('lab-modal').hidden);assert($('lm_err').textContent.includes('Сначала удалите'));$('lm_cancel').click();
  // DHCP-инструкция учебника содержит реальные снимки и ссылку на их источник.
  w.location.hash='initial';await new Promise(resolve=>setTimeout(resolve,20));assert(d.querySelector('#content img[src$="dhcp-client-create-winbox3.png"]'));assert(d.querySelector('#content a[href*="mikrotik.wiki"]'));assert(d.querySelector('#content img[src$="interface-list-member.png"]'));
  // Обычный раздел учебника использует тот же просмотр, не только лаборатория.
