@@ -41,7 +41,11 @@ function renderBlock(b, stepIdx, bi) {
     }
     case 'ol': {
       var ol = document.createElement('ol');
-      (b.items || []).forEach(function (it) { ol.appendChild(el('li', '', fmt(it))); });
+      (b.items || []).forEach(function (it) {
+        var li = el('li', '', fmt(it));
+        li.appendChild(el('div', 'fs-hint', 'Для этого пункта отдельный скриншот пока не добавлен.'));
+        ol.appendChild(li);
+      });
       return ol;
     }
     case 'cmd': {

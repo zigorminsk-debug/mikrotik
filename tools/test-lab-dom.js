@@ -11,7 +11,7 @@ const {JSDOM,VirtualConsole} = require('jsdom');
  w.location.hash='lab'; await new Promise(resolve=>setTimeout(resolve,20));
  assert(!$('lab-view').hidden); assert($('stand-view').hidden);
  $('lab_example').click(); assert.equal(w.Lab.state.devices.length,5); assert.equal(w.Lab.state.links.length,4);
- $('lab_run').click(); assert(!$('lab-results').hidden); assert($('lab-results').textContent.includes('Проверка учебной модели пройдена')); assert(d.querySelector('#lab-results .copy-btn')); assert($('lab-results').textContent.includes('реальные пакеты не отправлялись')); assert($('lab-winbox')); assert($('lab-winbox').textContent.includes('Подготовка')); assert($('lab-winbox').querySelector('img[src*=winbox-login]')); assert($('lab-winbox').textContent.includes('192.168.88.1/24'));
+ $('lab_run').click(); assert(!$('lab-results').hidden); assert($('lab-results').textContent.includes('Проверка учебной модели пройдена')); assert(d.querySelector('#lab-results .copy-btn')); assert($('lab-results').textContent.includes('реальные пакеты не отправлялись')); assert($('lab-winbox')); assert($('lab-winbox').textContent.includes('Подготовка')); assert($('lab-winbox').querySelector('img[src*=winbox-login]')); assert($('lab-winbox').textContent.includes('192.168.88.1/24'));const ppStep=Array.from(d.querySelectorAll('#lab-winbox .lab-winbox-step')).find(el=>el.querySelector('img[src$="pppoe-dial.png"]'));assert(ppStep);const ppItems=ppStep.querySelectorAll('ol > li');assert(ppItems[0].querySelector('img[src$="pppoe-general.png"]'));assert(ppItems[1].querySelector('img[src$="pppoe-dial.png"]'));assert(ppItems[2].textContent.includes('отдельный скриншот пока не добавлен'));assert(ppItems[ppItems.length-1].querySelector('img[src$="interface-list-member.png"]'));
  // Изображение в учебнике: на узком и широком экране режим «Целиком»
  // ограничивает и ширину, и высоту; увеличение и возврат работают офлайн.
  const stage=$('shot-stage'), full=$('shot-full');
@@ -91,7 +91,7 @@ const {JSDOM,VirtualConsole} = require('jsdom');
  d.querySelector('[data-id="'+vg+'"] .lab-gear').click(); $('lm_segment').value='guest'; $('lm_mode').value='dhcp'; $('lm_mode').dispatchEvent(new w.Event('change')); $('lm_save').click();
  $('lab_run').click(); assert($('lab-results').textContent.includes('Проверка учебной модели пройдена')); assert($('lab-results').textContent.includes('192.168.99.100/24')); assert($('lab-results').textContent.includes('wifi-guest')); assert($('lab-results').textContent.includes('vlan-filtering=yes'));assert($('lab-results').textContent.includes('datapath.client-isolation=yes'));assert($('lab-results').textContent.includes('allowed-interface-list=none'));
  // Ссылка на учебник закрывает окно настроек.
- d.querySelector('[data-id="'+vr+'"] .lab-gear').click(); $('lm_network_guide').click(); assert($('lab-modal').hidden); await new Promise(resolve=>setTimeout(resolve,20)); assert(!$('content').hidden);
+ d.querySelector('[data-id="'+vr+'"] .lab-gear').click(); $('lm_network_guide').click(); assert($('lab-modal').hidden); w.location.hash='networks'; await new Promise(resolve=>setTimeout(resolve,20)); assert(!$('content').hidden);
  // Новые службы, статический маршрут и управляемый сбой контрольного узла.
  $('lab_reset').click(); const nr=w.Lab.place('router',200,100), ni=w.Lab.place('isp',50,0), nb=w.Lab.place('isp',350,0), np=w.Lab.place('pc',200,240);
  w.Lab.link(nr,ni);w.Lab.link(nr,nb);w.Lab.link(nr,np);
@@ -105,7 +105,7 @@ const {JSDOM,VirtualConsole} = require('jsdom');
  assert($('lab-results').textContent.includes('target-scope=11'));assert($('lab-results').textContent.includes('dst-address=10.20.0.0/24'));assert($('lab-results').textContent.includes('server.lan'));assert($('lab-results').textContent.includes('Europe/Minsk'));assert($('lab-results').textContent.includes('ddns-enabled=yes'));
  w.Lab.select(nr);assert($('insp_probe'));$('insp_probe').click();assert($('lab-flow-status').textContent.includes(w.Lab.state.devices.find(x=>x.id===nb).name));$('insp_probe').click();assert($('lab-flow-status').textContent.includes(w.Lab.state.devices.find(x=>x.id===ni).name));
  d.querySelector('[data-id="'+nr+'"] .lab-gear').click();$('lm_dns_static').checked=false;$('lm_dns_cache').checked=false;$('lm_save').click();$('lab_run').click();assert($('lab-results').textContent.includes('allow-remote-requests=no'));assert($('lab-results').textContent.includes('dns-server=1.1.1.1'));
- d.querySelector('[data-id="'+nr+'"] .lab-gear').click();$('lm_routing_guide').click();assert($('lab-modal').hidden);await new Promise(resolve=>setTimeout(resolve,20));assert(!$('content').hidden);
+ d.querySelector('[data-id="'+nr+'"] .lab-gear').click();$('lm_routing_guide').click();assert($('lab-modal').hidden);w.location.hash='routing';await new Promise(resolve=>setTimeout(resolve,20));assert(!$('content').hidden);
  // Несколько физических карт: отдельные настройки и назначение каждого кабеля.
  $('lab_reset').click();const mr=w.Lab.place('router',250,100), mi=w.Lab.place('isp',80,10), mp=w.Lab.place('pc',250,280), ms=w.Lab.place('server',430,280), mx=w.Lab.place('switch',440,180);
  w.Lab.link(mr,mi);

@@ -18,7 +18,7 @@ jobs:
       - name: Install isolated VM and display tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-system-x86 xvfb xdotool scrot python3-pexpect unzip libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-xinerama0 libxcb-xkb1 libxcb-xinput0 libxcb-util1 libgl1 libegl1 libopengl0 libfontconfig1
+          sudo apt-get install -y qemu-system-x86 xvfb xdotool scrot python3-pexpect unzip libxkbcommon-x11-0 libxcb-cursor0 libxcb-shape0 libxcb-xfixes0 libxcb-randr0 libxcb-render0 libxcb-shm0 libxcb1 libx11-xcb1 libxrender1 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-xinerama0 libxcb-xkb1 libxcb-xinput0 libxcb-util1 libgl1 libegl1 libopengl0 libfontconfig1
       - name: Fetch official RouterOS CHR and WinBox
         run: |
           set -euxo pipefail

@@ -523,7 +523,12 @@ function winboxSteps(state, model) {
       list = [
         'Откройте Interfaces → + → PPPoE Client: Name = ' + i.iface + ', Interface = ' + i.phys + '.',
         'В Dial Out введите User = ' + c.user + ' и пароль из настроек провайдера. ' + (routeOn ? 'Включите' : 'Выключите') + ' Add Default Route, задайте Default Route Distance = ' + dist + '; Use Peer DNS оставьте выключенным. Нажмите OK.',
-        'Убедитесь, что интерфейс включён и сессия подключилась. Данные в примере изображения могут отличаться от вашей схемы.'
+        'Откройте интерфейс и вкладку Status: проверьте enabled, running и Status = connected. Само подключение необходимо проверить у провайдера.'
+      ];
+      var official = 'https://help.mikrotik.com/docs/spaces/ROS/pages/328151/First+Time+Configuration';
+      illustrations = [
+        { after: 0, image: 'official/pppoe-general.png', caption: 'Пример MikroTik, вкладка General: на снимке pppoe-out1 и ether1. Для этого шага укажите ' + i.iface + ' и ' + i.phys + '. Путь через меню PPP также подходит.', source: official, sourceName: 'MikroTik' },
+        { after: 1, image: 'official/pppoe-dial.png', caption: 'Пример MikroTik, вкладка Dial Out: значения, включая Distance = 1, на снимке могут отличаться. Для этого шага задайте Distance = ' + dist + ' и Add Default Route = ' + (routeOn ? 'yes' : 'no') + '. Это миниатюра из документации.', source: official, sourceName: 'MikroTik' }
       ];
     } else if (i.kind === 'dhcp') {
       list = [
@@ -556,9 +561,9 @@ function winboxSteps(state, model) {
     }
     if (!routeOn) list.push('Автопереключение выключено: отключите Add Default Route (для статического маршрута выключите маршрут).');
     list.push('Откройте Interfaces → Interface List → Members → +: List = WAN, Interface = ' + i.iface + '. Нажмите OK. Если запись уже есть, вторую не создавайте.');
-    if (i.kind === 'dhcp') illustrations.push({ after: list.length - 1, image: 'official/interface-list-member.png', caption: 'Пример MikroTik: добавление в список интерфейсов. На снимке LAN и bridge1; для этого шага выберите WAN и ' + i.iface + '.', source: 'https://help.mikrotik.com/docs/spaces/ROS/pages/328151/First+Time+Configuration', sourceName: 'MikroTik' });
+    if (i.kind === 'dhcp' || i.kind === 'pppoe') illustrations.push({ after: list.length - 1, image: 'official/interface-list-member.png', caption: 'Пример MikroTik: добавление в список интерфейсов. На снимке LAN и bridge1; для этого шага выберите WAN и ' + i.iface + '.', source: 'https://help.mikrotik.com/docs/spaces/ROS/pages/328151/First+Time+Configuration', sourceName: 'MikroTik' });
     add('Провайдер «' + i.name + '» — ' + (i.priority === 'primary' ? 'основной' : 'резервный'),
-      { pppoe: 'official/pppoe-general.png', dhcp: null, static: 'official/ip-address.png', lte: null }[i.kind], list, illustrations);
+      { pppoe: null, dhcp: null, static: 'official/ip-address.png', lte: null }[i.kind], list, illustrations);
   });
   if (r.cfg.dhcp) add('DHCP для локальной сети', 'official/dhcp-server.png', [
     'Откройте IP → Pool → +: Name = pool-lan, Addresses = ' + r.pool.start + '-' + r.pool.end + '. Нажмите OK.',

@@ -614,7 +614,7 @@ function renderResults(res) {
           var pictures = (step.illustrations || []).filter(function (pic) { return pic.after === itemIndex; }).map(function (pic) {
             return '<figure class="shot"><img src="assets/img/' + esc(pic.image) + '" alt="' + esc(pic.caption) + '" loading="lazy"><figcaption>' + esc(pic.caption) + ' <a href="' + esc(pic.source) + '">Источник: ' + esc(pic.sourceName) + '</a></figcaption><button class="shot-zoom" type="button">🔍 Увеличить</button></figure>';
           }).join('');
-          return '<li>' + esc(item) + pictures + '</li>';
+          return '<li>' + esc(item) + (pictures || '<div class="fs-hint">Для этого действия отдельный скриншот пока не добавлен.</div>') + '</li>';
         }).join('') + '</ol></section>';
     });
     html += '</div></div>';

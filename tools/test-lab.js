@@ -19,7 +19,7 @@ assert(code(r).includes('interface=pppoe-out1'));
 assert(code(r).indexOf('/interface pppoe-client add') < code(r).indexOf('list=WAN interface=pppoe-out1'));
 assert(code(r).includes('interface=ether2'));
 assert(code(r).includes('action=masquerade'));
-assert(r.winbox.length >= 7); assert(r.winbox.some(x=>x.image === 'official/pppoe-general.png')); assert(r.winbox.some(x=>x.instructions.join(' ').includes('192.168.88.1/24'))); assert(r.winbox.some(x=>x.instructions.join(' ').includes('pool-lan')));
+assert(r.winbox.length >= 7); assert(r.winbox.some(x=>x.illustrations.some(pic=>pic.image === 'official/pppoe-general.png'))); assert(r.winbox.some(x=>x.instructions.join(' ').includes('192.168.88.1/24'))); assert(r.winbox.some(x=>x.instructions.join(' ').includes('pool-lan')));
 assert(!E.validIp('192.168.088.1'));
 s=make(); s.devices[0].cfg.kind='static'; r=E.run(s); assert(code(r).includes('/ip dns set servers=1.1.1.1,8.8.8.8')); assert.deepStrictEqual(r.errors,[]); assert(code(r).includes('gateway=198.51.100.1')); assert(!code(r).includes('gateway=198.51.100.2'));
 s=make(); s.devices[0].cfg.kind='dhcp'; r=E.run(s); assert(r.winbox.some(x=>x.instructions.join(' ').includes('Interface = ether1') && x.illustrations.length === 5 && x.illustrations.some(pic=>pic.image === 'examples/dhcp-client-create-winbox3.png') && x.illustrations.some(pic=>pic.image === 'official/interface-list-member.png'))); assert.deepStrictEqual(r.errors,[]); assert(code(r).includes('/ip dhcp-client add interface=ether1 add-default-route=yes'));
@@ -158,3 +158,6 @@ s=isolatedNetworks();s.devices.find(x=>x.id==='r2').cfg.dhcp=false;fails(s,/«Mi
 s=isolatedNetworks();s.devices.find(x=>x.id==='r2').cfg.lan='192.168.88.0/24';s.devices.find(x=>x.id==='r2').cfg.gw='192.168.88.1';r=E.run(s);assert.deepStrictEqual(r.errors,[]);assert(r.warnings.some(w=>/пересекаются/.test(w)));
 s=isolatedNetworks();s.links.push({a:'r2',b:'s'});r=E.run(s);assert(!r.independent);assert(r.errors.length);
 s=isolatedNetworks();assert.equal(E.routerForCard(s,'a','nic1').id,'r');assert.equal(E.routerForCard(s,'a','nic2').id,'r2');
+
+// PPPoE: примеры привязаны к конкретным действиям, а не к группе целиком.
+s=make();r=E.run(s);const ps=r.winbox.find(x=>x.illustrations.some(pic=>pic.image==='official/pppoe-dial.png'));assert(ps);assert(ps.illustrations.some(p=>p.after===0 && p.image==='official/pppoe-general.png'));assert(ps.illustrations.some(p=>p.after===1 && p.image==='official/pppoe-dial.png'));assert(!ps.illustrations.some(p=>p.after===2));assert(ps.illustrations.some(p=>p.after===ps.instructions.length-1 && p.image==='official/interface-list-member.png' && p.caption.includes('LAN и bridge1')));

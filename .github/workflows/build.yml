@@ -36,6 +36,8 @@ jobs:
           }
       - name: Модульные тесты
         run: node tools/test-stand.js
+      - name: Актуальность инвентаризации снимков
+        run: node tools/audit-screens.js --check
       - name: Тесты графической лаборатории
         run: node tools/test-lab.js
       - name: DOM-тест (интерактивный стенд, шрифт, автодополнение)
