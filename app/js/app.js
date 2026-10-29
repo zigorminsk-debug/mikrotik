@@ -4,6 +4,7 @@
 
 var contentEl = document.getElementById('content');
 var standView = document.getElementById('stand-view');
+var labView = document.getElementById('lab-view');
 var navEl = document.getElementById('nav');
 var topTitle = document.getElementById('topbar-title');
 var sidebar = document.getElementById('sidebar');
@@ -138,9 +139,15 @@ function route() {
   topTitle.textContent = sec ? sec.title : 'Учебник MikroTik';
   if (sec && sec.type === 'stand') {
     standView.hidden = false;
+    labView.hidden = true;
+    contentEl.hidden = true;
+  } else if (sec && sec.type === 'lab') {
+    standView.hidden = true;
+    labView.hidden = false;
     contentEl.hidden = true;
   } else {
     standView.hidden = true;
+    labView.hidden = true;
     contentEl.hidden = false;
     contentEl.innerHTML = '';
     if (sec) renderSection(sec);

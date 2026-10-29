@@ -202,3 +202,32 @@ h2.sec-sub{font-size:18px;margin:26px 0 8px;padding-left:12px;border-left:4px so
   .btn-upd{margin-left:auto;padding:5px 9px;font-size:12.5px}
   .font-scale{margin-left:0}
 }
+
+/* Графическая учебная лаборатория */
+[hidden]{display:none!important}
+.lab-view{max-width:1320px}
+.lab-bar{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.lab-palette,.lab-modes,.lab-acts{display:flex;flex-wrap:wrap;gap:6px}
+.lab-palette{width:100%}
+.lab-pick,.lab-mode{border:1px solid #cbd5e1;background:#f8fafc;border-radius:9px;padding:8px 11px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.lab-pick.active,.lab-mode.active{border-color:#0284c7;background:#e0f2fe;color:#075985}
+.lab-acts{margin-left:auto}
+.lab-acts .btn{padding:8px 12px;font-size:13px}
+.lab-hint-wrap{padding:10px 4px;font-size:13px;color:#475569}
+.lab-canvas{height:500px;position:relative;overflow:hidden;border:1px solid #94a3b8;border-radius:12px;background-color:#f8fafc;background-image:radial-gradient(#cbd5e1 1px,transparent 1px);background-size:20px 20px;touch-action:none}
+.lab-svg{position:absolute;inset:0;width:100%;height:100%;overflow:hidden}
+.lab-link{stroke:#64748b;stroke-width:3;pointer-events:none}.lab-link.sel{stroke:#0284c7;stroke-width:5}
+.lab-link-hit{stroke:transparent;stroke-width:20;cursor:pointer;pointer-events:stroke}
+.lab-link-lbl{fill:#475569;font-size:11px;text-anchor:middle;pointer-events:none;paint-order:stroke;stroke:#f8fafc;stroke-width:4px}
+.lab-pkt{fill:#0284c7;stroke:white;stroke-width:2;pointer-events:none}.lab-pkt.k-dhcp{fill:#d97706}.lab-pkt.k-reply{fill:#16a34a}
+.lab-empty{position:absolute;inset:0;display:grid;place-content:center;text-align:center;color:#64748b;pointer-events:none}
+.lab-dev{position:absolute;width:96px;min-height:86px;text-align:center;cursor:grab;user-select:none;touch-action:none;z-index:1;color:#0369a1}
+.lab-dev:active{cursor:grabbing}.lab-ico{height:50px;width:56px;padding:5px;background:#fff;border:2px solid #cbd5e1;border-radius:12px;margin:auto;box-shadow:0 2px 6px #0f172a18}
+.lab-ico svg{width:100%;height:100%;display:block}.lab-dev.sel .lab-ico,.lab-dev.linksrc .lab-ico{border-color:#0284c7;box-shadow:0 0 0 3px #7dd3fc}
+.t-isp{color:#7c3aed}.t-router{color:#0284c7}.t-switch{color:#475569}.t-pc{color:#16a34a}.t-server{color:#d97706}.t-printer{color:#be185d}
+.lab-nm{font-size:12px;font-weight:700;color:#0f172a;line-height:1.2;overflow-wrap:anywhere}.lab-ip{display:inline-block;color:#334155;font-size:10px;background:#fff;border-radius:5px;padding:0 3px}
+.lab-inspect,.lab-log{border:1px solid var(--line);border-radius:12px;background:white;padding:14px;margin-top:12px}.insp-t{font-weight:700}.insp-sub{font-size:13px;color:#64748b}.insp-acts{display:flex;gap:8px;margin-top:10px}.insp-acts .btn{padding:7px 11px;font-size:13px}
+.lab-log-h{font-weight:700;display:flex;align-items:center;gap:8px}.lab-skip{margin-left:auto;padding:6px 10px!important;font-size:12px!important}.lab-log-lines{max-height:200px;overflow:auto;font:13px/1.6 var(--mono);margin-top:8px}.l-err{color:#b91c1c}.l-warn{color:#b45309}.l-ok{color:#15803d}
+#lab-modal .modal-card{max-height:90vh;overflow:auto;max-width:600px}#lm_body label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:#475569;margin-bottom:10px}
+#lm_body input[type=text],#lm_body select{border:1px solid #cbd5e1;border-radius:9px;padding:9px;font-size:16px;width:100%;background:white}#lm_body .row-check{flex-direction:row}.lm-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.lm-t{font-weight:700;margin:12px 0}.lm-mini{padding:6px 10px;font-size:12px}.lm-err{background:#fee2e2;color:#991b1b;padding:10px;border-radius:8px;margin-bottom:10px}
+@media(max-width:560px){.lab-canvas{height:460px}.lab-acts{margin-left:0}.lm-grid{grid-template-columns:1fr}}

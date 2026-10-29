@@ -52,7 +52,7 @@ async function main() {
   console.log('== Загрузка приложения ==');
   ok(scriptErrors.length === 0, 'нет ошибок исполнения скриптов' + (scriptErrors.length ? ': ' + scriptErrors.join(' | ') : ''));
   ok(typeof win.StandEngine === 'object', 'StandEngine загружен');
-  ok(doc.getElementById('nav').children.length === 9, 'разделов в меню: ' + doc.getElementById('nav').children.length);
+  ok(doc.getElementById('nav').children.length === 10, 'разделов в меню: ' + doc.getElementById('nav').children.length);
   ok(doc.getElementById('content').children.length > 0, 'первый раздел отрендерен');
   ok(!!doc.getElementById('dl-net') && !!doc.getElementById('dl-ip') && !!doc.getElementById('dl-port'), 'datalist автодополнения на месте');
   ok($('lan_cidr').getAttribute('list') === 'dl-net', 'поле подсети подключено к автодополнению');

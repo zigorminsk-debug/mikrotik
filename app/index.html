@@ -39,6 +39,56 @@
 
     <main class="content" id="content"></main>
 
+    <!-- ================= ЛАБОРАТОРИЯ (СТЕНД PNET) ================= -->
+    <main class="content lab-view" id="lab-view" hidden>
+      <div class="sec-header">
+        <div class="sec-icon">🧪</div>
+        <div>
+          <h1>Лаборатория — карта сети</h1>
+          <p class="sec-lead">Расставьте устройства, соедините их и задайте настройки. Учебная модель показывает предполагаемый путь трафика, а не запускает RouterOS и не проверяет реальную сеть. Поддерживаются один MikroTik, один провайдер и одна LAN /24 без петель. VPN и резервирование пока не моделируются. Схема хранится только до закрытия приложения.</p>
+        </div>
+      </div>
+
+      <div class="lab-bar">
+        <div class="lab-palette" id="lab-palette" aria-label="Палитра устройств">
+          <button type="button" class="lab-pick p-isp" data-dev="isp">☁️ Провайдер</button>
+          <button type="button" class="lab-pick p-router" data-dev="router">📡 MikroTik</button>
+          <button type="button" class="lab-pick p-switch" data-dev="switch">🔀 Коммутатор</button>
+          <button type="button" class="lab-pick p-pc" data-dev="pc">🖥 ПК</button>
+          <button type="button" class="lab-pick p-server" data-dev="server">🗄 Сервер</button>
+          <button type="button" class="lab-pick p-printer" data-dev="printer">🖨 Принтер</button>
+        </div>
+        <div class="lab-modes">
+          <button type="button" class="lab-mode" data-mode="place">➕ Ставить</button>
+          <button type="button" class="lab-mode" data-mode="link">🔗 Линия</button>
+          <button type="button" class="lab-mode active" data-mode="select">👆 Выбор</button>
+        </div>
+        <div class="lab-acts">
+          <button type="button" class="btn ghost" id="lab_example" title="Заменить текущую схему примером">Пример схемы</button>
+          <button type="button" class="btn primary" id="lab_run">▶ Запустить модель</button>
+          <button type="button" class="btn ghost" id="lab_reset">⟲ Сброс</button>
+        </div>
+      </div>
+
+      <div class="lab-hint-wrap"><span class="lab-hint" id="lab-hint"></span></div>
+
+      <div class="lab-canvas" id="lab-canvas">
+        <svg class="lab-svg" id="lab-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+        <div class="lab-empty" id="lab-empty">Схема пуста.<br>Выберите устройство в панели выше и коснитесь карты.</div>
+      </div>
+
+      <div class="lab-inspect" id="lab-inspect" hidden></div>
+
+      <div class="lab-log" id="lab-log" hidden>
+        <div class="lab-log-h">📡 Журнал моделирования
+          <button type="button" class="btn ghost lab-skip" id="lab_skip" hidden>Пропустить →</button>
+        </div>
+        <div class="lab-log-lines" id="lab-log-lines"></div>
+      </div>
+
+      <div id="lab-results" class="stand-results" hidden></div>
+    </main>
+
     <!-- ================= ИНТЕРАКТИВНЫЙ СТЕНД ================= -->
     <main class="content stand-view" id="stand-view" hidden>
       <div class="sec-header">
@@ -172,6 +222,24 @@
   </div>
 </div>
 
+<!-- ================= ДИАЛОГ НАСТРОЕК УСТРОЙСТВА (ЛАБОРАТОРИЯ) ================= -->
+<div class="modal" id="lab-modal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="lm_title">
+    <div class="modal-head">
+      <span id="lm_title">Настройки устройства</span>
+      <button type="button" class="modal-x" id="lm_close" aria-label="Закрыть">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="lm-err" id="lm_err" hidden></div>
+      <div id="lm_body"></div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn ghost" id="lm_cancel">Отмена</button>
+      <button type="button" class="btn primary" id="lm_save">Сохранить</button>
+    </div>
+  </div>
+</div>
+
 <!-- ШАБЛОНЫ -->
 <template id="tpl-isp">
   <div class="isp-row" data-isp>
@@ -285,8 +353,11 @@
 <script src="js/sec-failover.js"></script>
 <script src="js/sec-routing.js"></script>
 <script src="js/sec-vpn.js"></script>
+<script src="js/sec-lab.js"></script>
 <script src="js/sec-stand.js"></script>
 <script src="js/stand.js"></script>
+<script src="js/lab-sim.js"></script>
+<script src="js/lab.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
