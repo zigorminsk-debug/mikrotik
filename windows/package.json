@@ -1,0 +1,52 @@
+{
+  "name": "mikrotik-guide",
+  "productName": "MikroTik Guide",
+  "version": "1.2.0",
+  "description": "Учебник по настройке роутеров MikroTik со скриншотами и интерактивным стендом моделирования",
+  "main": "main.js",
+  "author": "zigorminsk-debug",
+  "license": "MIT",
+  "scripts": {
+    "copy": "node scripts/copy-app.js",
+    "prestart": "npm run copy",
+    "start": "electron .",
+    "predist": "npm run copy",
+    "dist": "electron-builder --win --publish never"
+  },
+  "devDependencies": {
+    "electron": "^31.3.1",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "by.mikrotik.guide",
+    "productName": "MikroTik Guide",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "package.json",
+      "www/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "MikroTik-Guide-Setup-${version}.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "MikroTik Guide",
+      "unicode": true
+    }
+  }
+}
