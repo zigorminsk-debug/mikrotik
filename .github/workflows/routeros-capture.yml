@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/routeros-capture.yml'
       - 'tools/capture-routeros.py'
+      - 'tools/export-capture.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -53,22 +54,15 @@ jobs:
               data = data[-1800:].replace('%', '%25').replace('\n', '%0A').replace('\r', '%0D')
               print('::error title=RouterOS serial diagnostics::' + data)
           PYDIAG
-      - name: Export experimental screenshot for visual inspection
+      - name: Export experimental screenshot 0–9
         if: always()
-        run: |
-          /usr/bin/python3 - <<'PYSHOT'
-          import base64, os, pathlib
-          shot = pathlib.Path(os.environ['RUNNER_TEMP']) / 'routeros-capture/output/winbox.png'
-          if not shot.exists():
-              raise SystemExit('No experimental image was created')
-          data = base64.b64encode(shot.read_bytes()).decode()
-          parts = [data[i:i+8000] for i in range(0, len(data), 8000)]
-          if len(parts) > 45:
-              print('::warning::Screenshot too large for annotations; use the artifact instead')
-          else:
-              for i, part in enumerate(parts):
-                  print(f'::notice title=SHOT_PART_{i:02d}_OF_{len(parts):02d}::{part}')
-          PYSHOT
+        run: /usr/bin/python3 tools/export-capture.py 0
+      - name: Export experimental screenshot 10–19
+        if: always()
+        run: /usr/bin/python3 tools/export-capture.py 10
+      - name: Export experimental screenshot 20–29
+        if: always()
+        run: /usr/bin/python3 tools/export-capture.py 20
       - name: Upload capture and diagnostic output
         if: always()
         uses: actions/upload-artifact@v4
