@@ -90,8 +90,21 @@ try:
     script = '''set -eu
 "$1" 127.0.0.1:18291 admin "$2" >"$3/winbox.log" 2>&1 &
 pid=$!
-sleep 35
-# Open PPP (actual GUI). The following capture is checked visually before use.
+# Do not treat a login screen or failed authentication as a connected GUI.
+# CHR can be slow under software emulation. Check the status bar with OCR.
+ready=0
+for attempt in $(seq 1 12); do
+  sleep 15
+  scrot "$3/winbox.png"
+  tesseract "$3/winbox.png" "$3/ocr" 2>/dev/null || true
+  if grep -Eiq 'CHR[[:space:]]+QEMU' "$3/ocr.txt"; then ready=1; break; fi
+done
+if [ "$ready" -ne 1 ]; then
+  echo 'WinBox did not reach a verifiable CHR workspace' >>"$3/winbox.log"
+  kill "$pid" 2>/dev/null || true
+  exit 1
+fi
+# Open PPP (actual GUI). Still needs visual verification of the requested fields.
 xdotool mousemove 170 275 click 1
 sleep 6
 scrot "$3/winbox.png"
@@ -100,7 +113,7 @@ kill "$pid" 2>/dev/null || true
     env = os.environ.copy()
     env['QT_X11_NO_MITSHM'] = '1'
     subprocess.run(['xvfb-run', '-a', '-s', '-screen 0 1440x900x24', 'bash', '-c', script,
-                    'capture', str(winbox), password, str(out)], env=env, check=True, timeout=90)
+                    'capture', str(winbox), password, str(out)], env=env, check=True, timeout=240)
     if (out / 'winbox.png').stat().st_size < 5000:
         raise RuntimeError('WinBox capture is unexpectedly small')
 finally:
