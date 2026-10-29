@@ -38,6 +38,11 @@ jobs:
         run: |
           /usr/bin/python3 - <<'PYDIAG'
           import pathlib, os, re
+          for name in ('winbox.log',):
+              extra = pathlib.Path(os.environ['RUNNER_TEMP']) / 'routeros-capture/output' / name
+              if extra.exists():
+                  text = extra.read_text(errors='replace')[-4000:].replace('%', '%25').replace('\n', '%0A').replace('\r', '%0D')
+                  print('::error title=WinBox runtime diagnostics::' + text)
           path = pathlib.Path(os.environ['RUNNER_TEMP']) / 'routeros-capture/output/capture.log'
           if path.exists():
               data = path.read_text(errors='replace')[-3000:].replace('%', '%25').replace('\n', '%0A').replace('\r', '%0D')
@@ -49,11 +54,14 @@ jobs:
               print('::error title=RouterOS serial diagnostics::' + data)
           PYDIAG
       - name: Export experimental screenshot for visual inspection
-        if: success()
+        if: always()
         run: |
           /usr/bin/python3 - <<'PYSHOT'
           import base64, os, pathlib
-          data = base64.b64encode((pathlib.Path(os.environ['RUNNER_TEMP']) / 'routeros-capture/output/winbox.png').read_bytes()).decode()
+          shot = pathlib.Path(os.environ['RUNNER_TEMP']) / 'routeros-capture/output/winbox.png'
+          if not shot.exists():
+              raise SystemExit('No experimental image was created')
+          data = base64.b64encode(shot.read_bytes()).decode()
           parts = [data[i:i+8000] for i in range(0, len(data), 8000)]
           if len(parts) > 45:
               print('::warning::Screenshot too large for annotations; use the artifact instead')
