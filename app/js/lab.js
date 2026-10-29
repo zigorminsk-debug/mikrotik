@@ -89,9 +89,13 @@ function renderDevices() {
     var badge = '';
     if (lastModel && lastModel.assignments && lastModel.assignments[d.id]) {
       if (d.type === 'isp')
-        badge = '<span class="lab-ip">' + esc({ pppoe: 'PPPoE', dhcp: 'DHCP', static: 'IP', lte: 'LTE' }[d.cfg.kind] || '') + '</span>';
+        badge = '<span class="lab-ip">' + esc({ pppoe: 'PPPoE', dhcp: 'DHCP', static: 'IP', lte: 'LTE' }[d.cfg.kind] || '') + ' · ' + (d.cfg.priority === 'backup' ? 'резерв' : 'основной') + '</span>';
       else
         badge = '<span class="lab-ip">' + esc(lastModel.assignments[d.id].ip) + '</span>';
+    } else if (d.type === 'isp') {
+      badge = '<span class="lab-ip">' + esc({pppoe:'PPPoE', dhcp:'DHCP', static:'Статический IP', lte:'LTE'}[d.cfg.kind]) + ' · ' + esc(d.cfg.priority === 'backup' ? 'резерв' : 'основной') + '</span>';
+    } else if (d.type === 'pc' || d.type === 'server' || d.type === 'printer') {
+      badge = '<span class="lab-ip">' + esc(d.cfg.mode === 'dhcp' ? 'DHCP' : d.cfg.ip) + '</span>';
     } else if (d.type === 'router') {
       var roles = [];
       if (d.cfg.dhcp) roles.push('DHCP');
@@ -101,7 +105,12 @@ function renderDevices() {
       badge = '<span class="lab-ip">' + esc(roles.join('·') || 'роли —') + '</span>';
     }
     el.innerHTML = '<div class="lab-ico">' + ICONS[d.type] + '</div>' +
-      '<div class="lab-nm">' + esc(d.name) + '</div>' + badge;
+      '<div class="lab-nm">' + esc(d.name) + '</div>' + badge +
+      '<button type="button" class="lab-gear" aria-label="Настроить ' + esc(d.name) + '" title="Настроить ' + esc(d.name) + '">⚙</button>';
+    var gear = el.querySelector('.lab-gear');
+    gear.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+    gear.addEventListener('touchstart', function (e) { e.stopPropagation(); });
+    gear.addEventListener('click', function (e) { e.stopPropagation(); select(d.id); openSettings(d.id); });
     el.addEventListener('click', function (e) {
       if (el._sup) { el._sup = false; return; }
       onDeviceClick(d);
@@ -152,7 +161,7 @@ function updateHint() {
       : 'Коснитесь первого устройства, затем второго — соедините их линией';
   else
     t = 'Коснитесь устройства или линии — можно настроить, удалить или просто рассмотреть';
-  hintEl.textContent = t;
+  hintEl.textContent = t + ' Настройки устройства: нажмите ⚙ на его значке (в любом режиме).';
 }
 function setMode(m) {
   mode = m;
@@ -212,7 +221,7 @@ function renderInspect() {
     sub = esc(d.cfg.lan) + ' · роли: ' + esc(roles.join(', ') || 'не заданы');
   } else if (d.type === 'isp') {
     sub = { pppoe: 'PPPoE: логин/пароль', dhcp: 'DHCP — авто', static: 'Статический IP', lte: 'USB 3G/LTE' }[d.cfg.kind];
-    sub = esc(sub);
+    sub = esc(sub) + ' · ' + (d.cfg.priority === 'backup' ? 'резервный' : 'основной');
   } else if (d.type === 'switch') {
     sub = 'Коммутатор L2 — просто соединяет сегменты';
   } else {
@@ -244,6 +253,23 @@ function place(type, x, y) {
     x: Math.round(clamp(x, 0, Math.max(0, maxW))),
     y: Math.round(clamp(y, 0, Math.max(0, maxH))),
     cfg: t.cfg() };
+  if (type === 'isp') {
+    d.cfg.priority = countType('isp') ? 'backup' : 'primary';
+    if (countType('isp')) { d.cfg.ip = '203.0.113.2/30'; d.cfg.gw = '203.0.113.1'; d.cfg.dns = '1.1.1.1'; }
+  }
+  if (type === 'pc' || type === 'server' || type === 'printer') {
+    var router = state.devices.filter(function (x) { return x.type === 'router'; })[0];
+    var net = LabEngine.parseCidr(router ? router.cfg.lan : '192.168.88.0/24');
+    if (net && net.prefix === 24) {
+      var used = state.devices.map(function (x) { return x.cfg && x.cfg.mode === 'static' ? (x.cfg.ip || '').split('/')[0] : ''; });
+      var gw = router ? router.cfg.gw : '192.168.88.1';
+      used.push(gw);
+      var host = 10;
+      while (host < 255 && (host >= 100 && host <= 199 || used.indexOf(LabEngine.intToIp(net.firstInt + host)) !== -1)) host++;
+      if (host < 255) { d.cfg.ip = LabEngine.intToIp(net.firstInt + host) + '/24'; d.cfg.gw = gw; }
+      else d.cfg.mode = 'dhcp';
+    }
+  }
   state.devices.push(d);
   invalidate();
   renderAll();
@@ -277,6 +303,7 @@ function onDeviceClick(d) {
     return;
   }
   select(d.id);
+  openSettings(d.id);
 }
 
 /* ---------- Перетаскивание ---------- */
@@ -309,12 +336,14 @@ document.addEventListener('touchend', endDrag);
 /* перепривязка после каждого renderDevices — используем делегирование: */
 function bindDragDelegates() {
   canvas.addEventListener('mousedown', function (e) {
+    if (e.target.closest && e.target.closest('.lab-gear')) return;
     var el = e.target.closest ? e.target.closest('.lab-dev') : null;
     if (!el || !el.dataset.id) return;
     var d = byId(el.dataset.id);
     if (d) startDrag(d, el, e.clientX, e.clientY);
   });
   canvas.addEventListener('touchstart', function (e) {
+    if (e.target.closest && e.target.closest('.lab-gear')) return;
     var el = e.target.closest ? e.target.closest('.lab-dev') : null;
     if (!el || !el.dataset.id || !e.touches[0]) return;
     var d = byId(el.dataset.id);
@@ -454,14 +483,14 @@ function renderResults(res) {
         '</ul></div></div>';
     }
     html += '<div class="res-card"><div class="res-head">🗺 Карта адресации</div><div class="res-body"><div class="tbl"><table class="data">' +
-      '<thead><tr><th>Устройство</th><th>Роль</th><th>IP-адрес</th><th>Шлюз</th><th>Источник</th></tr></thead><tbody>' +
+      '<thead><tr><th>Устройство</th><th>Роль</th><th>IP-адрес</th><th>Шлюз</th><th>DNS</th><th>Источник</th></tr></thead><tbody>' +
       res.addrRows.map(function (r) {
         return '<tr>' + r.map(function (c) { return '<td>' + esc(c) + '</td>'; }).join('') + '</tr>';
       }).join('') +
       '</tbody></table></div></div></div>';
-    html += '<div class="note">Порты назначаются по порядку создания линий к MikroTik. Подключите кабели согласно карте ниже; для DHCP-клиентов настройте автоматическое получение IP, для статических — адрес и шлюз из таблицы, DNS задайте равным шлюзу. Пароль PPPoE присутствует в командах: не публикуйте их.</div>';
+    html += '<div class="note">Порты назначаются по порядку создания линий к MikroTik. Подключите кабели согласно карте ниже; для DHCP-клиентов настройте автоматическое получение IP, для статических — адрес, шлюз и DNS из таблицы. Пароль PPPoE присутствует в командах: не публикуйте их.</div>';
     html += '<div class="res-card"><div class="res-head">🔌 Подключения MikroTik</div><div class="res-body"><ul>' +
-      '<li>' + esc(res.model.primaryIsp.phys) + ' → ' + esc(res.model.primaryIsp.name) + ' (' + esc(res.model.primaryIsp.kind) + ')</li>' +
+      res.model.isps.map(function(i) { return '<li>' + esc(i.phys) + ' → ' + esc(i.name) + ' (' + esc(i.kind) + ', ' + (i.priority === 'primary' ? 'основной' : 'резервный') + ')</li>'; }).join('') +
       res.model.router.lanPorts.map(function(p) { return '<li>' + esc(p.phys) + ' → ' + esc(p.dev.name) + '</li>'; }).join('') + '</ul></div></div>';
     html += '<div class="res-card"><div class="res-head">⚙ Проект настроек RouterOS</div><div class="res-body">';
     res.groups.forEach(function (g, i) {
@@ -503,12 +532,14 @@ function openSettings(id) {
       chk('lm_dhcp', 'DHCP-сервер в LAN', c.dhcp) +
       chk('lm_nat', 'NAT (masquerade) — выход в интернет', c.nat) +
       chk('lm_fw', 'Firewall — правила защиты', c.firewall) +
-      chk('lm_vpn', 'VPN-сервер', c.vpn);
+      chk('lm_vpn', 'VPN-сервер', c.vpn) +
+      '<p class="fs-hint">VPN пока не моделируется: при включении карта команд не формируется. Для VPN используйте отдельный раздел учебника.</p>';
     html += '<div id="lm_vpn_box"' + (c.vpn ? '' : ' hidden') + '><div class="lm-grid">' +
       sel('lm_vpn_type', 'Тип VPN', [['wireguard', 'WireGuard'], ['ikev2', 'IPsec IKEv2'], ['l2tp-ipsec', 'L2TP/IPsec']], c.vpnType) +
       f('lm_vpn_port', 'Порт/слушать', 'text', c.vpnPort, 'list="dl-port" inputmode="numeric"') +
       f('lm_vpn_pool', 'Пул VPN (CIDR)', 'text', c.vpnPool, 'list="dl-net"') + '</div></div>';
   } else if (d.type === 'isp') {
+    html += sel('lm_priority', 'Роль канала', [['primary', 'Основной'], ['backup', 'Резервный']], c.priority || 'primary');
     html += sel('lm_kind', 'Тип подключения', [['pppoe', 'PPPoE (логин/пароль)'], ['dhcp', 'DHCP (авто)'], ['static', 'Статический IP'], ['lte', 'USB 3G/LTE-модем']], c.kind);
     html += '<div id="lm_g_pppoe"' + (c.kind === 'pppoe' ? '' : ' hidden') + '><div class="lm-grid">' +
       f('lm_user', 'Логин PPPoE', 'text', c.user, 'spellcheck="false"') +
@@ -523,7 +554,8 @@ function openSettings(id) {
     html += sel('lm_mode', 'Получение адреса', [['static', 'Статический IP'], ['dhcp', 'DHCP (авто)']], c.mode || 'static');
     html += '<div id="lm_g_static_ep"' + ((c.mode || 'static') === 'static' ? '' : ' hidden') + '><div class="lm-grid">' +
       f('lm_ip2', 'IP/маска', 'text', c.ip, 'list="dl-net" inputmode="decimal"') +
-      f('lm_gw2', 'Шлюз', 'text', c.gw, 'list="dl-ip" inputmode="decimal"') + '</div>' +
+      f('lm_gw2', 'Шлюз', 'text', c.gw, 'list="dl-ip" inputmode="decimal"') +
+      f('lm_ep_dns', 'DNS (необязательно)', 'text', c.dns || '', 'list="dl-dns" inputmode="decimal"') + '</div>' +
       '<button type="button" class="btn ghost lm-mini" id="lm_fill_gw">↳ подставить IP роутера</button></div>';
   } else {
     html += '<p class="fs-hint">В этой модели коммутатор работает как неуправляемый L2. Он просто объединяет сегменты в один широковещательный домен.</p>';
@@ -596,14 +628,20 @@ function saveSettings() {
     } else if (kind === 'lte') {
       nc.apn = $('lm_apn').value.trim() || 'internet';
     }
-    Object.assign(c, { kind: kind }, nc);
+    nc.priority = $('lm_priority').value;
+    Object.assign(c, nc);
+    state.devices.forEach(function (other) {
+      if (other.type === 'isp' && other.id !== d.id) other.cfg.priority = nc.priority === 'primary' ? 'backup' : 'primary';
+    });
   } else if (d.type !== 'switch') {
     var md = $('lm_mode').value;
     if (md === 'static') {
       var ip = $('lm_ip2').value.trim(), gwv = $('lm_gw2').value.trim();
       if (!E || !E.parseCidr(ip)) return lmFail('Адрес задан неверно — нужен вид 192.168.88.10/24');
       if (gwv && !E.validIp(gwv)) return lmFail('Шлюз задан неверно — нужен вид 192.168.88.1');
-      Object.assign(c, { mode: 'static', ip: ip, gw: gwv });
+      var dns = $('lm_ep_dns').value.trim();
+      if (dns && !E.validIp(dns)) return lmFail('DNS задан неверно');
+      Object.assign(c, { mode: 'static', ip: ip, gw: gwv, dns: dns });
     } else {
       Object.assign(c, { mode: 'dhcp' });
     }

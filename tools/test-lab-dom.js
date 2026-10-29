@@ -17,6 +17,26 @@ const {JSDOM,VirtualConsole} = require('jsdom');
  w.Lab.select(pc.id); $('insp_del').click(); assert.equal(w.Lab.state.devices.length,4); assert.equal(w.Lab.state.links.length,3);
  $('lab_reset').click(); assert.equal(w.Lab.state.devices.length,0); assert.equal(w.Lab.state.links.length,0);
  d.querySelector('[data-dev=router]').click(); $('lab-canvas').dispatchEvent(new w.MouseEvent('click',{bubbles:true,clientX:50,clientY:50})); assert.equal(w.Lab.state.devices.length,1);
- $('lab_run').click(); assert($('lab-results').textContent.includes('провайдера'));
+ $('lab_run').click(); assert($('lab-results').textContent.includes('провайдеров'));
+
+ // Схема из обращения: по два устройства каждого типа и два канала.
+ $('lab_reset').click();
+ const rt=w.Lab.place('router',200,100), isp1=w.Lab.place('isp',10,10), isp2=w.Lab.place('isp',300,10), sw=w.Lab.place('switch',200,220);
+ const clients=['pc','pc','server','server','printer','printer'].map((type,i)=>w.Lab.place(type,30+i*90,340));
+ w.Lab.link(rt,isp1);w.Lab.link(rt,isp2);w.Lab.link(rt,sw);clients.forEach(id=>w.Lab.link(sw,id));
+ const ips=clients.map(id=>w.Lab.state.devices.find(x=>x.id===id).cfg.ip);
+ assert.equal(new Set(ips).size,6); assert(ips.every(ip=>!ip.includes('.100/')));
+ // Настройки открываются через шестерёнку даже в режиме создания линии.
+ w.Lab.setMode('link'); d.querySelector('[data-id="'+isp2+'"] .lab-gear').click();
+ assert(!$('lab-modal').hidden); assert($('lm_kind')); assert($('lm_priority')); $('lm_kind').value='static'; $('lm_kind').dispatchEvent(new w.Event('change')); assert(!$('lm_g_static').hidden);
+ $('lm_ip').value='203.0.113.2/30';$('lm_gw2').value='203.0.113.1';$('lm_dns').value='1.1.1.1';$('lm_save').click();
+ assert.equal(w.Lab.state.devices.find(x=>x.id===isp2).cfg.kind,'static');
+ d.querySelector('[data-id="'+rt+'"] .lab-gear').click(); assert($('lm_lan') && $('lm_gw') && $('lm_dhcp') && $('lm_nat') && $('lm_fw') && $('lm_vpn')); $('lm_save').click();
+ d.querySelector('[data-id="'+clients[0]+'"] .lab-gear').click(); assert($('lm_mode') && $('lm_ip2') && $('lm_ep_dns')); $('lm_save').click();
+ $('lab_run').click(); assert($('lab-results').textContent.includes('Проверка учебной модели пройдена')); assert($('lab-results').textContent.includes('резервный')); assert($('lab-log-lines').textContent.includes('условно'));
+ // Переключение основного и резервного через форму провайдера.
+ d.querySelector('[data-id="'+isp2+'"] .lab-gear').click(); $('lm_priority').value='primary';$('lm_save').click();
+ assert.equal(w.Lab.state.devices.find(x=>x.id===isp1).cfg.priority,'backup');assert.equal(w.Lab.state.devices.find(x=>x.id===isp2).cfg.priority,'primary');
+ w.Lab.setMode('select'); d.querySelector('[data-id="'+clients[1]+'"] .lab-ico').click(); assert(!$('lab-modal').hidden); $('lm_cancel').click();
  assert.deepStrictEqual(errors,[]); dom.window.close(); console.log('Лаборатория: DOM-взаимодействия прошли.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
