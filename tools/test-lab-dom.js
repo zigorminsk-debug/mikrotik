@@ -15,7 +15,10 @@ const {JSDOM,VirtualConsole} = require('jsdom');
  Object.defineProperty($('lab-canvas'),'clientHeight',{configurable:true,value:500});
  $('lab_export_png').click(); await new Promise(resolve=>setTimeout(resolve,20)); assert($('lab-export-status').textContent.includes('Схема пуста'));
  $('lab_example').click(); assert.equal(w.Lab.state.devices.length,5); assert.equal(w.Lab.state.links.length,4);
- $('lab_run').click(); assert(!$('lab-results').hidden); assert($('lab-results').textContent.includes('Проверка учебной модели пройдена')); assert(d.querySelector('#lab-results .copy-btn')); assert($('lab-results').textContent.includes('реальные пакеты не отправлялись')); assert($('lab-winbox')); assert($('lab-winbox').textContent.includes('Подготовка')); assert($('lab-winbox').querySelector('img[src*=winbox-login]')); assert($('lab-winbox').textContent.includes('192.168.88.1/24'));const ppStep=Array.from(d.querySelectorAll('#lab-winbox .lab-winbox-step')).find(el=>el.querySelector('img[src$="pppoe-dial.png"]'));assert(ppStep);const ppItems=ppStep.querySelectorAll('ol > li');assert(ppItems[0].querySelector('img[src$="pppoe-general.png"]'));assert(ppItems[1].querySelector('img[src$="pppoe-dial.png"]'));assert(ppItems[2].textContent.includes('отдельный скриншот пока не добавлен'));assert(ppItems[ppItems.length-1].querySelector('img[src$="interface-list-member.png"]'));
+ $('lab_run').click(); assert(!$('lab-results').hidden); assert($('lab-results').textContent.includes('Проверка учебной модели пройдена')); assert(d.querySelector('#lab-results .copy-btn')); assert($('lab-results').textContent.includes('реальные пакеты не отправлялись')); assert($('lab-winbox')); assert($('lab-winbox').textContent.includes('Подготовка')); assert(!$('lab-winbox').querySelector('img')); assert($('lab-winbox').textContent.includes('192.168.88.1/24'));assert($('lab-winbox').textContent.includes('Оригинальный снимок этого действия в WinBox 4 пока не добавлен'));
+ // Проверяем просмотр реального собственного снимка из главы первичной настройки.
+ w.location.hash='intro';await new Promise(resolve=>setTimeout(resolve,20));
+
  // Изображение в учебнике: на узком и широком экране режим «Целиком»
  // ограничивает и ширину, и высоту; увеличение и возврат работают офлайн.
  const stage=$('shot-stage'), full=$('shot-full');
@@ -23,7 +26,7 @@ const {JSDOM,VirtualConsole} = require('jsdom');
  Object.defineProperty(stage,'clientHeight',{configurable:true,value:240});
  Object.defineProperty(full,'naturalWidth',{configurable:true,value:1239});
  Object.defineProperty(full,'naturalHeight',{configurable:true,value:634});
- const shot=d.querySelector('#lab-winbox .shot-zoom'); assert(shot); shot.click(); assert(!$('shot-viewer').hidden); assert(full.getAttribute('src'));
+ const shot=d.querySelector('#content .shot-zoom'); assert(shot); shot.click(); assert(!$('shot-viewer').hidden); assert(full.getAttribute('src'));
  let width=parseFloat(full.style.width); assert(width<=296 && width*634/1239<=216.1);
  $('shot-in').click(); assert(parseFloat(full.style.width)>width); $('shot-fit').click(); assert.equal(parseFloat(full.style.width),width);
  $('shot-close').click(); assert($('shot-viewer').hidden); assert(!full.getAttribute('src'));
@@ -31,6 +34,7 @@ const {JSDOM,VirtualConsole} = require('jsdom');
  Object.defineProperty(stage,'clientHeight',{configurable:true,value:700});
  shot.click(); width=parseFloat(full.style.width); assert(width<=1176 && width*634/1239<=676.1);
  d.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true})); assert($('shot-viewer').hidden);
+ w.location.hash='lab';await new Promise(resolve=>setTimeout(resolve,20));
  const pc=w.Lab.state.devices.find(x=>x.type==='pc'); w.Lab.select(pc.id); $('insp_cfg').click(); assert(!$('lab-modal').hidden); $('lm_mode').value='static'; $('lm_mode').dispatchEvent(new w.Event('change')); $('lm_ip2').value='192.168.88.120/24'; $('lm_gw2').value='192.168.88.1'; $('lm_save').click(); assert($('lab-modal').hidden); assert($('lab-results').hidden);
  $('lab_run').click(); assert($('lab-results').textContent.includes('пул'));
  w.Lab.select(pc.id); $('insp_del').click(); assert(!$('lab-confirm').hidden); $('lab-confirm-ok').click(); assert.equal(w.Lab.state.devices.length,4); assert.equal(w.Lab.state.links.length,3);
@@ -114,7 +118,7 @@ const {JSDOM,VirtualConsole} = require('jsdom');
  for(const [id,box] of [['lm_wan_monitor','lm_monitor_box'],['lm_static_route','lm_route_box'],['lm_custom_dns','lm_dns_box'],['lm_dns_static','lm_dns_static_box'],['lm_ntp','lm_ntp_box'],['lm_identity','lm_identity_box']]) {$(id).checked=true;$(id).dispatchEvent(new w.Event('change'));assert(!$(box).hidden);}
  $('lm_cloud').checked=true;$('lm_timezone').value='Europe/Minsk';$('lm_save').click();assert($('lab-modal').hidden);
  $('lab_run').click();assert($('lab-results').textContent.includes('Проверка учебной модели пройдена'));
- const dhcpStep=Array.from(d.querySelectorAll('#lab-winbox .lab-winbox-step')).find(el=>el.querySelector('img[src$="dhcp-client-create-winbox3.png"]'));assert(dhcpStep);assert.equal(dhcpStep.querySelectorAll('figure.shot').length,5);assert(dhcpStep.textContent.includes('Use Peer DNS включён'));assert(dhcpStep.querySelector('a[href*="mikrotik.wiki"]'));assert(dhcpStep.querySelector('a[href*="help.mikrotik.com"]'));dhcpStep.querySelector('.shot-zoom').click();assert(!$('shot-viewer').hidden);assert(full.getAttribute('src').includes('dhcp-client-create-winbox3'));$('shot-close').click();
+ assert(!$('lab-winbox').querySelector('img'));assert($('lab-winbox').textContent.includes('отключите Use Peer DNS'));
  assert($('lab-results').textContent.includes('target-scope=11'));assert($('lab-results').textContent.includes('dst-address=10.20.0.0/24'));assert($('lab-results').textContent.includes('server.lan'));assert($('lab-results').textContent.includes('Europe/Minsk'));assert($('lab-results').textContent.includes('ddns-enabled=yes'));
  w.Lab.select(nr);assert($('insp_probe'));$('insp_probe').click();assert($('lab-flow-status').textContent.includes(w.Lab.state.devices.find(x=>x.id===nb).name));$('insp_probe').click();assert($('lab-flow-status').textContent.includes(w.Lab.state.devices.find(x=>x.id===ni).name));
  d.querySelector('[data-id="'+nr+'"] .lab-gear').click();$('lm_dns_static').checked=false;$('lm_dns_cache').checked=false;$('lm_save').click();$('lab_run').click();assert($('lab-results').textContent.includes('allow-remote-requests=no'));assert($('lab-results').textContent.includes('dns-server=1.1.1.1'));
@@ -138,11 +142,12 @@ const {JSDOM,VirtualConsole} = require('jsdom');
  w.Lab.link(ir1,ii1);w.Lab.link(ir2,ii2);w.Lab.link(ir1,isw);w.Lab.link(isw,ipc);w.Lab.link(isw,ih);w.Lab.link(ir2,ih);
  $('lab_run').click();assert($('lab-results').textContent.includes('Проверка учебной модели пройдена'));assert($('lab-results').textContent.includes('Две независимые сети'));assert($('lab-results').textContent.includes('192.168.99.100/24'));assert($('lab-results').textContent.includes('гипервизор'));assert($('lab-flow-status').textContent.includes(w.Lab.state.devices.find(x=>x.id===ir1).name));assert($('lab-flow-status').textContent.includes(w.Lab.state.devices.find(x=>x.id===ir2).name));
  d.querySelector('[data-id="'+ii2+'"] .lab-power').click();assert(!$('lab-flow-status').textContent.includes(w.Lab.state.devices.find(x=>x.id===ir2).name));assert($('lab-flow-status').textContent.includes(w.Lab.state.devices.find(x=>x.id===ir1).name));
- // DHCP-инструкция учебника содержит реальные снимки и ссылку на их источник.
- w.location.hash='initial';await new Promise(resolve=>setTimeout(resolve,20));assert(d.querySelector('#content img[src$="dhcp-client-create-winbox3.png"]'));assert(d.querySelector('#content a[href*="mikrotik.wiki"]'));assert(d.querySelector('#content img[src$="interface-list-member.png"]'));
- // Обычный раздел учебника использует тот же просмотр, не только лаборатория.
- w.location.hash='firewall'; await new Promise(resolve=>setTimeout(resolve,20));
- const guideImg=d.querySelector('#content figure.shot img'); assert(guideImg && guideImg.getAttribute('src').includes('official/'));
+ // Старые и сторонние снимки больше не выдаются за оригинальные WinBox 4.
+ w.location.hash='initial';await new Promise(resolve=>setTimeout(resolve,20));
+ assert(!d.querySelector('#content img[src*=\"official/\"], #content img[src*=\"examples/\"]'));
+ assert($('content').textContent.includes('Оригинальный снимок'));
+ w.location.hash='intro';await new Promise(resolve=>setTimeout(resolve,20));
+ const guideImg=d.querySelector('#content figure.shot img[src*=\"own/\"]'); assert(guideImg);
  guideImg.click(); assert(!$('shot-viewer').hidden); $('shot-close').click();
  assert.deepStrictEqual(errors,[]); dom.window.close(); console.log('Лаборатория: DOM-взаимодействия прошли.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

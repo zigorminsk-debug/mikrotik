@@ -61,6 +61,7 @@ function renderBlock(b, stepIdx, bi) {
       return wrap;
     }
     case 'img': {
+      if (/assets\/img\/(official|examples)\//.test(b.src || '')) return el('div', 'note', 'Оригинальный снимок этого действия в WinBox 4 пока не добавлен.');
       var fig = document.createElement('figure');
       fig.className = 'shot';
       var im = document.createElement('img');
@@ -136,6 +137,7 @@ function renderSection(sec) {
 function buildNav() {
   navEl.innerHTML = '';
   GUIDE.sections.forEach(function (sec) {
+    if (sec.hiddenNav) return;
     var a = el('a', 'nav-item',
       '<span class="ni-ico">' + esc(sec.icon || '📘') + '</span>' +
       '<span class="ni-t">' + esc(sec.title) + '</span>' +

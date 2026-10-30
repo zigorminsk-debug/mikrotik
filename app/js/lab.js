@@ -606,15 +606,11 @@ function renderResults(res) {
           m.router.lanPorts.map(function(p) { return '<li>' + esc(p.phys) + ' → ' + esc(p.dev.name) + (m.router.cfg.vlanGuest ? ' (' + (p.segment === 'guest' ? 'гостевой VLAN ' + esc(m.router.cfg.guestVlan) : 'основная LAN') + ')' : '') + '</li>'; }).join('');
       }).join('')) + '</ul></div></div>';
     html += '<div class="res-card" id="lab-winbox"><div class="res-head">🖥 Пошаговая настройка через WinBox</div><div class="res-body">' +
-      '<div class="note">Снимки ниже — примеры из официальной документации и сторонних источников, не снимки вашего роутера. Используйте значения из текста и карты адресов. Интерфейс зависит от версии WinBox и RouterOS.</div>';
+      '<div class="note">Для этих действий оригинальные снимки WinBox 4 ещё не добавлены. Пользуйтесь текстом и картой адресов; проверьте версию RouterOS и настройки устройства.</div>';
     res.winbox.forEach(function (step, i) {
       html += '<section class="lab-winbox-step"><h3>' + (i + 1) + '. ' + esc(step.title) + '</h3>' +
-        (step.image ? '<figure class="shot"><img src="assets/img/' + esc(step.image) + '" alt="Снимок WinBox: ' + esc(step.title) + '" loading="lazy"><figcaption>Снимок из документации MikroTik: значения на нём могут отличаться. <a href="' + (step.image === 'official/winbox-login.png' ? 'https://help.mikrotik.com/docs/spaces/ROS/pages/328129/WinBox' : 'https://help.mikrotik.com/docs/spaces/ROS/pages/328151/First+Time+Configuration') + '">Источник</a></figcaption><button class="shot-zoom" type="button">🔍 Увеличить</button></figure>' : '') +
-        '<ol>' + step.instructions.map(function (item, itemIndex) {
-          var pictures = (step.illustrations || []).filter(function (pic) { return pic.after === itemIndex; }).map(function (pic) {
-            return '<figure class="shot"><img src="assets/img/' + esc(pic.image) + '" alt="' + esc(pic.caption) + '" loading="lazy"><figcaption>' + esc(pic.caption) + ' <a href="' + esc(pic.source) + '">Источник: ' + esc(pic.sourceName) + '</a></figcaption><button class="shot-zoom" type="button">🔍 Увеличить</button></figure>';
-          }).join('');
-          return '<li>' + esc(item) + (pictures || '<div class="fs-hint">Для этого действия отдельный скриншот пока не добавлен.</div>') + '</li>';
+        '<ol>' + step.instructions.map(function (item) {
+          return '<li>' + esc(item) + '<div class="fs-hint">Оригинальный снимок этого действия в WinBox 4 пока не добавлен.</div></li>';
         }).join('') + '</ol></section>';
     });
     html += '</div></div>';

@@ -1,0 +1,53 @@
+/* Menu order follows the user's RouterOS/WinBox 4 screenshot. Existing
+   topic chapters remain addressable for old links, but are not menu entries. */
+(function() {
+'use strict';
+var old = GUIDE.sections.slice();
+function get(id) { return old.filter(function(s){return s.id === id;})[0]; }
+function steps(id, indices) { var s=get(id); return indices.map(function(i){return s.steps[i];}); }
+function newShotsOnly(step) {
+  // Until an original WinBox 4 capture exists, do not present older/third-party
+  // screenshots as the replacement. Keep text and commands intact.
+  var b = (step.b || []).map(function(block) {
+    if (block.k === 'img' && /assets\/img\/(official|examples)\//.test(block.src)) return NOTE('Оригинальный снимок этого действия в WinBox 4 пока не добавлен.');
+    if (block.k === 'ol') return {k:'ol',items:(block.items || []).map(function(item) {
+      if (typeof item === 'string') return item;
+      return {text:item.text,shot:item.shot && !/assets\/img\/(official|examples)\//.test(item.shot.src || '') ? item.shot : null};
+    })};
+    return block;
+  });
+  return {t:step.t,b:b};
+}
+var info = [
+ ['wifi','WiFi','📶','Беспроводные интерфейсы, конфигурации точки доступа и профили безопасности. Доступность зависит от модели и установленного пакета.',[['networks',[2,3,5,7]]]],
+ ['interfaces','Interfaces','🔌','Общий список интерфейсов, их состояние, свойства и списки интерфейсов. Изменение порта управления может разорвать соединение.',[['initial',[0,2,3,4,5]]]],
+ ['wireguard','WireGuard','🛡️','Интерфейсы WireGuard и peers: ключи, адреса, маршруты и правила firewall рассматриваются вместе.',[['vpn',[1]]]],
+ ['ppp','PPP','🔗','PPP включает клиентов и серверы, в том числе PPPoE и L2TP. Набор вкладок зависит от типа соединения.',[['initial',[1]],['vpn',[3]]]],
+ ['bridge','Bridge','🌉','Мост объединяет порты на канальном уровне; VLAN filtering и PVID должны соответствовать схеме и управляемому доступу.',[['networks',[0,1,3]]]],
+ ['switch','Switch','🔀','Аппаратная коммутация зависит от модели и switch chip. Не переносите настройки между устройствами без документации к модели.',[]],
+ ['mesh','Mesh','🕸️','Меню Mesh зависит от аппаратной платформы и пакетов. Подробная настройка и проверка на совместимом устройстве ещё не выполнены.',[]],
+ ['ip','IP','🌐','IPv4-адреса, DHCP, DNS, маршруты, firewall и NAT. Правила доступа и маршрутизации необходимо проверять совместно.',[['initial',[2,3]],['networks',[1]],['routing',[3,5]],['firewall',[0,1,2,3,4,5,6,7,8]]]],
+ ['ipv6','IPv6','6️⃣','Отдельные настройки IPv6: адреса, маршруты, Neighbor Discovery, DHCPv6 и собственный firewall.',[['reference',[2]]]],
+ ['mpls','MPLS','🏷️','MPLS и связанные сервисы требуют отдельного проектирования, совместимых пакетов и проверки на оборудовании.',[]],
+ ['routing','Routing','🧭','Маршруты, таблицы маршрутизации, фильтры и динамические протоколы. Статические маршруты рассматриваются ниже; динамические протоколы ещё не описаны подробно.',[['routing',[0,1,2]],['failover',[0,1,2,3]]]],
+ ['system','System','⚙️','Идентификация, часы, пользователи, службы, журналы, обновление и другие системные функции.',[['reference',[0,1]],['routing',[4]]]],
+ ['queues','Queues','📊','Simple Queue, Queue Tree и типы очередей. FastTrack может обходить часть обработки очередей.',[['reference',[3]]]],
+ ['dot1x','Dot1X','🔒','IEEE 802.1X управляет сетевым доступом и обычно требует совместимых портов и настроенной системы аутентификации.',[]],
+ ['files','Files','📁','Файлы на RouterOS, включая резервные копии и экспорт, могут содержать чувствительные данные. Храните их безопасно.',[]],
+ ['log','Log','📋','Журнал помогает проверять события, ошибки и состояние служб. Сообщения могут содержать чувствительные сведения.',[['reference',[1]]]],
+ ['radius','RADIUS','🔑','RADIUS используется для централизованной аутентификации, авторизации и учёта; настройка зависит от сервера и выбранной службы.',[]],
+ ['tools','Tools','🧰','Диагностика, например ping, traceroute и другие инструменты. Результат зависит от правил сети и настроек устройства.',[]],
+ ['supout','Make Supout.rif','📄','Создаёт диагностический файл для поддержки MikroTik. Он может содержать чувствительные сведения: перед отправкой проверьте получателя и политику организации.',[]]
+];
+var first = get('intro'); first.title='Первичная настройка';
+first.steps = first.steps.concat(get('initial').steps).map(newShotsOnly);
+first.lead='Первое подключение, безопасность, интернет и работа с приложением. Затем разделы расположены как в меню RouterOS.';
+var newSections = info.map(function(row) {
+  var related=[]; row[4].forEach(function(group){related=related.concat(steps(group[0],group[1]));});
+  var intro = {t:'Назначение раздела',b:[P(row[3]), WARN('Перед изменениями сохраните резервную копию, проверьте модель и версию RouterOS, держите доступ для восстановления.'), NOTE('Покрытие раздела пока неполное; отдельные оригинальные снимки действий WinBox 4 ещё готовятся.')]};
+  return {id:'ros-'+row[0],icon:row[2],title:row[1],badge:'дополняется',lead:'Раздел меню RouterOS 7: описание и проверка настроек.',steps:[intro].concat(related.map(newShotsOnly))};
+});
+var tail=['catalog','lab','stand','cheat'].map(get);
+old.forEach(function(s) { if (s !== first && tail.indexOf(s) < 0) s.hiddenNav=true; });
+GUIDE.sections = [first].concat(newSections,tail,old.filter(function(s){return s.hiddenNav;}));
+})();

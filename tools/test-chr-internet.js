@@ -4,6 +4,7 @@
 // GitHub runner. Not used by the app, and no incoming WAN port is forwarded.
 const path = require('path');
 const assert = require('assert');
+const {randomBytes} = require('crypto');
 const engine = require('../app/js/lab-sim');
 const {makePlan} = require('../windows/chr/plan');
 const {ChrSession} = require('../windows/chr/session');
@@ -29,6 +30,15 @@ let session;
   assert(!dhcp.some(x => x.interface === 'ether1' && x.disabled !== 'true' && x.disabled !== true), 'Unexpected enabled DHCP client on static WAN');
   assert(wan.length === 1 && wan[0].address === '10.0.2.20/24', 'Unexpected WAN addresses');
   // This test checks connectivity only, not TLS trust. No secret is sent.
-  await session.console.command('/tool fetch url="https://github.com/" output=none check-certificate=no');
+  // CI only, fixed public URL and no credentials: report the RouterOS error
+  // without exposing the general-purpose console to the app or renderer.
+  const token = 'NETDIAG' + randomBytes(12).toString('hex');
+  const marker = '"' + token.slice(0,16) + '" . "' + token.slice(16) + '"';
+  const command = ':onerror e in={ /tool fetch url="https://github.com/" output=none check-certificate=no; :put (' + marker + ' . "OKEND") } do={ :put (' + marker + ' . "ERR" . $e . "END") }';
+  await session.console.settle(); session.console.send(command);
+  const reply = await session.console.expect(new RegExp(token + '(?:OK|ERR)[^\\r\\n]*?END'), 30000);
+  const diagnostic = reply.slice(token.length, -3).replace(/[\x00-\x1f\x7f%]/g, ' ').slice(0,300);
+  console.log('::notice title=CHR outbound result::' + diagnostic);
+  assert.strictEqual(diagnostic, 'OK', 'Outbound request from CHR failed; see diagnostic annotation');
   console.log('::notice title=CHR outbound test::HTTPS fetch from guest completed; TLS certificate validation was not tested.');
 })().catch(e => { console.log('::error title=CHR outbound test::' + String(e.message).replace(/[\r\n%]/g,' ')); console.log('::notice title=CHR outbound diagnostics::' + JSON.stringify(events)); process.exitCode=1; }).finally(async () => { if (session) await session.stop(); });

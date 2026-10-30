@@ -100,12 +100,12 @@ if [ "$ready" -ne 1 ]; then
   kill "$pid" 2>/dev/null || true
   exit 1
 fi
-# Focus the real Qt window before opening PPP; there is no window manager in Xvfb.
+# Focus the real Qt window before opening Interfaces; there is no window manager in Xvfb.
 # The captured image still needs human inspection; a window title is not proof
 # that any particular dialog opened.
 win=$(xdotool search --onlyvisible --pid "$pid" | head -n 1)
 xdotool windowfocus --sync "$win"
-xdotool mousemove --sync 170 275
+xdotool mousemove --sync 170 203
 xdotool click 1
 sleep 8
 rm -f "$3/winbox.png"

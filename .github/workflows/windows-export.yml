@@ -39,5 +39,11 @@ jobs:
         run: |
           ./windows/node_modules/.bin/electron.cmd tools/test-export-electron.js
           if ($LASTEXITCODE -ne 0) { throw 'Diagram export test failed' }
-      - name: Export original Windows screenshot as annotations
-        run: python tools/export-diagram-screenshot.py
+      - name: Export original Windows screenshot 0–9
+        run: python tools/export-diagram-screenshot.py 0
+      - name: Export original Windows screenshot 10–19
+        run: python tools/export-diagram-screenshot.py 10
+      - name: Export original Windows screenshot 20–29
+        run: python tools/export-diagram-screenshot.py 20
+      - name: Export original Windows screenshot 30–39
+        run: python tools/export-diagram-screenshot.py 30

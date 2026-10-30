@@ -58,7 +58,7 @@ async function main() {
   console.log('== Загрузка приложения ==');
   ok(scriptErrors.length === 0, 'нет ошибок исполнения скриптов' + (scriptErrors.length ? ': ' + scriptErrors.join(' | ') : ''));
   ok(typeof win.StandEngine === 'object', 'StandEngine загружен');
-  ok(doc.getElementById('nav').children.length === 12, 'разделов в меню: ' + doc.getElementById('nav').children.length);
+  ok(doc.getElementById('nav').children.length === 24, 'разделов в меню: ' + doc.getElementById('nav').children.length);
   ok(doc.getElementById('content').children.length > 0, 'первый раздел отрендерен');
   const ownShot = doc.querySelector('#content li img[src$="chr-winbox4-workspace.png"]');
   ok(!!ownShot && !ownShot.closest('li').textContent.includes('отдельный скриншот пока не добавлен'), 'свой снимок прикреплён к отдельному действию');
@@ -211,25 +211,27 @@ async function main() {
 
   console.log('== Навигация ==');
   const navItems = doc.getElementById('nav').children;
-  const navInitial = Array.from(navItems).find(item => item.dataset.sec === 'initial');
+  const navInitial = Array.from(navItems).find(item => item.dataset.sec === 'ros-interfaces');
   const secId = navInitial.dataset.sec;
   win.location.hash = '#' + secId;
   await delay(80);
-  if ($('topbar-title').textContent !== 'Подключение провайдера') {
+  if ($('topbar-title').textContent !== 'Interfaces') {
     // jsdom не всегда эмулирует hashchange по клику на <a> — диспатчим событие вручную
     win.dispatchEvent(new win.Event('hashchange'));
     await delay(30);
   }
   ok(win.location.hash === '#' + secId, 'hash обновлён: ' + win.location.hash);
-  ok($('topbar-title').textContent === 'Подключение провайдера',
+  ok($('topbar-title').textContent === 'Interfaces',
     'заголовок топбара соответствует разделу: ' + $('topbar-title').textContent);
   ok(navInitial.classList.contains('active'), 'раздел активен в меню');
   ok(doc.getElementById('content').children.length > 0, 'раздел отрендерен после перехода');
 
-  win.location.hash = '#reference';
+  win.location.hash = '#ros-ipv6';
   win.dispatchEvent(new win.Event('hashchange'));
   await delay(30);
-  ok($('content').textContent.includes('Очереди и ограничение скорости') && $('content').textContent.includes('IPv6'), 'новый справочник доступен и отображается');
+  ok($('content').textContent.includes('IPv6') && $('content').textContent.includes('Neighbor Discovery'), 'раздел IPv6 доступен и отображается');
+  ok(Array.from(navItems).slice(0,20).map(x=>x.querySelector('.ni-t').textContent).join('|') === 'Первичная настройка|WiFi|Interfaces|WireGuard|PPP|Bridge|Switch|Mesh|IP|IPv6|MPLS|Routing|System|Queues|Dot1X|Files|Log|RADIUS|Tools|Make Supout.rif', 'порядок меню соответствует RouterOS');
+  ok(!doc.querySelector('#content img[src*="official/"], #content img[src*="examples/"]'), 'старые или сторонние снимки не выдаются за оригинальные WinBox 4');
 
   ok(scriptErrors.length === 0, 'итог: ошибок скриптов нет' + (scriptErrors.length ? ': ' + scriptErrors.join(' | ') : ''));
 

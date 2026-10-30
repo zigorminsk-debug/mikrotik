@@ -13,11 +13,12 @@ for (const file of fs.readdirSync(dir).filter(f => /^sec-.*\.js$/.test(f)).sort(
   vm.runInContext(fs.readFileSync(path.join(dir, file), 'utf8'), context, {filename:file});
 const clean = text => String(text || '').replace(/\r?\n/g, ' ').replace(/\|/g, '\\|');
 const out = ['# Инвентаризация иллюстраций учебника', '',
-  'Создаётся командой `node tools/audit-screens.js`. Это инвентаризация, а не доказательство соответствия: изображения внутри раздела могут показывать другие значения, версию или действие.', '',
+  'Создаётся командой `node tools/audit-screens.js` для видимых разделов меню. Это инвентаризация, а не доказательство соответствия: изображения внутри раздела могут показывать другие значения, версию или действие.', '',
   'Каждый пункт без явной привязки отдельного снимка помечен ниже. Наличие общего изображения в подразделе не подтверждает покрытие пункта. Команды, абзацы, таблицы и действия вне нумерованных списков также требуют ручной проверки.', '',
   'Графическая лаборатория и интерактивный конструктор создают инструкции динамически: все комбинации устройств и их изображения проверяются отдельно, в эту статическую инвентаризацию они не входят.', ''];
 let steps = 0, items = 0, matched = 0;
 for (const section of context.GUIDE.sections) {
+  if (section.hiddenNav) continue;
   if (!section.steps || !section.steps.length) continue;
   out.push('## ' + clean(section.title), '');
   for (const step of section.steps) {
