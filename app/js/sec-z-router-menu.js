@@ -45,6 +45,10 @@ first.lead='Первое подключение, безопасность, ин�
 var newSections = info.map(function(row) {
   var related=[]; row[4].forEach(function(group){related=related.concat(steps(group[0],group[1]));});
   var intro = {t:'Назначение раздела',b:[P(row[3]), WARN('Перед изменениями сохраните резервную копию, проверьте модель и версию RouterOS, держите доступ для восстановления.'), NOTE('Покрытие раздела пока неполное; отдельные оригинальные снимки действий WinBox 4 ещё готовятся.')]};
+  if (row[0] === 'interfaces') {
+    intro.b.push(OL([ACTION('В WinBox 4 нажмите Interfaces и откройте вкладку Interface. Просмотрите список и типы интерфейсов.', IMG('assets/img/own/interfaces-winbox4.jpg', 'Собственный снимок WinBox 4.4: список интерфейсов тестовой RouterOS CHR 7.23.8. pppoe-out2 отключён; значения и интерфейсы вашего устройства отличаются.'))]));
+    intro.b.push(P('В списке Name — имя, Type — тип интерфейса, Actual MTU — действующий MTU, Tx и Rx — текущие скорости передачи и приёма относительно роутера. Флаг X означает отключённую запись, R — состояние running. В виртуальной машине running не доказывает наличие реального интернета.'));
+  }
   return {id:'ros-'+row[0],icon:row[2],title:row[1],badge:'дополняется',lead:'Раздел меню RouterOS 7: описание и проверка настроек.',steps:[intro].concat(related.map(newShotsOnly))};
 });
 var tail=['catalog','lab','stand','cheat'].map(get);

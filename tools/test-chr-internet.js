@@ -30,6 +30,10 @@ let session;
   assert(!dhcp.some(x => x.interface === 'ether1' && x.disabled !== 'true' && x.disabled !== true), 'Unexpected enabled DHCP client on static WAN');
   assert(wan.length === 1 && wan[0].address === '10.0.2.20/24', 'Unexpected WAN addresses');
   // This test checks connectivity only, not TLS trust. No secret is sent.
+  // github.com may return headers larger than RouterOS fetch supports. Use
+  // a small public endpoint to distinguish HTTP parsing failure from no WAN.
+  await session.console.command('/tool fetch url="https://api.github.com/zen" output=none check-certificate=no');
+  console.log('::notice title=CHR small outbound fetch::Small HTTPS response fetched; TLS trust and failover are not tested.');
   // CI only, fixed public URL and no credentials: report the RouterOS error
   // without exposing the general-purpose console to the app or renderer.
   const token = 'NETDIAG' + randomBytes(12).toString('hex');
