@@ -97,6 +97,14 @@ for attempt in $(seq 1 12); do
   rm -f "$3/winbox.png"
   scrot "$3/winbox.png"
   if grep -q 'Auth OK' "$3/winbox.log" && grep -q 'WBOXSESS,INFO: first clock synced' "$3/winbox.log" && kill -0 "$pid" 2>/dev/null; then ready=1; break; fi
+  # A QEMU/slirp connection may close during startup. Reopen WinBox instead
+  # of waiting indefinitely on an error dialog; keep the check fail-closed.
+  if grep -q 'RemoteHostClosedError' "$3/winbox.log" || ! kill -0 "$pid" 2>/dev/null; then
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+    "$1" 127.0.0.1:18291 admin "$2" >"$3/winbox.log" 2>&1 &
+    pid=$!
+  fi
 done
 if [ "$ready" -ne 1 ]; then
   echo 'WinBox did not reach a verifiable CHR workspace' >>"$3/winbox.log"
@@ -118,6 +126,7 @@ sleep 2
 xdotool mousemove --sync 305 421
 xdotool click 1
 sleep 8
+rm -f "$3/winbox.png"
 scrot "$3/winbox.png"
 scrot -q 45 "$3/winbox.jpg"
 # System -> Clock; captures an actual window, verified visually before use.

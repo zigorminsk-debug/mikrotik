@@ -23,7 +23,11 @@ let session;
     session = new ChrSession({qemu:path.resolve(qemu),image:path.resolve(image),tempRoot:path.resolve(work),supervisor:path.resolve(supervisor),diagnostic:e=>events.push(e),diagnoseManagement:true});
     const info = await session.start(plan); // Applies commands and verifies via REST.
     const get = makeReader(Number(new URL(info.url).port),info.user,info.password);
-    const [clock,ntp,servers] = await Promise.all([get('/rest/system/clock'),get('/rest/system/ntp/client'),get('/rest/system/ntp/client/servers')]);
+    // Serialise REST reads like the application; concurrent extra diagnostic
+    // queries can overload the tiny single-core CHR's management connection.
+    const clock = await get('/rest/system/clock');
+    const ntp = await get('/rest/system/ntp/client');
+    const servers = await get('/rest/system/ntp/client/servers');
     assert.equal(clock['time-zone-name'],'Europe/Minsk');
     assert.equal(String(clock['time-zone-autodetect']),'false');
     assert.equal(String(ntp.enabled),'true');
