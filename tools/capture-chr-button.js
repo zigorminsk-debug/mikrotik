@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 app.commandLine.appendSwitch('disable-gpu');
 app.whenReady().then(async () => {
-  const win = new BrowserWindow({width:1100,height:800,show:false,webPreferences:{offscreen:true,sandbox:true,contextIsolation:true,nodeIntegration:false}});
+  const win = new BrowserWindow({width:1000,height:720,show:false,webPreferences:{offscreen:true,sandbox:true,contextIsolation:true,nodeIntegration:false}});
   try {
     await win.loadFile(path.resolve(__dirname,'../windows/www/index.html'));
     await win.webContents.executeJavaScript(`(async () => {
@@ -18,7 +18,7 @@ app.whenReady().then(async () => {
     const image = await win.webContents.capturePage();
     if (image.isEmpty()) throw Error('Capture is empty');
     const out = path.join(process.env.RUNNER_TEMP,'chr-button.jpg');
-    fs.writeFileSync(out, image.toJPEG(88));
+    fs.writeFileSync(out, image.toJPEG(68));
     console.log('Captured actual application window:', out);
   } catch (e) { console.error('Capture failed:',e.message); process.exitCode=1; }
   finally {win.destroy();app.quit();}
