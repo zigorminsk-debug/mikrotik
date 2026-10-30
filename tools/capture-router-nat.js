@@ -8,6 +8,7 @@ app.whenReady().then(async () => {
   const win = new BrowserWindow({width:1000,height:900,show:false,webPreferences:{offscreen:true,sandbox:true,contextIsolation:true,nodeIntegration:false}});
   try {
     await win.loadFile(path.resolve(__dirname,'../windows/www/index.html'));
+    win.webContents.setZoomFactor(0.85);
     await win.webContents.executeJavaScript(`(async () => {
       location.hash='lab'; await new Promise(r=>setTimeout(r,250));
       const router=Lab.place('router',220,120), server=Lab.place('server',220,300);
@@ -21,7 +22,7 @@ app.whenReady().then(async () => {
       document.getElementById('lm_pub_0_extra_1_proto').value='udp';
       document.getElementById('lm_pub_0_extra_1_external').value='5353';
       document.getElementById('lm_pub_0_extra_1_local').value='53';
-      on.scrollIntoView({block:'start'}); document.querySelector('#lab-modal .modal-card').scrollTop -= 155; await new Promise(r=>setTimeout(r,700));
+      on.scrollIntoView({block:'start'}); document.querySelector('#lab-modal .modal-card').scrollTop -= 140; await new Promise(r=>setTimeout(r,700));
     })()`);
     const image=await win.webContents.capturePage();
     if (image.isEmpty()) throw Error('Capture is empty');

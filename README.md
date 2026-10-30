@@ -107,7 +107,7 @@ tools/                   # генератор схемы и модульные �
 1. **test** — `node --check` всего JS, регенерация и сверка SVG, модульные и DOM-тесты стенда и лаборатории;
 2. **android** — Gradle 8.4 + JDK 17 → `assembleRelease` → **подписанный APK** → чистый `releases/MikroTik-Guide.apk` в ветке;
 3. **windows** — `npm install` + `electron-builder --win` → установщик `MikroTik-Guide-Setup-x.y.z.exe` → артефакт `MikroTik-Guide-Windows`;
-4. **release** — при пуше тега `vX.Y.Z` создаётся GitHub Release с обоими файлами.
+4. **release** — при создании тега `vX.Y.Z` создаётся черновик GitHub Release с обоими файлами; после проверки файлов и сборок его публикуют отдельно.
 
 Скачать свежую сборку:
 
