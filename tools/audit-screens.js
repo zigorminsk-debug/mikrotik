@@ -14,9 +14,9 @@ for (const file of fs.readdirSync(dir).filter(f => /^sec-.*\.js$/.test(f)).sort(
 const clean = text => String(text || '').replace(/\r?\n/g, ' ').replace(/\|/g, '\\|');
 const out = ['# Инвентаризация иллюстраций учебника', '',
   'Создаётся командой `node tools/audit-screens.js`. Это инвентаризация, а не доказательство соответствия: изображения внутри раздела могут показывать другие значения, версию или действие.', '',
-  'Нумерованные пункты статического учебника пока не имеют явной привязки к отдельным снимкам: наличие общего изображения не подтверждает покрытие пункта. Команды, абзацы, таблицы и действия вне нумерованных списков также требуют ручной проверки.', '',
+  'Каждый пункт без явной привязки отдельного снимка помечен ниже. Наличие общего изображения в подразделе не подтверждает покрытие пункта. Команды, абзацы, таблицы и действия вне нумерованных списков также требуют ручной проверки.', '',
   'Графическая лаборатория и интерактивный конструктор создают инструкции динамически: все комбинации устройств и их изображения проверяются отдельно, в эту статическую инвентаризацию они не входят.', ''];
-let steps = 0, items = 0;
+let steps = 0, items = 0, matched = 0;
 for (const section of context.GUIDE.sections) {
   if (!section.steps || !section.steps.length) continue;
   out.push('## ' + clean(section.title), '');
@@ -26,14 +26,20 @@ for (const section of context.GUIDE.sections) {
     out.push('### ' + clean(step.t), '', '**Изображения в подразделе:** ' + (images.length ? images.map(x => '`' + clean(x.src) + '` — ' + clean(x.cap)).join('; ') : 'нет') + '.', '');
     for (const block of blocks) {
       if (block.k === 'ol') for (const item of block.items || []) {
-        items++;
-        out.push('- [ ] ' + clean(item) + ' — отдельный снимок к пункту не сопоставлен.');
+        const data = typeof item === 'string' ? {text:item} : item;
+        if (data.shot && data.shot.k === 'img' && data.shot.src) {
+          matched++;
+          out.push('- [x] ' + clean(data.text) + ' — `' + clean(data.shot.src) + '`; проверить визуально и по версии.');
+        } else {
+          items++;
+          out.push('- [ ] ' + clean(data.text) + ' — отдельный снимок к пункту не сопоставлен.');
+        }
       }
     }
     out.push('');
   }
 }
-out.splice(2, 0, '**Итого:** ' + steps + ' подразделов; ' + items + ' нумерованных пунктов без явной привязки отдельного снимка. Эти цифры не включают действия в абзацах и динамические инструкции.', '');
+out.splice(2, 0, '**Итого:** ' + steps + ' подразделов; ' + items + ' нумерованных пунктов без явной привязки отдельного снимка, ' + matched + ' с привязкой. Эти цифры не включают действия в абзацах и динамические инструкции.', '');
 const result = out.join('\n') + '\n';
 const output = path.join(root, 'docs/screenshot-audit.md');
 if (process.argv.includes('--check')) {

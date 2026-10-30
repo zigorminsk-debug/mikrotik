@@ -41,9 +41,11 @@ function renderBlock(b, stepIdx, bi) {
     }
     case 'ol': {
       var ol = document.createElement('ol');
-      (b.items || []).forEach(function (it) {
-        var li = el('li', '', fmt(it));
-        li.appendChild(el('div', 'fs-hint', 'Для этого пункта отдельный скриншот пока не добавлен.'));
+      (b.items || []).forEach(function (it, itemIndex) {
+        var data = typeof it === 'string' ? {text:it} : it;
+        var li = el('li', '', fmt(data.text));
+        if (data.shot && data.shot.k === 'img' && data.shot.src) li.appendChild(renderBlock(data.shot, stepIdx, bi + '-' + itemIndex));
+        else li.appendChild(el('div', 'fs-hint', 'Для этого пункта отдельный скриншот пока не добавлен.'));
         ol.appendChild(li);
       });
       return ol;

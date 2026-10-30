@@ -2,7 +2,7 @@
    Блочная модель: шаг = { t: заголовок, b: [ блоки... ] }.
    Виды блоков:
      P(text)            — абзац (поддерживается **жирный** и `код`)
-     UL([..]) / OL([..])— списки
+     UL([..]) / OL([..])— списки; OL поддерживает ACTION(text, IMG(...))
      CMD(code, title?)  — блок команд RouterOS с кнопкой копирования
      IMG(src, cap)      — скриншот
      NOTE/TIP/WARN(text)— подсказки
@@ -16,6 +16,7 @@ var GUIDE = { sections: [] };
 function P(t){ return {k:'p', t:t}; }
 function UL(items){ return {k:'ul', items:items}; }
 function OL(items){ return {k:'ol', items:items}; }
+function ACTION(text, shot){ return {text:text, shot:shot || null}; }
 function CMD(code, title){ return {k:'cmd', t:code, title:title||''}; }
 function IMG(src, cap){ return {k:'img', src:src, cap:cap||''}; }
 function NOTE(t){ return {k:'note', t:t}; }

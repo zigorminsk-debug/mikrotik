@@ -176,13 +176,13 @@ sectionTitle('Контент учебника');
 const ctx = { console, GUIDE: null };
 vm.createContext(ctx);
 const root = path.join(__dirname, '..', 'app', 'js');
-const files = ['guide-core.js', 'sec-intro.js', 'sec-initial.js', 'sec-networks.js',
+const files = ['guide-core.js', 'sec-intro.js', 'sec-catalog.js', 'sec-initial.js', 'sec-networks.js',
   'sec-firewall.js', 'sec-failover.js', 'sec-routing.js', 'sec-vpn.js', 'sec-stand.js'];
 for (const f of files) {
   vm.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), ctx, { filename: f });
 }
 const G = ctx.GUIDE;
-ok(G && G.sections.length === 9, 'разделов в GUIDE: ' + (G ? G.sections.length : 0));
+ok(G && G.sections.length === 10, 'разделов в GUIDE: ' + (G ? G.sections.length : 0));
 let steps = 0, blocks = 0, imgs = 0;
 const imgMissing = [];
 for (const sec of G.sections) {
@@ -192,6 +192,12 @@ for (const sec of G.sections) {
     for (const b of (st.b || [])) {
       blocks++;
       if (b.k === 'cmd') ok2(b.t && b.t.length > 5, 'cmd блок непустой');
+      if (b.k === 'ol') (b.items || []).forEach(item => {
+        if (typeof item === 'object' && item.shot) {
+          ok2(!!item.text && item.shot.k === 'img' && !!item.shot.cap, 'подпись и действие для снимка');
+          if (!fs.existsSync(path.join(root, '..', item.shot.src))) imgMissing.push(item.shot.src + ' (' + sec.id + ')');
+        }
+      });
       if (b.k === 'img') {
         imgs++;
         const p = path.join(root, '..', b.src);

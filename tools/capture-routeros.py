@@ -99,9 +99,14 @@ if [ "$ready" -ne 1 ]; then
   kill "$pid" 2>/dev/null || true
   exit 1
 fi
-# Open PPP (actual GUI). Still needs visual verification of the requested fields.
-xdotool mousemove 170 275 click 1
-sleep 6
+# Focus the real Qt window before opening PPP; there is no window manager in Xvfb.
+# The captured image still needs human inspection; a window title is not proof
+# that any particular dialog opened.
+win=$(xdotool search --onlyvisible --pid "$pid" | head -n 1)
+xdotool windowfocus --sync "$win"
+xdotool mousemove --sync 170 275
+xdotool click 1
+sleep 8
 scrot "$3/winbox.png"
 kill "$pid" 2>/dev/null || true
 '''

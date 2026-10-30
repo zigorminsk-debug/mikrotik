@@ -52,8 +52,11 @@ async function main() {
   console.log('== Загрузка приложения ==');
   ok(scriptErrors.length === 0, 'нет ошибок исполнения скриптов' + (scriptErrors.length ? ': ' + scriptErrors.join(' | ') : ''));
   ok(typeof win.StandEngine === 'object', 'StandEngine загружен');
-  ok(doc.getElementById('nav').children.length === 10, 'разделов в меню: ' + doc.getElementById('nav').children.length);
+  ok(doc.getElementById('nav').children.length === 11, 'разделов в меню: ' + doc.getElementById('nav').children.length);
   ok(doc.getElementById('content').children.length > 0, 'первый раздел отрендерен');
+  const ownShot = doc.querySelector('#content li img[src$="chr-winbox4-workspace.png"]');
+  ok(!!ownShot && !ownShot.closest('li').textContent.includes('отдельный скриншот пока не добавлен'), 'свой снимок прикреплён к отдельному действию');
+  ok(!!doc.querySelector('#content li .fs-hint'), 'для пункта без снимка показано отсутствие');
   ok(!!doc.getElementById('dl-net') && !!doc.getElementById('dl-ip') && !!doc.getElementById('dl-port'), 'datalist автодополнения на месте');
   ok($('lan_cidr').getAttribute('list') === 'dl-net', 'поле подсети подключено к автодополнению');
   ok($('lan_gw').getAttribute('list') === 'dl-ip', 'поле шлюза подключено к автодополнению');
@@ -179,7 +182,8 @@ async function main() {
 
   console.log('== Навигация ==');
   const navItems = doc.getElementById('nav').children;
-  const secId = navItems[1].dataset.sec;
+  const navInitial = Array.from(navItems).find(item => item.dataset.sec === 'initial');
+  const secId = navInitial.dataset.sec;
   win.location.hash = '#' + secId;
   await delay(80);
   if ($('topbar-title').textContent !== 'Подключение провайдера') {
@@ -190,7 +194,7 @@ async function main() {
   ok(win.location.hash === '#' + secId, 'hash обновлён: ' + win.location.hash);
   ok($('topbar-title').textContent === 'Подключение провайдера',
     'заголовок топбара соответствует разделу: ' + $('topbar-title').textContent);
-  ok(navItems[1].classList.contains('active'), 'раздел активен в меню');
+  ok(navInitial.classList.contains('active'), 'раздел активен в меню');
   ok(doc.getElementById('content').children.length > 0, 'раздел отрендерен после перехода');
 
   ok(scriptErrors.length === 0, 'итог: ошибок скриптов нет' + (scriptErrors.length ? ': ' + scriptErrors.join(' | ') : ''));
