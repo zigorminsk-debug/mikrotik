@@ -17,7 +17,7 @@ app.whenReady().then(async () => {
       on.checked=true; on.dispatchEvent(new Event('change'));
       document.getElementById('lm_pub_0_external').value='8443';
       document.getElementById('lm_pub_0_local').value='443';
-      on.scrollIntoView({block:'start'}); await new Promise(r=>setTimeout(r,700));
+      on.scrollIntoView({block:'start'}); document.querySelector('#lab-modal .modal-card').scrollTop -= 155; await new Promise(r=>setTimeout(r,700));
     })()`);
     const image=await win.webContents.capturePage();
     if (image.isEmpty()) throw Error('Capture is empty');
