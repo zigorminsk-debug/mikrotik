@@ -17,7 +17,6 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
       TARGET_TAG: ${{ github.ref_name }}
-      OLD_APK: ${{ runner.temp }}/previous.apk
     steps:
       - uses: actions/checkout@v4
       - name: Download previously published clean APK
@@ -34,7 +33,8 @@ jobs:
           gh release download "$previous" -p '*.apk' -D "$RUNNER_TEMP/previous-release"
           mapfile -t apks < <(find "$RUNNER_TEMP/previous-release" -maxdepth 1 -type f -name '*.apk')
           if [[ ${#apks[@]} -ne 1 ]]; then echo '::error::Expected exactly one previous release APK'; exit 1; fi
-          cp "${apks[0]}" "$OLD_APK"
+          cp "${apks[0]}" "$RUNNER_TEMP/previous.apk"
+          echo "OLD_APK=$RUNNER_TEMP/previous.apk" >> "$GITHUB_ENV"
           echo "Testing installed $previous -> published $TARGET_TAG"
       - name: Wait for verified draft to be published
         shell: bash
