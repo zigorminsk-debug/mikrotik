@@ -22,7 +22,7 @@ const events = [];
 const session = new ChrSession({qemu:path.resolve(qemu),image:path.resolve(image),tempRoot:path.resolve(work),supervisor:path.resolve(supervisor),diagnostic:e=>events.push(e),diagnoseManagement:true,internetConsent:internet});
 (async () => {
   assert(makePlan(engine,state,'r').blockers.length, 'Experiment must remain inaccessible from the app');
-  const plan = makePlan(engine,state,'r',{testDualStaticWan:true});
+  const plan = makePlan(engine,state,'r',{allowDualStaticWan:true});
   assert.deepStrictEqual(plan.blockers, []);
   assert.equal(plan.expected.wans.length,2);
   const info = await session.start(plan); // Includes full REST verification.

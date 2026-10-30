@@ -5,7 +5,8 @@ const fs = require('fs');
 const vm = require('vm');
 const {EventEmitter} = require('events');
 const source = fs.readFileSync(require('path').join(__dirname,'../windows/main.js'),'utf8');
-const windows = [], handlers = {}, choices = [], downloads = [], opened = [], created = [], errors = [], writes = [];
+const windows = [], handlers = {}, choices = [], downloads = [], opened = [], created = [], errors = [], writes = [], dialogs = [];
+let onlineValid = true;
 let saveChoice = {canceled:true};
 let plan = {blockers:[],groups:[{id:'iface',commands:['/interface print']}],expected:{}};
 class Window extends EventEmitter {
@@ -26,13 +27,14 @@ class Session {
 }
 const app=new EventEmitter();Object.assign(app,{isPackaged:true,getPath:()=>'/test-data',requestSingleInstanceLock:()=>true,whenReady:()=>Promise.resolve(),quit:()=>{}});
 const electron={app,BrowserWindow:Window,shell:{openExternal:async url=>opened.push(url)},
-  dialog:{showMessageBox:async()=>({response:choices.shift()}),showErrorBox:(_title,msg)=>errors.push(msg),showSaveDialog:async()=>saveChoice},
+  dialog:{showMessageBox:async(_win,options)=>{dialogs.push(options);return {response:choices.shift()};},showErrorBox:(_title,msg)=>errors.push(msg),showSaveDialog:async()=>saveChoice},
   ipcMain:{handle:(name,fn)=>handlers[name]=fn},clipboard:{writeText(){},readText(){return '';},clear(){}}};
 const mockfs={promises:{readdir:async()=>{const e=new Error();e.code='ENOENT';throw e;},access:async()=>{},rm:async()=>{},writeFile:async(file,data)=>writes.push({file,data:Buffer.from(data)})}};
 const req=name=>{
   if(name==='electron')return electron;if(name==='fs')return mockfs;
   if(name==='./www/js/lab-sim')return {};
   if(name==='./chr/plan')return {makePlan:()=>plan};
+  if(name==='./chr/online')return {validateDualInternet:()=>onlineValid};
   if(name==='./chr/download')return {ensureImage:async(root,consent)=>{downloads.push({root,consent});return '/image/chr-7.23.8.img';}};
   if(name==='./chr/session')return {ChrSession:Session};
   return require(name);
@@ -56,12 +58,19 @@ vm.runInNewContext(source,{require:req,process:{platform:'win32',resourcesPath:'
   plan={blockers:[],groups:[{id:'iface',commands:['/interface print']}],expected:{}};
   choices.push(2);const cancelled=await call(good,'r',{});assert(cancelled.cancelled && !downloads.length);
   choices.push(0,1,1);const result=await call(good,'r',{});assert(result.ok);assert(opened.includes('https://mikrotik.com/software/legal'));assert.strictEqual(downloads.length,1);assert.strictEqual(downloads[0].consent,true);
-  assert.strictEqual(created[0].plan,plan);assert.strictEqual(created[0].opts.qemu,'/resources/qemu/qemu-system-x86_64.exe');
+  assert.strictEqual(created[0].opts.internetConsent,false);assert.strictEqual(created[0].plan,plan);assert.strictEqual(created[0].opts.qemu,'/resources/qemu/qemu-system-x86_64.exe');
   const guest=windows[1];assert(guest.url==='http://127.0.0.1:18765/');assert(guest.options.webPreferences.sandbox && !guest.options.webPreferences.nodeIntegration);
   let outcome;guest.requests({url:'https://example.com/'},x=>outcome=x);assert(outcome.cancel);
   guest.requests({url:'http://127.0.0.1:18765/webfig'},x=>outcome=x);assert(!outcome.cancel);
   guest.requests({url:'ws://127.0.0.1:18765/socket'},x=>outcome=x);assert(!outcome.cancel);
   assert(!JSON.stringify(main.events).includes('TEMPORARY_TEST_PASSWORD'));
   guest.destroy();await new Promise(resolve=>setImmediate(resolve));assert(created[0].stopped);assert(!errors.length);
+  plan={blockers:[],groups:[{id:'iface',commands:['/interface print']}],expected:{wans:[{},{}]}};
+  onlineValid=false; let rejectedOnline=await call(good,'r',{}); assert(!rejectedOnline.ok && rejectedOnline.message.includes('10.0.2.20')); assert.strictEqual(created.length,1);
+  onlineValid=true; choices.push(0); let denied=await call(good,'r',{}); assert(denied.cancelled); assert.strictEqual(created.length,1);
+  assert(dialogs.at(-1).detail.includes('службам этого компьютера') && dialogs.at(-1).defaultId===0);
+  choices.push(1,1,1);const allowed=await call(good,'r',{}); assert(allowed.ok); assert.strictEqual(created.length,2); assert.strictEqual(created[1].opts.internetConsent,true);
+  assert(dialogs.some(d=>d.title==='Лицензия RouterOS CHR' && d.detail.includes('компьютеру и локальной сети')));
+  windows[2].destroy(); await new Promise(resolve=>setImmediate(resolve)); assert(created[1].stopped);
   console.log('Windows мост: только главное окно, согласие, изоляция WebFig и остановка проверены.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -6,6 +6,7 @@ const path = require('path');
 const { randomBytes } = require('crypto');
 const engine = require('./www/js/lab-sim');
 const { makePlan } = require('./chr/plan');
+const { validateDualInternet } = require('./chr/online');
 const { ensureImage } = require('./chr/download');
 const { ChrSession } = require('./chr/session');
 
@@ -31,12 +32,12 @@ async function closeChr() {
   if (chrWindow && !chrWindow.isDestroyed()) { const w = chrWindow; chrWindow = null; w.destroy(); }
   if (s) await s.stop();
 }
-async function licenseConsent() {
+async function licenseConsent(online) {
   while (mainWindow && !mainWindow.isDestroyed()) {
     const answer = await dialog.showMessageBox(mainWindow, {
       type:'info', title:'Лицензия RouterOS CHR',
       message:'Перед первой загрузкой ознакомьтесь с условиями MikroTik.',
-      detail:'Официальный образ CHR 7.23.8 будет загружен с download.mikrotik.com и проверен по SHA-256. ВМ изолирована от физической сети и интернета. Выбранные клиентские устройства и провайдеры не запускаются как ВМ. Все изменения в CHR удаляются при закрытии окна. Бесплатная лицензия CHR ограничивает скорость.',
+      detail:'Официальный образ CHR 7.23.8 будет загружен с download.mikrotik.com и проверен по SHA-256. ' + (online ? 'ВМ сможет обращаться к интернету, компьютеру и локальной сети через Windows.' : 'ВМ изолирована от физической сети и интернета.') + ' Выбранные клиентские устройства и провайдеры не запускаются как ВМ. Все изменения в CHR удаляются при закрытии окна. Бесплатная лицензия CHR ограничивает скорость.',
       buttons:['Открыть условия MikroTik', 'Согласен и запустить', 'Отмена'], defaultId:0, cancelId:2, noLink:true
     });
     if (answer.response === 0) { await shell.openExternal('https://mikrotik.com/software/legal'); continue; }
@@ -73,17 +74,28 @@ ipcMain.handle('chr:launch', async (event, routerId, state) => {
   try {
     status('Проверка проекта виртуальной RouterOS…');
     if (typeof routerId !== 'string' || routerId.length > 128 || !state || Buffer.byteLength(JSON.stringify(state), 'utf8') > 256000) throw new Error('Недопустимый размер или формат проекта.');
-    const plan = makePlan(engine, state, routerId);
+    const plan = makePlan(engine, state, routerId, {allowDualStaticWan:true});
     if (plan.blockers.length) return {ok:false, message:plan.blockers.join('\n')};
+    const online = Array.isArray(plan.expected.wans) && plan.expected.wans.length === 2;
+    if (online) {
+      if (!validateDualInternet(plan.expected)) return {ok:false, message:'Этот интернет-режим пока поддерживает только два виртуальных статических WAN: ether1 — 10.0.2.20/24, шлюз 10.0.2.2; ether4 — 10.0.3.20/24, шлюз 10.0.3.2; DNS 10.0.2.3 и 10.0.3.3. Порты зависят от порядка подключения на схеме. Программа не заменяет выбранные адреса. Настоящие независимые провайдеры, DHCP и PPPoE пока не поддерживаются.'};
+      const networkChoice = await dialog.showMessageBox(mainWindow, {
+        type:'warning', title:'Доступ виртуальной CHR к сети',
+        message:'Разрешить виртуальной RouterOS сетевой доступ через этот компьютер?',
+        detail:'CHR сможет обращаться к интернету, службам этого компьютера и устройствам локальной сети. Запускайте только доверенную конфигурацию в безопасной сети. Два виртуальных WAN используют одно подключение Windows и не являются независимыми провайдерами. Переключение проверено только при отключении интерфейса, а не при обрыве интернета за работающим шлюзом. Клиенты схемы не запускаются. Входящий WAN-проброс на компьютере не создаётся; управление CHR доступно только через localhost. Доступ прекратится при закрытии CHR.',
+        buttons:['Отмена', 'Разрешить для этого запуска'], defaultId:0, cancelId:0, noLink:true
+      });
+      if (networkChoice.response !== 1 || quitting || !mainWindow || mainWindow.isDestroyed()) return {ok:false, cancelled:true};
+    }
     status('Ознакомьтесь с условиями лицензии MikroTik.');
-    if (!await licenseConsent()) return {ok:false, cancelled:true};
+    if (!await licenseConsent(online)) return {ok:false, cancelled:true};
     const qemu = path.join(process.resourcesPath, 'qemu', 'qemu-system-x86_64.exe');
     const supervisor = path.join(process.resourcesPath, 'chr-supervisor.exe');
     await Promise.all([fs.access(qemu), fs.access(supervisor)]);
     status('Проверка или загрузка официального образа CHR. При первом запуске это может занять несколько минут…');
     const image = await ensureImage(path.join(app.getPath('userData'), 'chr-cache'), true);
     if (quitting || !mainWindow || mainWindow.isDestroyed()) return {ok:false, cancelled:true};
-    const vm = new ChrSession({qemu, image, supervisor, tempRoot:sessionsRoot()});
+    const vm = new ChrSession({qemu, image, supervisor, tempRoot:sessionsRoot(), internetConsent:online});
     active = vm;
     status('Запуск CHR, применение и проверка настроек. Это может занять несколько минут…');
     const info = await vm.start(plan);
@@ -92,8 +104,8 @@ ipcMain.handle('chr:launch', async (event, routerId, state) => {
     });
     if (quitting || !mainWindow || mainWindow.isDestroyed()) { await closeChr(); return {ok:false, cancelled:true}; }
     const choice = await dialog.showMessageBox(mainWindow, {type:'info', title:'Виртуальная RouterOS готова',
-      message:'Базовые настройки проверены в изолированной CHR.',
-      detail:'Логин: admin\nВременный пароль: ' + info.password + '\n\nПри закрытии окна виртуальный диск будет удалён. Интернет, клиенты и провайдеры схемы не эмулируются.',
+      message:online ? 'Настройки проверены в CHR с двумя виртуальными WAN.' : 'Базовые настройки проверены в изолированной CHR.',
+      detail:'Логин: admin\nВременный пароль: ' + info.password + '\n\nПри закрытии окна виртуальный диск будет удалён. ' + (online ? 'Оба WAN используют сеть Windows. Клиенты и независимые провайдеры схемы не эмулируются; доступ к компьютеру и локальной сети возможен.' : 'Интернет, клиенты и провайдеры схемы не эмулируются.'),
       buttons:['Скопировать пароль и открыть', 'Открыть без копирования', 'Закрыть CHR'], defaultId:0, cancelId:2, noLink:true});
     if (choice.response === 2 || active !== vm || quitting) { await closeChr(); return {ok:false, cancelled:true}; }
     if (choice.response === 0) {

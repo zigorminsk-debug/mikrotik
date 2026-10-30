@@ -15,9 +15,9 @@ function makePlan(engine, state, routerId, options = {}) {
   const isps = state.devices.filter(d => d.type === 'isp');
   if (router) {
     const c = router.cfg || {};
-    if (c.routerFailover || (c.wanFailover && options.testDualStaticWan !== true)) blockers.push('Переключение провайдеров и роутеров ещё не проверено в виртуальной CHR; выключите резервирование.');
+    if (c.routerFailover || (c.wanFailover && options.allowDualStaticWan !== true)) blockers.push('Переключение провайдеров и роутеров ещё не проверено в виртуальной CHR; выключите резервирование.');
   }
-  const dualExperiment = options.testDualStaticWan === true && isps.length === 2 && router && router.cfg && router.cfg.wanFailover === true && isps.every(x => x.cfg && x.cfg.kind === 'static');
+  const dualExperiment = options.allowDualStaticWan === true && isps.length === 2 && router && router.cfg && router.cfg.wanFailover === true && isps.every(x => x.cfg && x.cfg.kind === 'static');
   if (!dualExperiment && (isps.length !== 1 || !isps[0].cfg || isps[0].cfg.kind !== 'static')) blockers.push('Пока проверен только один провайдер со статическим IPv4; виртуальный провайдер не подключён к интернету.');
   if (state.devices.some(d => d.on === false)) blockers.push('Состояние выключенных устройств ещё не воспроизводится в CHR.');
   if (state.devices.some(d => d.cfg && d.cfg.nics && d.cfg.nics.length)) blockers.push('Дополнительные сетевые карты клиентов ещё не проверены в CHR.');

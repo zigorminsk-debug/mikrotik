@@ -8,6 +8,8 @@ on:
       - 'tools/chr-ci-fixture.js'
       - 'tools/chr-ci-dual-wan-fixture.js'
       - 'tools/test-chr-dual-wan.js'
+      - 'tools/test-chr-dual-integration.js'
+      - 'windows/main.js'
       - 'tools/test-chr-verify.js'
       - 'tools/test-chr-session.js'
       - 'tools/test-chr-internet.js'
@@ -95,3 +97,9 @@ jobs:
           $env:CHR_DUAL_INTERNET = '1'
           node tools/test-chr-dual-wan.js "$env:QEMU_EXE" "$env:CHR_IMAGE" (Join-Path $dir 'dual-online-sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe')
           if ($LASTEXITCODE -ne 0) { throw 'Selected dual-WAN internet test failed' }
+      - name: Exercise main-process launch with real CHR and simulated dialog responses
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'qemu-candidate'
+          node tools/test-chr-dual-integration.js "$env:QEMU_EXE" "$env:CHR_IMAGE" (Join-Path $dir 'integration-sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe')
+          if ($LASTEXITCODE -ne 0) { throw 'Main-process and real CHR integration test failed' }

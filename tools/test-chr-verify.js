@@ -41,7 +41,7 @@ const get = async key => { assert(key in records, key); return records[key]; };
   records['/rest/ip/dns/static'][0].address = e.dnsStatic.address; records['/rest/ip/firewall/filter'][1].action = e.filterRules[0].action;
   const dstnat = records['/rest/ip/firewall/nat'].find(x => x.chain === 'dstnat'); dstnat['to-ports'] = '444'; await assert.rejects(verifyConfiguration(e,get),/правила NAT/);
   // Both WAN entries must be checked, including duplicate/incorrect settings.
-  const dual = makePlan(E,require('./chr-ci-dual-wan-fixture').state,'r',{testDualStaticWan:true}).expected;
+  const dual = makePlan(E,require('./chr-ci-dual-wan-fixture').state,'r',{allowDualStaticWan:true}).expected;
   const second = dual.wans[1];
   const oldNat=records['/rest/ip/firewall/nat'].find(x=>x.chain==='dstnat'); oldNat['to-ports']='443';
   records['/rest/interface/list/member'].push({list:'WAN',interface:second.port});

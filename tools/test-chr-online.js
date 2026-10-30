@@ -8,7 +8,7 @@ Object.assign(state.devices.find(d=>d.id==='isp').cfg,{ip:'10.0.2.20/24',gw:'10.
 Object.assign(state.devices.find(d=>d.id==='isp2').cfg,{ip:'10.0.3.20/24',gw:'10.0.3.2',dns:'10.0.3.3'});
 Object.assign(state.devices.find(d=>d.id==='r').cfg,{customDns:true,dnsPrimary:'10.0.2.3',dnsSecondary:'10.0.3.3'});
 assert(makePlan(E,state,'r').blockers.length);
-const expected = makePlan(E,state,'r',{testDualStaticWan:true}).expected;
+const expected = makePlan(E,state,'r',{allowDualStaticWan:true}).expected;
 assert(validateDualInternet(expected));
 for (const change of [
   e=>e.wans[0].port='ether4', e=>e.wans[1].gateway='10.0.3.4', e=>e.wans[1].address='10.0.3.21/24',
