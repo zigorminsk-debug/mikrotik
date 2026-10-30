@@ -86,3 +86,10 @@ jobs:
             node tools/test-chr-dual-wan.js "$env:QEMU_EXE" "$env:CHR_IMAGE" (Join-Path $dir 'dual-sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe')
             if ($LASTEXITCODE -ne 0) { throw "Dual WAN CHR test failed on run $attempt" }
           }
+      - name: Test selected dual-WAN configuration with CI-only internet
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'qemu-candidate'
+          $env:CHR_DUAL_INTERNET = '1'
+          node tools/test-chr-dual-wan.js "$env:QEMU_EXE" "$env:CHR_IMAGE" (Join-Path $dir 'dual-online-sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe')
+          if ($LASTEXITCODE -ne 0) { throw 'Selected dual-WAN internet test failed' }

@@ -110,6 +110,12 @@ xdotool click 1
 sleep 8
 rm -f "$3/winbox.png"
 scrot "$3/winbox.png"
+scrot -q 45 "$3/winbox-list.jpg"
+# Open the actual Ethernet interface properties, not an illustration or a
+# third-party image. The disposable CHR has no production credentials.
+xdotool mousemove --sync 398 301
+xdotool click --repeat 2 --delay 150 1
+sleep 8
 scrot -q 45 "$3/winbox.jpg"
 kill "$pid" 2>/dev/null || true
 '''
