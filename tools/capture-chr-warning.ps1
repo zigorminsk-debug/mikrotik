@@ -30,7 +30,9 @@ try {
     $graphics.CopyFromScreen([int]$rect.X,[int]$rect.Y,0,0,$bitmap.Size)
     $bitmap.Save((Join-Path $env:RUNNER_TEMP 'chr-warning.jpg'),[System.Drawing.Imaging.ImageFormat]::Jpeg)
   } finally { $graphics.Dispose(); $bitmap.Dispose() }
-  $cancel = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,'Отмена')
+  $cancelName = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,'Отмена')
+  $buttonType = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty,[System.Windows.Automation.ControlType]::Button)
+  $cancel = [System.Windows.Automation.AndCondition]::new($cancelName,$buttonType)
   $button = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants,$cancel)
   if (!$button) { throw 'Cancel button not found' }
   $pattern = $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
