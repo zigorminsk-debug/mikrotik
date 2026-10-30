@@ -37,7 +37,9 @@ try {
   [void][Microsoft.VisualBasic.Interaction]::AppActivate($title)
   [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
   if (!$p.WaitForExit(30000)) { throw 'Electron did not exit after cancelling' }
-  if ($p.ExitCode -ne 0) { throw "Electron failed: $(Get-Content -Raw $err -ErrorAction SilentlyContinue)" }
+  $p.Refresh()
+  $output = Get-Content -Raw $out -ErrorAction SilentlyContinue
+  if (($null -ne $p.ExitCode -and $p.ExitCode -ne 0) -or $output -notmatch 'Native online warning shown and cancelled') { throw "Electron failed: $(Get-Content -Raw $err -ErrorAction SilentlyContinue)" }
   if ((Get-Item (Join-Path $env:RUNNER_TEMP 'chr-warning.jpg')).Length -lt 5000) { throw 'Screenshot unexpectedly small' }
-  Get-Content $out
+  Write-Output $output
 } finally { $p.Refresh(); if (!$p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } }
