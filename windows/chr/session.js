@@ -41,8 +41,10 @@ class ChrSession {
       await fs.copyFile(this.image, disk, fsConstants.COPYFILE_EXCL);
       if (this.closed) throw new Error('Сессия остановлена');
       const managementPort = await temporaryPort();
+      if (this.closed) throw new Error('Сессия остановлена');
       this.server = net.createServer();
       const serialPort = await bind(this.server);
+      if (this.closed) throw new Error('Сессия остановлена');
       const args = ['-machine','pc,accel=tcg','-m','256','-smp','2','-display','none','-monitor','none',
         '-serial', `tcp:127.0.0.1:${serialPort}`, '-drive', `file=${disk.replace(/,/g, ',,')},format=raw,if=ide`];
       // Five topology ports remain isolated: no bridge, TAP or host forwarding.
