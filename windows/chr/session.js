@@ -79,11 +79,15 @@ class ChrSession {
       if (this.closed) throw new Error('Сессия остановлена');
       // Administrative access is separate from the simulated topology and
       // remains first in the input chain when the laboratory firewall is added.
-      for (const command of [
+      const managementCommands = [
         '/ip address add address=172.31.254.15/24 interface=ether6',
         '/ip service enable www',
         '/ip firewall filter add chain=input in-interface=ether6 action=accept comment="Lab management"'
-      ]) await this.console.command(command);
+      ];
+      for (let index = 0; index < managementCommands.length; index++) {
+        try { await this.console.command(managementCommands[index]); }
+        catch (error) { try { this.diagnostic({group:'management', commandIndex:index}); } catch (_) {} throw error; }
+      }
       for (const group of plan.groups) {
         if (!Array.isArray(group.commands)) continue;
         for (let index = 0; index < group.commands.length; index++) {

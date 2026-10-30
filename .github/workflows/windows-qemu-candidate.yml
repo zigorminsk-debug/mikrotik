@@ -63,6 +63,12 @@ jobs:
         run: |
           cl /nologo /O2 /W3 tools/windows/chr-supervisor.c "/Fo$env:RUNNER_TEMP/chr-supervisor.obj" /link "/OUT:$env:RUNNER_TEMP/chr-supervisor.exe"
           if ($LASTEXITCODE -ne 0) { throw 'Supervisor compilation failed' }
+      - name: Research outbound connectivity from the guest
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'qemu-candidate'
+          node tools/test-chr-internet.js "$env:QEMU_EXE" "$env:CHR_IMAGE" (Join-Path $dir 'internet-sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe')
+          if ($LASTEXITCODE -ne 0) { throw 'CHR outbound research test failed' }
       - name: Test real isolated CHR session using candidate
         shell: pwsh
         run: |
@@ -73,9 +79,3 @@ jobs:
             node tools/test-chr-session.js "$env:QEMU_EXE" "$env:CHR_IMAGE" (Join-Path $dir 'fixture.json') (Join-Path $dir 'sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe')
             if ($LASTEXITCODE -ne 0) { throw "QEMU candidate session failed on run $attempt" }
           }
-      - name: Research outbound connectivity from the guest
-        shell: pwsh
-        run: |
-          $dir = Join-Path $env:RUNNER_TEMP 'qemu-candidate'
-          node tools/test-chr-internet.js "$env:QEMU_EXE" "$env:CHR_IMAGE" (Join-Path $dir 'internet-sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe')
-          if ($LASTEXITCODE -ne 0) { throw 'CHR outbound research test failed' }
