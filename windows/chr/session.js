@@ -77,7 +77,20 @@ class ChrSession {
         '/ip firewall filter add chain=input in-interface=ether6 action=accept comment="Lab management"'
       ]) await this.console.command(command);
       for (const command of commands) await this.console.command(command);
-      await verifyConfiguration(plan.expected, makeReader(managementPort, 'admin', password));
+      const get = makeReader(managementPort, 'admin', password);
+      let verificationError;
+      // Under software emulation, WebFig can become reachable after the serial
+      // console and configuration. Retry only connection failures, never a
+      // mismatch in the settings themselves.
+      for (let attempt = 0; attempt < 4; attempt++) {
+        try { await verifyConfiguration(plan.expected, get); verificationError = null; break; }
+        catch (error) {
+          verificationError = error;
+          if (!/Не удалось подключиться к виртуальной CHR/.test(error.message) || attempt === 3 || this.closed) throw error;
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
+      if (verificationError) throw verificationError;
       return { url:`http://127.0.0.1:${managementPort}/`, user:'admin', password };
     } catch (error) {
       await this.stop();
