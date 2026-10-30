@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # CI-only: real Android WebView in an emulator, previous release installed.
-# This verifies discovery/offer, not the download or system installation dialog.
+# Verifies discovery and adb upgrade, not a user browser/system installation dialog.
 set -euo pipefail
-: "${OLD_APK:?}" "${TARGET_TAG:?}" "${RUNNER_TEMP:?}"
+: "${OLD_APK:?}" "${NEW_APK:?}" "${TARGET_TAG:?}" "${RUNNER_TEMP:?}"
 version="${TARGET_TAG#v}"
 adb wait-for-device
 adb install -r "$OLD_APK"
@@ -21,7 +21,12 @@ text=' '.join((n.attrib.get('text','')+' '+n.attrib.get('content-desc','')) for 
 sys.exit(0 if ('Доступна версия ' + sys.argv[2]) in text and 'Скачать APK' in text else 1)
 PY
   then
-    echo "::notice title=Android update discovery::Previous signed release found published $TARGET_TAG and offered APK in the real emulator WebView; download/install not tested."
+    echo "Previous signed release found published $TARGET_TAG and offered an APK in the real emulator WebView."
+    # adb bypasses Android's interactive installer, but rejects a different
+    # package/signature or an incompatible versionCode during a real upgrade.
+    adb install -r "$NEW_APK"
+    adb shell dumpsys package by.mikrotik.tutor | grep -F "versionName=$version"
+    echo "::notice title=Android upgrade::Published APK was discovered and installed over the previous release by adb. Browser download and system UI not tested."
     exit 0
   fi
   coordinates=$(python3 - "$xml" <<'PY'
