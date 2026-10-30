@@ -653,7 +653,7 @@ function openSettings(id) {
   var html = f('lm_name', 'Название устройства', 'text', d.name, 'spellcheck="false"');
   if (d.type === 'router') {
     html += '<button type="button" class="btn" id="lm_open_chr">🖥 Открыть RouterOS</button>' +
-      '<p class="fs-hint">Только в Windows-установщике: настоящая изолированная CHR, без интернета и без виртуальных клиентов. Сейчас поддерживается один статический WAN, LAN, гостевой VLAN, DHCP, NAT и firewall. Wi-Fi, LTE, VPN и резервирование не применяются: при их выборе запуск будет остановлен. Закрытие окна удаляет виртуальный диск.</p>';
+      '<p class="fs-hint">Только в Windows-установщике: настоящая изолированная CHR, без интернета и без виртуальных клиентов. Сейчас поддерживается один статический WAN, LAN, гостевой VLAN, DHCP, NAT, firewall, статический LAN-маршрут, локальная DNS-запись и имя системы. Wi-Fi, LTE, VPN и резервирование не применяются: при их выборе запуск будет остановлен. Закрытие окна удаляет виртуальный диск.</p>';
     html += sel('lm_router_role', 'Роль MikroTik (для общего LAN / VRRP)', [['primary', 'Основной'], ['backup', 'Резервный']], c.routerRole || 'primary') + '<p class="fs-hint">В двух независимых сетях эта роль не переключает интернет между роутерами.</p>';
     html += '<div class="lm-grid">' + f('lm_lan', 'Подсеть LAN (CIDR)', 'text', c.lan, 'spellcheck="false" list="dl-net"') +
       f('lm_gw', 'IP роутера (шлюз)', 'text', c.gw, 'list="dl-ip" inputmode="decimal"') + '</div>';
