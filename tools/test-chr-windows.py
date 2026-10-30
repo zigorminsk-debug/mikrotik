@@ -103,10 +103,11 @@ try:
     else:
         raise RuntimeError('Нет приглашения RouterOS')
     send('/system resource print')
-    output, _ = wait_for(rb'\[admin@[^\]]+\]\s*>')
-    clean = re.sub(rb'\x1b\[[0-9;?]*[A-Za-z]', b'', output).lower()
-    if b'version:' not in clean or b'architecture-name:' not in clean:
-        raise RuntimeError('CHR не подтвердила сведения о версии и архитектуре')
+    # Prompt redraws may occur while the command is being typed. Require actual
+    # command output before looking for the next prompt, not a stale redraw.
+    wait_for(rb'version:\s*[^\r\n]+')
+    wait_for(rb'architecture-name:\s*[^\r\n]+')
+    wait_for(rb'\[admin@[^\]]+\]\s*>')
     print('Windows QEMU: CHR загрузилась и подтвердила системные сведения через serial.')
 finally:
     if sock:
