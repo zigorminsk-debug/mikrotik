@@ -47,7 +47,7 @@ class ChrSession {
       this.server = net.createServer();
       const serialPort = await bind(this.server);
       if (this.closed) throw new Error('Сессия остановлена');
-      const args = ['-machine','pc,accel=tcg','-m','256','-smp','2','-display','none','-monitor','none',
+      const args = ['-machine','pc,accel=tcg','-m','256','-smp','1','-display','none','-monitor','none',
         '-serial', `tcp:127.0.0.1:${serialPort}`, '-drive', `file=${disk.replace(/,/g, ',,')},format=raw,if=ide`];
       // Five topology ports remain isolated: no bridge, TAP or host forwarding.
       for (let i = 0; i < 5; i++) args.push('-netdev', `user,id=n${i},restrict=on`, '-device', `e1000,netdev=n${i}`);
