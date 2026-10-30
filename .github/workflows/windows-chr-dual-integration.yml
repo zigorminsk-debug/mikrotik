@@ -3,7 +3,7 @@ name: Windows CHR dual WAN integration
 on:
   push:
     paths:
-      - '.github/workflows/windows-chr-nat.yml'
+      - '.github/workflows/windows-chr-dual-integration.yml'
       - 'app/js/lab-sim.js'
       - 'tools/chr-ci-fixture.js'
       - 'tools/chr-ci-dual-wan-fixture.js'
