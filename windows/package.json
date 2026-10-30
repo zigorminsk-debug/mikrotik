@@ -48,5 +48,8 @@
       "shortcutName": "MikroTik Guide",
       "unicode": true
     }
+  },
+  "dependencies": {
+    "yauzl": "3.2.0"
   }
 }

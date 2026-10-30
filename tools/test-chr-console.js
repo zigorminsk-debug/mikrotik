@@ -15,6 +15,20 @@ class Fake extends EventEmitter {
   p = c.expect(/never/); await assert.rejects(p, /Тайм-аут/);
   assert.throws(() => c.send('line\nnext'), /Недопустимая/);
   p = c.expect(/after/); c.close(); await assert.rejects(p, /закрыта/);
+  s = new Fake(); c = new ChrConsole(s, {timeout: 200});
+  c.settle = async () => { c.buffer = ''; };
+  const replies = { 'admin': 'Password:', '': 'Do you want to see the software license?', 'n': 'new password>', 'Test_Password_123456': 'repeat new password>' };
+  let passwordCount = 0;
+  s.write = line => {
+    s.writes.push(line);
+    const value = line.trim();
+    let reply = replies[value];
+    if (value === 'Test_Password_123456' && ++passwordCount === 2) reply = 'Password changed\r\n[admin@CHR] >';
+    setImmediate(() => s.input(reply));
+  };
+  const login = c.initialize('Test_Password_123456'); s.input('Login:'); await login;
+  assert.strictEqual(passwordCount, 2); assert.deepStrictEqual(s.writes.map(x => x.trim()), ['admin','','n','Test_Password_123456','Test_Password_123456']);
+  c.close();
   s = new Fake(); c = new ChrConsole(s, {timeout: 80});
   // Simulate echo followed by the evaluated marker. Echo must not satisfy it.
   c.settle = async () => { c.buffer = ''; };
