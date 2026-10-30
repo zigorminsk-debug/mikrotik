@@ -23,9 +23,9 @@ args = [
     '-drive', f'file={images[0]},format=raw,if=ide',
     '-netdev', 'user,id=net0,hostfwd=tcp:127.0.0.1:18291-:8291',
     '-device', 'e1000,netdev=net0',
-    # A disposable local Ethernet cable links ether2 to ether3 for a PPPoE test.
-    '-netdev', 'socket,id=net1,listen=127.0.0.1:22333', '-device', 'e1000,netdev=net1',
-    '-netdev', 'socket,id=net2,connect=127.0.0.1:22333', '-device', 'e1000,netdev=net2',
+    # Extra isolated test interfaces; no real ISP or credentials.
+    '-netdev', 'user,id=net1', '-device', 'e1000,netdev=net1',
+    '-netdev', 'user,id=net2', '-device', 'e1000,netdev=net2',
 ]
 vm = pexpect.spawn('qemu-system-x86_64', args, encoding='utf-8', timeout=180, dimensions=(50, 160), echo=False)
 def settle():
@@ -65,11 +65,7 @@ try:
         # the runner's localhost via hostfwd, never to a public interface.
         for command in [':if ([:len [/ip address find where address="10.0.2.15/24"]] = 0) do={/ip address add address=10.0.2.15/24 interface=ether1}',
                         '/ip service enable winbox',
-                        '/ip pool add name=example-pool ranges=192.0.2.10-192.0.2.20',
-                        '/ppp profile add name=example-profile local-address=192.0.2.1 remote-address=example-pool',
-                        '/ppp secret add name=example-user password=example-password service=pppoe profile=example-profile',
-                        '/interface pppoe-server server add interface=ether2 service-name=example-isp default-profile=example-profile disabled=no',
-                        '/interface pppoe-client add name=pppoe-out2 interface=ether3 user=example-user password=example-password add-default-route=yes default-route-distance=2 use-peer-dns=no disabled=no',
+                        '/interface pppoe-client add name=pppoe-out2 interface=ether3 user=example-user password=example-password add-default-route=yes default-route-distance=2 use-peer-dns=no disabled=yes',
                         '/interface list add name=WAN',
                         '/interface list member add list=WAN interface=pppoe-out2',
                         '/system resource print']:
@@ -91,7 +87,7 @@ try:
 "$1" 127.0.0.1:18291 admin "$2" >"$3/winbox.log" 2>&1 &
 pid=$!
 # Do not treat a login screen or failed authentication as a connected GUI.
-# CHR can be slow under software emulation. Require authentication and session startup logs.
+# CHR can be slow under software emulation. Require authentication and session startup logs. The test PPPoE stays disabled.
 ready=0
 for attempt in $(seq 1 12); do
   sleep 15
