@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """CI feasibility probe: a throwaway CHR on isolated QEMU, not app runtime."""
+import base64
 import os
 import pathlib
 import re
@@ -121,6 +122,9 @@ finally:
     if sys.exc_info()[0] is not None:
         safe = bytes(transcript).replace(b'Temporary-CI-Only-42!', b'[redacted]')
         safe = re.sub(rb'\x1b\[[0-9;?]*[A-Za-z]', b'', safe)
-        print('Serial tail:', safe.decode(errors='replace')[-4000:], file=sys.stderr)
+        # The runner log service may be unavailable; surface the ASCII-only,
+        # redacted test transcript as a check annotation for diagnostics.
+        encoded = base64.b64encode(safe[-2500:]).decode('ascii')
+        print('::warning title=CHR test serial (base64)::' + encoded)
         if err:
             print('QEMU stderr:', err.decode(errors='replace')[-3000:], file=sys.stderr)
