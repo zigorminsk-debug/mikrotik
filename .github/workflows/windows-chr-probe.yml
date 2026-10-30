@@ -90,9 +90,9 @@ jobs:
       - name: Verify application CHR downloader and cache
         shell: pwsh
         run: |
-          npm install --prefix tools --no-audit --no-fund
+          npm install --prefix windows --omit=dev --ignore-scripts --no-audit --no-fund
           if ($LASTEXITCODE -ne 0) { throw 'Test dependencies failed to install' }
-          $env:NODE_PATH = (Join-Path $env:GITHUB_WORKSPACE 'tools/node_modules')
+          $env:NODE_PATH = (Join-Path $env:GITHUB_WORKSPACE 'windows/node_modules')
           $log = Join-Path $env:RUNNER_TEMP 'chr-probe/download-test.log'
           node tools/test-chr-download-integration.js (Join-Path $env:RUNNER_TEMP 'chr-probe/cache') *> $log
           if ($LASTEXITCODE -ne 0) {

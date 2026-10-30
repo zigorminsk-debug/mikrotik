@@ -18,12 +18,20 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Install test dependencies
-        run: npm install --prefix tools --no-audit --no-fund
+      - name: Install production download dependency
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP 'chr-npm.log'
+          npm install --prefix windows --omit=dev --ignore-scripts --no-audit --no-fund *> $log
+          if ($LASTEXITCODE -ne 0) {
+            $text = ((Get-Content -Raw $log) -replace '%','%25' -replace "`r",'' -replace "`n",'%0A')
+            Write-Output "::error title=CHR npm diagnostic::$text"
+            throw 'Dependency installation failed'
+          }
       - name: Verify official download and cache
         shell: pwsh
         run: |
-          $env:NODE_PATH = (Join-Path $env:GITHUB_WORKSPACE 'tools/node_modules')
+          $env:NODE_PATH = (Join-Path $env:GITHUB_WORKSPACE 'windows/node_modules')
           $log = Join-Path $env:RUNNER_TEMP 'chr-download-test.log'
           node tools/test-chr-download-integration.js (Join-Path $env:RUNNER_TEMP 'chr-download-cache') *> $log
           if ($LASTEXITCODE -ne 0) {
