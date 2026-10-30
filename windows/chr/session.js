@@ -80,6 +80,7 @@ class ChrSession {
       // Administrative access is separate from the simulated topology and
       // remains first in the input chain when the laboratory firewall is added.
       const managementCommands = [
+        '/ip dhcp-client disable [find]',
         '/ip address add address=172.31.254.15/24 interface=ether6',
         '/ip service enable www',
         '/ip firewall filter add chain=input in-interface=ether6 action=accept comment="Lab management"'

@@ -12,6 +12,7 @@ const records = {
   '/rest/interface/bridge/port': e.lanPorts.map(p=>({bridge:'bridge-lan',interface:p.name,disabled:'false',pvid:p.segment === 'guest' ? e.guestId : '1','frame-types':'admit-only-untagged-and-priority-tagged','ingress-filtering':'true'})),
   '/rest/interface/list': [{name:'LAN'},{name:'WAN'}],
   '/rest/interface/list/member': [{list:'LAN',interface:'bridge-lan'},{list:'WAN',interface:e.wanPort}],
+  '/rest/ip/dhcp-client': [{interface:e.wanPort,disabled:'true'}],
   '/rest/ip/address': [{address:e.lanAddress,interface:'bridge-lan'}, {address:e.wanAddress,interface:e.wanPort}, {address:e.guestAddress,interface:'vlan-guest'}],
   '/rest/ip/route': [{'dst-address':'0.0.0.0/0',gateway:e.wanGateway,distance:'1','check-gateway':'ping'}, {'dst-address':e.staticRoute.destination,gateway:e.staticRoute.gateway,distance:e.staticRoute.distance}],
   '/rest/system/identity': {name:e.identity},
@@ -28,6 +29,7 @@ const records = {
 const get = async key => { assert(key in records, key); return records[key]; };
 (async () => {
   await verifyConfiguration(e,get);
+  records['/rest/ip/dhcp-client'][0].disabled = 'false'; await assert.rejects(verifyConfiguration(e,get),/DHCP-клиент WAN/); records['/rest/ip/dhcp-client'][0].disabled = 'true';
   records['/rest/ip/address'][0].address = '192.0.2.1/24';
   await assert.rejects(verifyConfiguration(e,get),/адреса/);
   records['/rest/ip/address'][0].address = e.lanAddress;
