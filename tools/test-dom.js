@@ -52,7 +52,7 @@ async function main() {
   console.log('== Загрузка приложения ==');
   ok(scriptErrors.length === 0, 'нет ошибок исполнения скриптов' + (scriptErrors.length ? ': ' + scriptErrors.join(' | ') : ''));
   ok(typeof win.StandEngine === 'object', 'StandEngine загружен');
-  ok(doc.getElementById('nav').children.length === 11, 'разделов в меню: ' + doc.getElementById('nav').children.length);
+  ok(doc.getElementById('nav').children.length === 12, 'разделов в меню: ' + doc.getElementById('nav').children.length);
   ok(doc.getElementById('content').children.length > 0, 'первый раздел отрендерен');
   const ownShot = doc.querySelector('#content li img[src$="chr-winbox4-workspace.png"]');
   ok(!!ownShot && !ownShot.closest('li').textContent.includes('отдельный скриншот пока не добавлен'), 'свой снимок прикреплён к отдельному действию');
@@ -196,6 +196,11 @@ async function main() {
     'заголовок топбара соответствует разделу: ' + $('topbar-title').textContent);
   ok(navInitial.classList.contains('active'), 'раздел активен в меню');
   ok(doc.getElementById('content').children.length > 0, 'раздел отрендерен после перехода');
+
+  win.location.hash = '#reference';
+  win.dispatchEvent(new win.Event('hashchange'));
+  await delay(30);
+  ok($('content').textContent.includes('Очереди и ограничение скорости') && $('content').textContent.includes('IPv6'), 'новый справочник доступен и отображается');
 
   ok(scriptErrors.length === 0, 'итог: ошибок скриптов нет' + (scriptErrors.length ? ': ' + scriptErrors.join(' | ') : ''));
 
