@@ -22,6 +22,19 @@ s = sample(); s.devices[0].cfg.kind = 'lte'; assert(makePlan(engine,s,'r').block
 s = sample(); s.devices[2].cfg.external = true; assert(makePlan(engine,s,'r').blockers.length); // DHCP target rejected
 s = sample(); Object.assign(s.devices[2].cfg,{mode:'static',ip:'192.168.88.20/24',gw:'192.168.88.1',external:true,extProto:'tcp',extPort:'8443',localPort:'443'});
 plan = makePlan(engine,s,'r'); assert.deepStrictEqual(plan.blockers,[]); assert(plan.expected.natRules.some(x => x.chain === 'dstnat' && x['dst-port'] === '8443' && x['to-addresses'] === '192.168.88.20')); assert(plan.expected.filterRules.some(x => x['connection-nat-state'] === 'dstnat' && x['dst-port'] === '443'));
+// Several publications must be verified individually, not just the first rule.
+s.devices[2].cfg.extraPublications = [{proto:'udp',external:'5353',local:'53'}];
+plan = makePlan(engine,s,'r'); assert.deepStrictEqual(plan.blockers,[]);
+assert(plan.expected.natRules.some(x => x.protocol === 'udp' && x['dst-port'] === '5353' && x['to-ports'] === '53'));
+assert(plan.expected.filterRules.some(x => x.protocol === 'udp' && x['dst-port'] === '53' && x['connection-nat-state'] === 'dstnat'));
+// 3 endpoints * 16 publications would exceed the CHR command limit.
+s = sample(); s.devices.pop(); s.links.pop();
+for (let i=0; i<3; i++) {
+  const id='p'+i, base=10000+i*16;
+  s.devices.push({id,type:'pc',name:id,cfg:{mode:'static',ip:'192.168.88.'+(20+i)+'/24',gw:'192.168.88.1',external:true,extProto:'tcp',extPort:String(base),localPort:'80',extraPublications:Array.from({length:15},(_,n)=>({proto:'tcp',external:String(base+n+1),local:'80'}))}});
+  s.links.push({a:'r',b:id});
+}
+plan=makePlan(engine,s,'r'); assert(plan.blockers.some(x=>/максимум 100/.test(x))); assert.deepStrictEqual(plan.groups,[]);
 s = sample(); s.devices[2].cfg.nics = [{id:'nic2'}]; assert(makePlan(engine,s,'r').blockers.length);
 s = sample(); s.devices[1].cfg.lan = '172.31.254.0/24'; assert(makePlan(engine,s,'r').blockers.length);
 s = sample(); s.devices[0].on = false; assert(makePlan(engine,s,'r').blockers.length);

@@ -62,13 +62,13 @@ const {JSDOM,VirtualConsole} = require('jsdom');
  // Доступ извне редактируется прямо в окне MikroTik и сохраняется в сервере.
  d.querySelector('[data-id="'+rt+'"] .lab-gear').click();
  assert(d.getElementById('lm_pub_2_on')); $('lm_pub_2_on').checked=true; $('lm_pub_2_on').dispatchEvent(new w.Event('change')); assert(!$('lm_pub_2_box').hidden);
- $('lm_pub_2_external').value='8443'; $('lm_pub_2_local').value='443'; $('lm_pub_2_proto').value='tcp'; $('lm_save').click();
+ $('lm_pub_2_external').value='8443'; $('lm_pub_2_local').value='443'; $('lm_pub_2_proto').value='tcp'; $('lm_pub_2_count').value='2'; $('lm_pub_2_count').dispatchEvent(new w.Event('change')); assert(!$('lm_pub_2_extra_1_box').hidden); $('lm_pub_2_extra_1_proto').value='udp'; $('lm_pub_2_extra_1_external').value='5353'; $('lm_pub_2_extra_1_local').value='53'; $('lm_save').click();
  assert($('lab-modal').hidden); assert.equal(w.Lab.state.devices.find(x=>x.id===clients[2]).cfg.extPort,'8443');
- d.querySelector('[data-id="'+clients[2]+'"] .lab-gear').click(); assert($('lm_external').checked); assert.equal($('lm_ext_port').value,'8443'); assert.equal($('lm_local_port').value,'443'); $('lm_cancel').click();
+ d.querySelector('[data-id="'+clients[2]+'"] .lab-gear').click(); assert($('lm_external').checked); assert.equal($('lm_ext_port').value,'8443'); assert.equal($('lm_local_port').value,'443'); assert.equal($('lm_ext_count').value,'2'); assert.equal($('lm_ext_extra_1_external').value,'5353'); $('lm_cancel').click();
  d.querySelector('[data-id="'+rt+'"] .lab-gear').click(); $('lm_pub_2_external').value='99999'; $('lm_save').click(); assert(!$('lm_err').hidden); assert.equal(w.Lab.state.devices.find(x=>x.id===clients[2]).cfg.extPort,'8443'); $('lm_cancel').click();
  // Включение VPN и публикация сервера с сохранением портов.
  d.querySelector('[data-id="'+rt+'"] .lab-gear').click(); $('lm_vpn').checked=true; $('lm_vpn').dispatchEvent(new w.Event('change')); assert(!$('lm_vpn_box').hidden); $('lm_vpn_type').value='l2tp-ipsec'; $('lm_vpn_type').dispatchEvent(new w.Event('change')); assert(!$('lm_vpn_l2tp').hidden && $('lm_vpn_wg').hidden); $('lm_vpn_user').value='vpnuser'; $('lm_vpn_pass').value='password123'; $('lm_vpn_psk').value='longsecret'; $('lm_save').click();
- d.querySelector('[data-id="'+clients[2]+'"] .lab-gear').click(); $('lm_external').checked=true; $('lm_external').dispatchEvent(new w.Event('change')); $('lm_ext_port').value='8443'; $('lm_local_port').value='443'; $('lm_save').click();
+ d.querySelector('[data-id="'+clients[2]+'"] .lab-gear').click(); $('lm_external').checked=true; $('lm_external').dispatchEvent(new w.Event('change')); $('lm_ext_count').value='2'; $('lm_ext_count').dispatchEvent(new w.Event('change')); $('lm_ext_port').value='8443'; $('lm_local_port').value='443'; $('lm_save').click();
  $('lab_run').click(); assert($('lab-results').textContent.includes('use-ipsec=required')); assert($('lab-results').textContent.includes('dst-port=8443'));
  // Кнопка удаления в окне устройства: отмена сохраняет, подтверждение убирает линии.
  d.querySelector('[data-id="'+clients[1]+'"] .lab-gear').click(); $('lm_delete').click(); assert(!$('lab-confirm').hidden); $('lab-confirm-cancel').click(); assert(!$('lab-modal').hidden); assert(w.Lab.state.devices.some(x=>x.id===clients[1]));

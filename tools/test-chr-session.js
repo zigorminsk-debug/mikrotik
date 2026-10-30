@@ -41,9 +41,11 @@ function get(url, user, password, route) {
   const nat = await get(info.url, info.user, info.password, '/rest/ip/firewall/nat');
   assert(nat.some(x => x.chain === 'srcnat' && x.action === 'masquerade'));
   assert(nat.some(x => x.chain === 'dstnat' && x.action === 'dst-nat' && x['dst-port'] === '8443' && x['to-addresses'] === '192.168.88.20' && x['to-ports'] === '443'));
+  assert(nat.some(x => x.chain === 'dstnat' && x.protocol === 'udp' && x['dst-port'] === '5353' && x['to-addresses'] === '192.168.88.20' && x['to-ports'] === '53'));
   const firewall = await get(info.url, info.user, info.password, '/rest/ip/firewall/filter');
   assert(firewall.some(x => x.chain === 'input' && x.action === 'drop'));
   assert(firewall.some(x => x.chain === 'forward' && x['connection-nat-state'] === 'dstnat' && x['dst-address'] === '192.168.88.20' && x['dst-port'] === '443' && x.action === 'accept'));
+  assert(firewall.some(x => x.chain === 'forward' && x.protocol === 'udp' && x['connection-nat-state'] === 'dstnat' && x['dst-address'] === '192.168.88.20' && x['dst-port'] === '53' && x.action === 'accept'));
   const dhcp = await get(info.url, info.user, info.password, '/rest/ip/dhcp-server');
   assert(dhcp.some(x => x.name === 'dhcp-lan' && x.disabled === 'false'));
   assert(dhcp.some(x => x.name === 'dhcp-guest' && x.disabled === 'false'));

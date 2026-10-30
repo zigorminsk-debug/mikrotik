@@ -32,6 +32,7 @@ function makePlan(engine, state, routerId) {
     groups.push({ id: group.id, commands });
   }
   if (!groups.length) return {blockers:['Нет настроек для проверки.'], notices:initial.notices, groups:[]};
+  if (groups.reduce((n, group) => n + group.commands.length, 0) > 100) return {blockers:['Слишком много команд для одного запуска CHR (максимум 100); уменьшите число правил.'], notices:initial.notices, groups:[]};
   const r = result.model.router, wan = result.model.primaryIsp;
   const expected = {
     lanAddress: r.gw + '/24', wanAddress: wan.cfg.ip, wanPort: wan.phys, wanGateway: wan.cfg.gw,

@@ -41,9 +41,14 @@ function priority(d, index) { return d.cfg && d.cfg.priority ? d.cfg.priority : 
 function wanFailover(cfg) { return cfg.wanFailover !== false; } // Старые проекты сохраняют прежнее поведение.
 function validPort(s) { return /^\d{1,5}$/.test(String(s || '')) && +s >= 1 && +s <= 65535; }
 function publications(state) {
-  return (state.devices || []).filter(function(d) { return (d.type === 'pc' || d.type === 'server') && d.cfg && d.cfg.external; }).map(function(d) {
-    return { id:d.id, name:d.name, ip:(d.cfg.ip || '').split('/')[0], proto:d.cfg.extProto, external:d.cfg.extPort, local:d.cfg.localPort };
+  var out = [];
+  (state.devices || []).forEach(function(d) {
+    if ((d.type !== 'pc' && d.type !== 'server') || !d.cfg || !d.cfg.external) return;
+    var c = d.cfg, rows = [{proto:c.extProto, external:c.extPort, local:c.localPort}];
+    if (Array.isArray(c.extraPublications)) rows = rows.concat(c.extraPublications);
+    rows.forEach(function(row) { row = row || {}; out.push({id:d.id, name:d.name, ip:(c.ip || '').split('/')[0], proto:row.proto, external:row.external, local:row.local}); });
   });
+  return out;
 }
 function guestDevice(d) { return !!(d.cfg && d.cfg.segment === 'guest'); }
 function utf8Length(s) { try { return encodeURIComponent(s).replace(/%[0-9A-F]{2}/gi, 'x').length; } catch (_) { return Infinity; } }
@@ -200,6 +205,11 @@ function analyze(state) {
     if (c.dns && !validIp(c.dns)) errors.push('«' + d.name + '»: неверный DNS.');
   });
   if (rt && rt.cfg.vlanGuest && !rt.cfg.wifiGuest && !endpoints.some(guestDevice)) warnings.push('В гостевом VLAN пока нет клиентских устройств и гостевого Wi-Fi.');
+  ds.forEach(function(d) {
+    if ((d.type === 'pc' || d.type === 'server') && d.cfg && d.cfg.extraPublications !== undefined &&
+        (!Array.isArray(d.cfg.extraPublications) || d.cfg.extraPublications.length > 15 || d.cfg.extraPublications.some(function(r){ return !r || typeof r !== 'object' || Array.isArray(r); })))
+      errors.push('«' + d.name + '»: допускается не более 16 корректных правил публикации.');
+  });
   var extPorts = Object.create(null);
   publications(state).forEach(function(p) {
     var dev = ids[p.id], key = p.proto + '/' + String(+p.external);

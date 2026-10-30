@@ -663,6 +663,37 @@ function publicationTargets(routerId) {
   }
   return state.devices.filter(function(dev) { return seen[dev.id] && (dev.type === 'pc' || dev.type === 'server'); });
 }
+// The legacy fields remain rule 1; extraPublications holds rules 2–16.
+// Both router and endpoint forms edit the same data.
+function extraPublicationFields(prefix, cfg) {
+  var rules = Array.isArray(cfg.extraPublications) ? cfg.extraPublications : [];
+  var options = [];
+  for (var n = 1; n <= 16; n++) options.push([String(n), String(n)]);
+  var html = sel(prefix + '_count', 'Количество правил публикации (1–16)', options, String(Math.min(16, rules.length + 1))) +
+    '<p class="fs-hint">Уменьшение количества удалит лишние правила после сохранения.</p>';
+  for (var i = 1; i < 16; i++) {
+    var r = rules[i - 1] || {}, id = prefix + '_extra_' + i;
+    html += '<div id="' + id + '_box"' + (i >= rules.length + 1 ? ' hidden' : '') + '><div class="lm-t">Правило ' + (i + 1) + '</div><div class="lm-grid">' +
+      sel(id + '_proto', 'Протокол', [['tcp','TCP'],['udp','UDP']], r.proto || 'tcp') +
+      f(id + '_external', 'Внешний порт', 'text', r.external || '', 'inputmode="numeric"') +
+      f(id + '_local', 'Порт сервиса', 'text', r.local || '', 'inputmode="numeric"') + '</div></div>';
+  }
+  return html;
+}
+function publicationVisibility(prefix) {
+  var count = $(prefix + '_count'); if (!count) return;
+  for (var n = 1; n < 16; n++) $(prefix + '_extra_' + n + '_box').hidden = n >= Number(count.value);
+}
+function readExtraPublications(prefix) {
+  var rows = [], count = Number($(prefix + '_count').value);
+  for (var i = 1; i < count; i++) { var id = prefix + '_extra_' + i;
+    rows.push({proto:$(id + '_proto').value, external:$(id + '_external').value.trim(), local:$(id + '_local').value.trim()});
+  }
+  return rows;
+}
+function validPublication(row) {
+  return ['tcp','udp'].indexOf(row.proto) >= 0 && /^\d{1,5}$/.test(row.external) && +row.external >= 1 && +row.external <= 65535 && /^\d{1,5}$/.test(row.local) && +row.local >= 1 && +row.local <= 65535;
+}
 function openSettings(id) {
   var d = byId(id);
   if (!d) return;
@@ -685,7 +716,7 @@ function openSettings(id) {
       '<p class="fs-hint">Переключение в модели условное. Для реальной доступности интернета и резервирования двух роутеров нужна отдельная проверка оборудования и VRRP.</p>';
     var pubTargets = publicationTargets(d.id);
     html += '<div class="lm-t">NAT: доступ к ресурсам извне</div>' +
-      '<p class="fs-hint">Выберите подключённый к этому MikroTik ПК или сервер и задайте один TCP или UDP порт на устройство. Это общие настройки с карточкой устройства. Для нескольких портов на одном устройстве отдельные правила пока не поддерживаются. Публикация открывает сервис наружу; для реального доступа нужны белый IP, защита сервиса и проверка правил firewall. В виртуальной CHR порты в сеть хоста не пробрасываются.</p>';
+      '<p class="fs-hint">Выберите подключённый к этому MikroTik ПК или сервер и задайте до 16 правил TCP или UDP на устройство. Это общие настройки с карточкой устройства. Публикация открывает сервис наружу; для реального доступа нужны белый IP, защита сервиса и проверка правил firewall. В виртуальной CHR порты в сеть хоста не пробрасываются.</p>';
     if (!pubTargets.length) html += '<p class="fs-hint">Подключите ПК или сервер напрямую либо через коммутатор первой сетевой картой.</p>';
     pubTargets.forEach(function(target, index) {
       var pcfg = target.cfg || {}, prefix = 'lm_pub_' + index;
@@ -693,7 +724,7 @@ function openSettings(id) {
         '<div id="' + prefix + '_box"' + (pcfg.external ? '' : ' hidden') + '><p class="fs-hint">Адрес: ' + esc(pcfg.ip || 'не задан') + ' (' + esc(pcfg.mode === 'dhcp' ? 'DHCP' : 'статический') + '). Для публикации задайте статический адрес в настройках устройства.</p><div class="lm-grid">' +
         sel(prefix + '_proto', 'Протокол', [['tcp','TCP'],['udp','UDP']], pcfg.extProto || 'tcp') +
         f(prefix + '_external', 'Внешний порт', 'text', pcfg.extPort || '8080', 'inputmode="numeric"') +
-        f(prefix + '_local', 'Порт сервиса', 'text', pcfg.localPort || '80', 'inputmode="numeric"') + '</div></div>';
+        f(prefix + '_local', 'Порт сервиса', 'text', pcfg.localPort || '80', 'inputmode="numeric"') + '</div>' + extraPublicationFields(prefix, pcfg) + '</div>';
     });
     html += '<div class="lm-t">LAN, VLAN и Wi‑Fi</div>' +
       '<p class="fs-hint">LAN — основная сеть моста. Гостевой VLAN создаёт отдельную подсеть; у каждого ПК/сервера/принтера выберите сегмент. Одно подключение неуправляемого коммутатора может нести только один сегмент.</p>' +
@@ -775,7 +806,7 @@ function openSettings(id) {
         '<div id="lm_external_box"' + (c.external ? '' : ' hidden') + '><div class="lm-grid">' +
         sel('lm_ext_proto', 'Протокол', [['tcp', 'TCP'], ['udp', 'UDP']], c.extProto || 'tcp') +
         f('lm_ext_port', 'Внешний порт', 'text', c.extPort || '8080', 'inputmode="numeric"') +
-        f('lm_local_port', 'Локальный порт', 'text', c.localPort || '80', 'inputmode="numeric"') + '</div>' +
+        f('lm_local_port', 'Локальный порт', 'text', c.localPort || '80', 'inputmode="numeric"') + '</div>' + extraPublicationFields('lm_ext', c) +
         '<p class="fs-hint">Нужен статический LAN-адрес вне DHCP-пула и доступный белый IP. Публикация открывает сервис в интернет; защитите его. Эти же настройки доступны на прямой линии ПК/сервер — MikroTik.</p></div>';
     }
 
@@ -800,8 +831,8 @@ function openSettings(id) {
     if ($('lm_nic_count')) for (var n=2;n<=4;n++) $('lm_nic_box_' + n).hidden = n > Number($('lm_nic_count').value);
     if (vpnChk) $('lm_vpn_box').hidden = !vpnChk.checked;
     if (vpnType) { $('lm_vpn_wg').hidden = vpnType.value !== 'wireguard'; $('lm_vpn_ike').hidden = vpnType.value !== 'ikev2'; $('lm_vpn_l2tp').hidden = vpnType.value !== 'l2tp-ipsec'; }
-    if (extChk) $('lm_external_box').hidden = !extChk.checked;
-    if (d.type === 'router') publicationTargets(d.id).forEach(function(_target, index) { var on = $('lm_pub_' + index + '_on'), box = $('lm_pub_' + index + '_box'); if (on && box) box.hidden = !on.checked; });
+    if (extChk) { $('lm_external_box').hidden = !extChk.checked; publicationVisibility('lm_ext'); }
+    if (d.type === 'router') publicationTargets(d.id).forEach(function(_target, index) { var on = $('lm_pub_' + index + '_on'), box = $('lm_pub_' + index + '_box'); if (on && box) { box.hidden = !on.checked; publicationVisibility('lm_pub_' + index); } });
     if (guestChk) $('lm_guest_vlan_box').hidden = !guestChk.checked;
     if (wifiChk) { $('lm_wifi_box').hidden = !wifiChk.checked; if (!wifiChk.checked && wifiGuestChk) { wifiGuestChk.checked = false; if ($('lm_wifi_guest_isolation')) $('lm_wifi_guest_isolation').checked = false; } }
     if (wifiGuestChk) { $('lm_wifi_guest_box').hidden = !wifiGuestChk.checked; if (!wifiGuestChk.checked && $('lm_wifi_guest_isolation')) $('lm_wifi_guest_isolation').checked = false; }
@@ -811,6 +842,8 @@ function openSettings(id) {
     if (e2) e2.addEventListener('change', applyVis);
   });
   if (d.type === 'router') publicationTargets(d.id).forEach(function(_target, index) { var on = $('lm_pub_' + index + '_on'); if (on) on.addEventListener('change', applyVis); });
+  if ($('lm_ext_count')) $('lm_ext_count').addEventListener('change', applyVis);
+  if (d.type === 'router') publicationTargets(d.id).forEach(function(_target, index) { var count = $('lm_pub_' + index + '_count'); if (count) count.addEventListener('change', applyVis); });
   var openChr = $('lm_open_chr');
   if (openChr) openChr.addEventListener('click', function() {
     if (!window.routerOS || typeof window.routerOS.launch !== 'function') return lmFail('Запуск настоящей RouterOS доступен только в Windows-установщике приложения. На Android и в браузере он пока не поддерживается.');
@@ -891,14 +924,14 @@ function saveSettings() {
     var publications = publicationTargets(d.id).map(function(target, index) {
       var prefix = 'lm_pub_' + index;
       return {target:target, external:$(prefix + '_on').checked, extProto:$(prefix + '_proto').value,
-        extPort:$(prefix + '_external').value.trim(), localPort:$(prefix + '_local').value.trim()};
+        extPort:$(prefix + '_external').value.trim(), localPort:$(prefix + '_local').value.trim(), extraPublications:readExtraPublications(prefix)};
     });
     for (var pi = 0; pi < publications.length; pi++) {
       var pub = publications[pi];
       if (pub.external && pub.target.cfg.mode !== 'static') return lmFail('«' + pub.target.name + '»: для доступа извне сначала задайте статический адрес в настройках устройства.');
-      if (pub.external && (!/^\d{1,5}$/.test(pub.extPort) || +pub.extPort < 1 || +pub.extPort > 65535 || !/^\d{1,5}$/.test(pub.localPort) || +pub.localPort < 1 || +pub.localPort > 65535)) return lmFail('«' + pub.target.name + '»: внешний порт и порт сервиса должны быть от 1 до 65535.');
+      if (pub.external && ![{proto:pub.extProto,external:pub.extPort,local:pub.localPort}].concat(pub.extraPublications).every(validPublication)) return lmFail('«' + pub.target.name + '»: укажите TCP/UDP и порты от 1 до 65535 для каждого правила.');
     }
-    publications.forEach(function(pub) { Object.assign(pub.target.cfg, {external:pub.external, extProto:pub.extProto, extPort:pub.extPort, localPort:pub.localPort}); });
+    publications.forEach(function(pub) { Object.assign(pub.target.cfg, {external:pub.external, extProto:pub.extProto, extPort:pub.extPort, localPort:pub.localPort, extraPublications:pub.extraPublications}); });
     Object.assign(c, vp);
     state.devices.forEach(function(other) { if (other.type === 'router' && other.id !== d.id) other.cfg.routerRole = vp.routerRole === 'primary' ? 'backup' : 'primary'; });
   } else if (d.type === 'isp') {
@@ -949,8 +982,9 @@ function saveSettings() {
   if (d.type === 'pc' || d.type === 'server') {
     var external = $('lm_external').checked, ep = $('lm_ext_port').value.trim(), lp = $('lm_local_port').value.trim();
     if (external && c.mode !== 'static') return lmFail('Для доступа извне выберите статический IP.');
-    if (external && (!/^\d{1,5}$/.test(ep) || +ep < 1 || +ep > 65535 || !/^\d{1,5}$/.test(lp) || +lp < 1 || +lp > 65535)) return lmFail('Внешний и локальный порты должны быть от 1 до 65535.');
-    Object.assign(c, { external: external, extProto: $('lm_ext_proto').value, extPort: ep, localPort: lp });
+    var extraPubs = readExtraPublications('lm_ext'), proto = $('lm_ext_proto').value;
+    if (external && ![{proto:proto,external:ep,local:lp}].concat(extraPubs).every(validPublication)) return lmFail('Для каждого правила выберите TCP/UDP и укажите порты от 1 до 65535.');
+    Object.assign(c, { external: external, extProto: proto, extPort: ep, localPort: lp, extraPublications:extraPubs });
   }
   d.cfg = c;
   d.name = name;

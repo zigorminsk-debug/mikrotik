@@ -67,6 +67,11 @@ s=make();Object.assign(s.devices[1].cfg,{vpn:true,vpnType:'l2tp-ipsec',vpnPool:'
 s.devices[1].cfg.vpnPsk='short'; fails(s,/общий ключ/);
 // Публикация: статический адрес, строго заданный WAN dstnat и разрешение forward до drop.
 s=make();Object.assign(s.devices[4].cfg,{external:true,extProto:'tcp',extPort:'8080',localPort:'80'});r=E.run(s);assert.deepStrictEqual(r.errors,[]);assert(code(r).includes('chain=dstnat in-interface-list=WAN protocol=tcp dst-port=8080 action=dst-nat to-addresses=192.168.88.20 to-ports=80'));assert(code(r).includes('connection-nat-state=dstnat protocol=tcp dst-address=192.168.88.20 dst-port=80 action=accept'));assert(code(r).indexOf('dst-address=192.168.88.20 dst-port=80 action=accept')<code(r).indexOf('chain=forward action=drop\n'));
+s.devices[4].cfg.extraPublications=[{proto:'udp',external:'5353',local:'53'}]; r=E.run(s); assert.deepStrictEqual(r.errors,[]); assert(code(r).includes('protocol=udp dst-port=5353 action=dst-nat to-addresses=192.168.88.20 to-ports=53')); assert(code(r).includes('connection-nat-state=dstnat protocol=udp dst-address=192.168.88.20 dst-port=53 action=accept'));
+s.devices[4].cfg.extraPublications=[{proto:'tcp',external:'08080',local:'443'}];fails(s,/уже используется/);
+s.devices[4].cfg.extraPublications=[{proto:'udp',external:'5353',local:'65536'}];fails(s,/порты/);
+s.devices[4].cfg.extraPublications=Array(16).fill({proto:'tcp',external:'9',local:'9'});fails(s,/не более 16/);
+s.devices[4].cfg.extraPublications=[];
 s.devices[4].cfg.mode='dhcp';fails(s,/статический LAN/);
 s=make();Object.assign(s.devices[3].cfg,{mode:'static',ip:'192.168.88.10/24',gw:'192.168.88.1',external:true,extProto:'tcp',extPort:'08080',localPort:'80'});Object.assign(s.devices[4].cfg,{external:true,extProto:'tcp',extPort:'8080',localPort:'80'});fails(s,/уже используется/);
 s=make();Object.assign(s.devices[1].cfg,{vpn:true,vpnType:'wireguard',vpnPort:'13231',vpnPool:'10.10.10.0/24'});Object.assign(s.devices[4].cfg,{external:true,extProto:'udp',extPort:'13231',localPort:'80'});fails(s,/занят VPN/);

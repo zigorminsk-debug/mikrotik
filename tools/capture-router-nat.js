@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 app.commandLine.appendSwitch('disable-gpu');
 app.whenReady().then(async () => {
-  const win = new BrowserWindow({width:1000,height:720,show:false,webPreferences:{offscreen:true,sandbox:true,contextIsolation:true,nodeIntegration:false}});
+  const win = new BrowserWindow({width:1000,height:900,show:false,webPreferences:{offscreen:true,sandbox:true,contextIsolation:true,nodeIntegration:false}});
   try {
     await win.loadFile(path.resolve(__dirname,'../windows/www/index.html'));
     await win.webContents.executeJavaScript(`(async () => {
@@ -17,6 +17,10 @@ app.whenReady().then(async () => {
       on.checked=true; on.dispatchEvent(new Event('change'));
       document.getElementById('lm_pub_0_external').value='8443';
       document.getElementById('lm_pub_0_local').value='443';
+      const count=document.getElementById('lm_pub_0_count'); count.value='2'; count.dispatchEvent(new Event('change'));
+      document.getElementById('lm_pub_0_extra_1_proto').value='udp';
+      document.getElementById('lm_pub_0_extra_1_external').value='5353';
+      document.getElementById('lm_pub_0_extra_1_local').value='53';
       on.scrollIntoView({block:'start'}); document.querySelector('#lab-modal .modal-card').scrollTop -= 155; await new Promise(r=>setTimeout(r,700));
     })()`);
     const image=await win.webContents.capturePage();
