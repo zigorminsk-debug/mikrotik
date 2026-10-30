@@ -111,7 +111,6 @@ s=guestState();Object.assign(s.devices[1].cfg,{wifiAp:true,wifiIf:'wifi1',wifiCo
 s=guestState();Object.assign(s.devices[1].cfg,{wifiAp:false,wifiGuest:true});fails(s,/требует включённой/);
 s=guestState();Object.assign(s.devices[1].cfg,{vpn:true,vpnType:'wireguard',vpnPort:'13231',vpnPool:'192.168.99.0/24'});fails(s,/VPN и гостевая/);
 
-console.log('Лаборатория: проверки модели, адресов, топологии и генерации прошли.');
 
 // Новые сервисы: настройки реально влияют на DHCP, DNS, firewall, VPN и команды.
 s=make(); Object.assign(s.devices[1].cfg,{customDns:true,dnsPrimary:'9.9.9.9',dnsSecondary:'149.112.112.112',dnsCache:false,ntpClient:true,ntpServer:'pool.ntp.org',timeZone:'Europe/Minsk',cloudDdns:true,identityOn:true,systemIdentity:'Office-Router'});
@@ -161,3 +160,13 @@ s=isolatedNetworks();assert.equal(E.routerForCard(s,'a','nic1').id,'r');assert.e
 
 // PPPoE: примеры привязаны к конкретным действиям, а не к группе целиком.
 s=make();r=E.run(s);const ps=r.winbox.find(x=>x.illustrations.some(pic=>pic.image==='official/pppoe-dial.png'));assert(ps);assert(ps.illustrations.some(p=>p.after===0 && p.image==='official/pppoe-general.png'));assert(ps.illustrations.some(p=>p.after===1 && p.image==='official/pppoe-dial.png'));assert(!ps.illustrations.some(p=>p.after===2));assert(ps.illustrations.some(p=>p.after===ps.instructions.length-1 && p.image==='official/interface-list-member.png' && p.caption.includes('LAN и bridge1')));
+// Предварительная проверка будущей CHR: без запуска, без секретов, без частичного импорта.
+s=make();let vf=E.chrPreflight(s,'r');assert.strictEqual(vf.available,false);assert.deepStrictEqual(vf.blockers,[]);assert(!JSON.stringify(vf).includes('secret'));assert(vf.reason.includes('ещё не реализованы'));
+s=make();s.devices[1].cfg.wifiAp=true;vf=E.chrPreflight(s,'r');assert(vf.blockers.some(x=>/Wi-Fi/.test(x)));assert(!vf.available);
+s=make();s.devices[0].cfg.kind='lte';vf=E.chrPreflight(s,'r');assert(vf.blockers.some(x=>/LTE/.test(x)));
+s=make();s.devices[1].cfg.secureManagement=true;s.devices[1].cfg.vpn=true;s.devices[1].cfg.cloudDdns=true;vf=E.chrPreflight(s,'r');assert(vf.blockers.some(x=>/VPN/.test(x)));assert(vf.blockers.some(x=>/управлени/.test(x)));assert(vf.blockers.some(x=>/IP Cloud/.test(x)));
+s=make();s.devices[1].cfg.lan='172.31.254.0/24';s.devices[1].cfg.gw='172.31.254.1';vf=E.chrPreflight(s,'r');assert(vf.blockers.some(x=>/зарезервированной/.test(x)));
+s=make();s.devices.push({id:'r2',type:'router',name:'Second',cfg:{}});vf=E.chrPreflight(s,'r');assert(vf.blockers.some(x=>/одним MikroTik/.test(x)));
+s=make();s.devices[0].cfg.pass='VerySecretPpp';s.devices[1].cfg.vpnPass='VerySecretVpn';vf=E.chrPreflight(s,'r');assert(!JSON.stringify(vf).includes('VerySecret'));
+
+console.log('Лаборатория: проверки модели, адресов, топологии, генерации и предварительной проверки CHR прошли.');

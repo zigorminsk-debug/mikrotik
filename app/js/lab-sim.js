@@ -732,9 +732,36 @@ function expandedRun(state) {
   }
   return res;
 }
+/* Предварительная оценка совместимости с будущей изолированной CHR.
+   Это НЕ запуск и НЕ проект для импорта: ошибки никогда не превращаются в
+   частично применённую конфигурацию. Секреты и команды не возвращаются. */
+function chrPreflight(state, routerId) {
+  state = state || {devices:[], links:[]};
+  var devices = state.devices || [], routers = devices.filter(function(d){return d.type === 'router';});
+  var blockers = [], notices = [];
+  if (routers.length !== 1 || !routers[0] || routers[0].id !== routerId) {
+    blockers.push('Предварительная проверка CHR сейчас рассчитана только на одну выбранную схему с одним MikroTik.');
+  } else {
+    var c = routers[0].cfg || {}, mgmt = parseCidr('172.31.254.0/24');
+    if (c.wifiAp || c.wifiGuest || c.wifiGuestIsolation) blockers.push('CHR не эмулирует Wi-Fi-радио: выбранные Wi-Fi настройки нельзя применить как настоящее радио.');
+    if (devices.some(function(d){return d.type === 'isp' && d.cfg && d.cfg.kind === 'lte';})) blockers.push('Для LTE нужен поддерживаемый реальный модем; в виртуальной CHR он не эмулируется.');
+    if (c.vpn) blockers.push('Автоматическое применение VPN и проверка сертификатов для CHR ещё не реализованы.');
+    if (c.secureManagement) blockers.push('Ограничение управления пока несовместимо со служебным каналом доступа к CHR.');
+    if (c.cloudDdns || c.ntpClient || c.wanMonitor) blockers.push('IP Cloud, NTP и проверка WAN требуют доступа к внешним сервисам, который в изолированной VM не предусмотрен.');
+    var conflicts = [c.lan, c.vlanGuest ? c.guestNet : null, c.staticRoute ? c.routeDst : null];
+    devices.forEach(function(d){if (d.type === 'isp' && d.cfg && d.cfg.kind === 'static') conflicts.push(d.cfg.ip);});
+    if (conflicts.some(function(text){var net = text && parseCidr(text); return net && net.overlaps(mgmt);})) blockers.push('Сеть пересекается с зарезервированной для управления CHR подсетью 172.31.254.0/24.');
+    var run = expandedRun(state);
+    if (run.errors.length) blockers.push('Схема содержит ошибки; исправьте их в результатах проверки лаборатории.');
+    notices.push('Виртуальные порты, провайдеры и клиенты не становятся физической сетью; действительный интернет и работу служб необходимо проверять отдельно.');
+  }
+  return {available:false, blockers:blockers, notices:notices,
+    reason:'Запуск CHR, установка зависимостей, применение настроек и их проверка ещё не реализованы.'};
+}
 var LabEngine = { ipToInt: ipToInt, intToIp: intToIp, validIp: validIp, parseCidr: parseCidr, poolOf: poolOf, adjacency: adjacency, bfsPath: bfsPath,
   isIndependent: function(state) { var v = expandAdapters(state); return !v.errors.length && !!independentNetworks(v.state); },
   routerForCard: function(state, id, nic) { var v = expandAdapters(state), parts = !v.errors.length && independentNetworks(v.state), key = nic && nic !== 'nic1' ? id + '::' + nic : id; if (!parts) return null; var p = parts.filter(function(x) {return x.devices.some(function(d){return d.id === key;});})[0]; return p ? p.devices.filter(function(d){return d.type === 'router';})[0] : null; },
+  chrPreflight: chrPreflight,
   analyze: analyze, buildModel: buildModel, buildTimeline: buildTimeline, activeRoutes: function(state) { var v=expandAdapters(state); return v.errors.length ? [] : routesForState(v.state).map(function(r){return mapRoute(r,v);}); }, genCommands: genCommands, addrRows: addrRows, winboxSteps: winboxSteps,
   run: function (state) {
     state = state || {devices:[],links:[]};
