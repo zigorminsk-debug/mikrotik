@@ -225,6 +225,7 @@ async function main() {
     'заголовок топбара соответствует разделу: ' + $('topbar-title').textContent);
   ok(navInitial.classList.contains('active'), 'раздел активен в меню');
   ok(doc.getElementById('content').children.length > 0, 'раздел отрендерен после перехода');
+  ok(!!doc.querySelector('#content li img[src="assets/img/own/ether1-winbox4.jpg"]'), 'оригинальный снимок General свойства ether1 привязан к действию');
 
   win.location.hash = '#ros-ipv6';
   win.dispatchEvent(new win.Event('hashchange'));

@@ -9,3 +9,5 @@
 `diagram-export-windows.jpg` — собственный снимок окна Windows Electron с кнопками сохранения PNG и GIF, GitHub Actions [41078825051](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41078825051). На нём показано только расположение кнопок, не диалог сохранения и не результат экспорта.
 
 `interfaces-winbox4.jpg` — собственный снимок WinBox 4.4, подключённого к тестовой CHR 7.23.8 в QEMU на одноразовом GitHub runner, [запуск 41079535342](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41079535342). Показан список Interfaces → Interface; PPPoE-клиент отключён. Снимок не подтверждает подключение к провайдеру.
+
+`ether1-winbox4.jpg` — собственный снимок окна свойств Ethernet-интерфейса ether1, вкладки General WinBox 4.4, подключённого к тестовой CHR 7.23.8 в QEMU на одноразовом GitHub runner, [запуск 41096267864](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41096267864). Это виртуальный интерфейс; статус link ok не подтверждает интернет.
