@@ -93,5 +93,11 @@ jobs:
           npm install --prefix tools --no-audit --no-fund
           if ($LASTEXITCODE -ne 0) { throw 'Test dependencies failed to install' }
           $env:NODE_PATH = (Join-Path $env:GITHUB_WORKSPACE 'tools/node_modules')
-          node tools/test-chr-download-integration.js (Join-Path $env:RUNNER_TEMP 'chr-probe/cache')
-          if ($LASTEXITCODE -ne 0) { throw 'Application CHR download test failed' }
+          $log = Join-Path $env:RUNNER_TEMP 'chr-probe/download-test.log'
+          node tools/test-chr-download-integration.js (Join-Path $env:RUNNER_TEMP 'chr-probe/cache') *> $log
+          if ($LASTEXITCODE -ne 0) {
+            $text = ((Get-Content -Raw $log) -replace '%','%25' -replace "`r",'' -replace "`n",'%0A')
+            Write-Output "::error title=CHR download diagnostic::$text"
+            throw 'Application CHR download test failed'
+          }
+          Get-Content $log
