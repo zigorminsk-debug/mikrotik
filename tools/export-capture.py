@@ -9,7 +9,10 @@ import os
 import pathlib
 import sys
 
-shot = pathlib.Path(os.environ['RUNNER_TEMP']) / 'routeros-capture/output/winbox.jpg'
+kind = sys.argv[2] if len(sys.argv) > 2 else 'ntp'
+if kind not in ('ntp','clock'):
+    raise SystemExit('Invalid capture kind')
+shot = pathlib.Path(os.environ['RUNNER_TEMP']) / 'routeros-capture/output' / ('clock.jpg' if kind == 'clock' else 'winbox.jpg')
 if not shot.exists():
     print('No experimental image was created')
     raise SystemExit(0)
@@ -20,4 +23,4 @@ if len(parts) > 30:
     print('::warning::Screenshot too large for annotations; use artifact instead')
 else:
     for i in range(start, min(start+10, len(parts))):
-        print(f'::notice title=SHOT_PART_{i:02d}_OF_{len(parts):02d}::{parts[i]}')
+        print(f'::notice title={kind.upper()}_PART_{i:02d}_OF_{len(parts):02d}::{parts[i]}')

@@ -63,6 +63,15 @@ jobs:
       - name: Export experimental screenshot 20–29
         if: always()
         run: /usr/bin/python3 tools/export-capture.py 20
+      - name: Export Clock screenshot 0–9
+        if: always()
+        run: /usr/bin/python3 tools/export-capture.py 0 clock
+      - name: Export Clock screenshot 10–19
+        if: always()
+        run: /usr/bin/python3 tools/export-capture.py 10 clock
+      - name: Export Clock screenshot 20–29
+        if: always()
+        run: /usr/bin/python3 tools/export-capture.py 20 clock
       - name: Upload capture and diagnostic output
         if: always()
         uses: actions/upload-artifact@v4

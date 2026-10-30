@@ -18,8 +18,7 @@ let session;
   for (const server of ['192.0.2.123', 'pool.ntp.org']) {
     const state = JSON.parse(JSON.stringify(base));
     Object.assign(state.devices.find(d=>d.id==='r').cfg, {ntpClient:true, ntpServer:server, timeZone:'Europe/Minsk'});
-    assert(makePlan(engine,state,'r').blockers.length, 'NTP must remain blocked in the application until validation');
-    const plan = makePlan(engine,state,'r',{allowNtpConfig:true});
+    const plan = makePlan(engine,state,'r');
     assert.deepStrictEqual(plan.blockers,[]);
     session = new ChrSession({qemu:path.resolve(qemu),image:path.resolve(image),tempRoot:path.resolve(work),supervisor:path.resolve(supervisor),diagnostic:e=>events.push(e),diagnoseManagement:true});
     const info = await session.start(plan); // Applies commands and verifies via REST.

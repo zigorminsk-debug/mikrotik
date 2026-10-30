@@ -17,12 +17,11 @@ for (const flag of ['vpn','wifiAp','secureManagement','cloudDdns','wanFailover',
 }
 s = sample(); Object.assign(s.devices[1].cfg, {staticRoute:true, routeDst:'10.20.0.0/24', routeGw:'192.168.88.254', routeDistance:'2', dnsStatic:true, dnsStaticName:'host.lan', dnsStaticIp:'192.168.88.20', identityOn:true, systemIdentity:'Router Lab'});
 plan = makePlan(engine,s,'r'); assert.deepStrictEqual(plan.blockers, []); assert(plan.groups.some(g=>g.id==='route')); assert(plan.groups.some(g=>g.id==='services')); assert.strictEqual(plan.expected.identity, 'Router Lab');
-// NTP remains blocked in the application until an isolated CHR test passes.
+// NTP settings may be configured; connectivity/synchronization are not assumed.
 s = sample(); Object.assign(s.devices[1].cfg,{ntpClient:true,ntpServer:'192.0.2.123',timeZone:'Europe/Minsk'});
-assert(makePlan(engine,s,'r').blockers.length);
-plan=makePlan(engine,s,'r',{allowNtpConfig:true});assert.deepStrictEqual(plan.blockers,[]);assert.deepStrictEqual(plan.expected.ntp,{server:'192.0.2.123',zone:'Europe/Minsk'});assert(plan.groups.some(g=>g.id==='services' && g.commands.some(x=>x.includes('/system ntp client servers add'))));
-s.devices[1].cfg.ntpServer='bad; /system reboot';assert(makePlan(engine,s,'r',{allowNtpConfig:true}).blockers.length);
-s.devices[1].cfg.ntpServer='192.0.2.123';s.devices[1].cfg.timeZone='Bad;reboot';assert(makePlan(engine,s,'r',{allowNtpConfig:true}).blockers.length);
+plan=makePlan(engine,s,'r');assert.deepStrictEqual(plan.blockers,[]);assert.deepStrictEqual(plan.expected.ntp,{server:'192.0.2.123',zone:'Europe/Minsk'});assert(plan.groups.some(g=>g.id==='services' && g.commands.some(x=>x.includes('/system ntp client servers add'))));
+s.devices[1].cfg.ntpServer='bad; /system reboot';assert(makePlan(engine,s,'r').blockers.length);
+s.devices[1].cfg.ntpServer='192.0.2.123';s.devices[1].cfg.timeZone='Bad;reboot';assert(makePlan(engine,s,'r').blockers.length);
 s = sample(); s.devices[0].cfg.kind = 'dhcp'; assert(makePlan(engine,s,'r').blockers.length);
 s = sample(); s.devices[0].cfg.kind = 'lte'; assert(makePlan(engine,s,'r').blockers.some(x => /LTE/.test(x)));
 s = sample(); s.devices[2].cfg.external = true; assert(makePlan(engine,s,'r').blockers.length); // DHCP target rejected

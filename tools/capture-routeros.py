@@ -68,6 +68,9 @@ try:
                         '/interface pppoe-client add name=pppoe-out2 interface=ether3 user=example-user password=example-password add-default-route=yes default-route-distance=2 use-peer-dns=no disabled=yes',
                         '/interface list add name=WAN',
                         '/interface list member add list=WAN interface=pppoe-out2',
+                        '/system clock set time-zone-autodetect=no time-zone-name=Europe/Minsk',
+                        '/system ntp client set enabled=yes',
+                        '/system ntp client servers add address=192.0.2.123',
                         '/system resource print']:
             vm.sendline(command)
             vm.expect(r'\[admin@[^\]]+\]\s*>')
@@ -109,9 +112,22 @@ xdotool windowfocus --sync "$win"
 # before using it in documentation. No router changes from the GUI.
 xdotool mousemove --sync 180 443
 xdotool click 1
+sleep 2
+# System -> NTP Client: the example address belongs to TEST-NET-1 and is not
+# a real NTP service. No synchronisation is claimed.
+xdotool mousemove --sync 305 421
+xdotool click 1
 sleep 8
 scrot "$3/winbox.png"
 scrot -q 45 "$3/winbox.jpg"
+# System -> Clock; captures an actual window, verified visually before use.
+xdotool mousemove --sync 180 443
+xdotool click 1
+sleep 2
+xdotool mousemove --sync 290 223
+xdotool click 1
+sleep 8
+scrot -q 45 "$3/clock.jpg"
 kill "$pid" 2>/dev/null || true
 '''
     env = os.environ.copy()

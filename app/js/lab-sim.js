@@ -745,8 +745,7 @@ function expandedRun(state) {
 /* Предварительная оценка совместимости с будущей изолированной CHR.
    Это НЕ запуск и НЕ проект для импорта: ошибки никогда не превращаются в
    частично применённую конфигурацию. Секреты и команды не возвращаются. */
-function chrPreflight(state, routerId, options) {
-  options = options || {};
+function chrPreflight(state, routerId) {
   state = state || {devices:[], links:[]};
   var devices = state.devices || [], routers = devices.filter(function(d){return d.type === 'router';});
   var blockers = [], notices = [];
@@ -759,8 +758,7 @@ function chrPreflight(state, routerId, options) {
     if (c.vpn) blockers.push('Автоматическое применение VPN и проверка сертификатов для CHR ещё не реализованы.');
     if (c.secureManagement) blockers.push('Ограничение управления пока несовместимо со служебным каналом доступа к CHR.');
     if (c.cloudDdns || c.wanMonitor) blockers.push('IP Cloud и проверка WAN требуют доступа к внешним сервисам, который в изолированной VM не предусмотрен.');
-    if (c.ntpClient && options.allowNtpConfig !== true) blockers.push('Применение параметров NTP в CHR пока проверяется и недоступно.');
-    if (c.ntpClient && options.allowNtpConfig === true) notices.push('Применяются только параметры NTP и часового пояса; фактическая синхронизация и доступность сервера не проверяются.');
+    if (c.ntpClient) notices.push('В изолированной CHR проверяются только параметры NTP и часового пояса; фактическая синхронизация и доступность сервера не проверяются. Режим двух виртуальных WAN с NTP пока недоступен.');
     var conflicts = [c.lan, c.vlanGuest ? c.guestNet : null, c.staticRoute ? c.routeDst : null];
     devices.forEach(function(d){if (d.type === 'isp' && d.cfg && d.cfg.kind === 'static') conflicts.push(d.cfg.ip);});
     if (conflicts.some(function(text){var net = text && parseCidr(text); return net && net.overlaps(mgmt);})) blockers.push('Сеть пересекается с зарезервированной для управления CHR подсетью 172.31.254.0/24.');

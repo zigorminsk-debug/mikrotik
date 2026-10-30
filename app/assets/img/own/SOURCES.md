@@ -13,3 +13,5 @@
 `ether1-winbox4.jpg` — собственный снимок окна свойств Ethernet-интерфейса ether1, вкладки General WinBox 4.4, подключённого к тестовой CHR 7.23.8 в QEMU на одноразовом GitHub runner, [запуск 41096267864](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41096267864). Это виртуальный интерфейс; статус link ok не подтверждает интернет.
 
 `chr-network-warning.jpg` — собственный снимок настоящего системного предупреждения Windows, вызванного тестом Electron с теми же параметрами, что и в приложении, [GitHub Actions 41100165614](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41100165614), success. Для снимка CHR и интернет-сессия не запускались; кнопка отмены нажата автоматикой. Снимок проверен визуально, SHA-256 совпадает с файлом этого запуска.
+
+`system-menu-winbox4.jpg` — необрезанный оригинальный снимок открытого меню System WinBox 4.4 на одноразовой CHR 7.23.8, [GitHub Actions 41116453028](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41116453028). Показан выбор Clock и NTP Client, не сама настройка и не синхронизация; проверен визуально.

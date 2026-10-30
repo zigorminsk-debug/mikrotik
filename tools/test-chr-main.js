@@ -67,6 +67,7 @@ vm.runInNewContext(source,{require:req,process:{platform:'win32',resourcesPath:'
   assert(!JSON.stringify(main.events).includes('TEMPORARY_TEST_PASSWORD'));
   guest.destroy();await new Promise(resolve=>setImmediate(resolve));assert(created[0].stopped);assert(!errors.length);
   plan={blockers:[],groups:[{id:'iface',commands:['/interface print']}],expected:{wans:[{},{}]}};
+  plan.expected.ntp={server:'192.0.2.123',zone:'Europe/Minsk'};let ntpOnline=await call(good,'r',{});assert(!ntpOnline.ok && /NTP/.test(ntpOnline.message));assert.strictEqual(created.length,1);delete plan.expected.ntp;
   onlineValid=false; let rejectedOnline=await call(good,'r',{}); assert(!rejectedOnline.ok && rejectedOnline.message.includes('10.0.2.20')); assert.strictEqual(created.length,1);
   onlineValid=true; choices.push(0); let denied=await call(good,'r',{}); assert(denied.cancelled); assert.strictEqual(created.length,1);
   assert(dialogs.at(-1).detail.includes('службам этого компьютера') && dialogs.at(-1).defaultId===0);

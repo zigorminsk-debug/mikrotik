@@ -9,7 +9,7 @@ function ruleProperties(command) {
 }
 function makePlan(engine, state, routerId, options = {}) {
   if (!state || !Array.isArray(state.devices) || !Array.isArray(state.links) || state.devices.length > 100 || state.links.length > 100) throw new Error('Недопустимый размер или формат схемы');
-  const initial = engine.chrPreflight(state, routerId, {allowNtpConfig: options.allowNtpConfig === true});
+  const initial = engine.chrPreflight(state, routerId);
   const blockers = initial.blockers.slice();
   const router = state.devices.find(d => d.type === 'router' && d.id === routerId);
   const isps = state.devices.filter(d => d.type === 'isp');
