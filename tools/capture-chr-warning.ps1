@@ -3,6 +3,8 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName Microsoft.VisualBasic
 $exe = Join-Path (Get-Location) 'windows/node_modules/electron/dist/electron.exe'
 $script = Join-Path (Get-Location) 'tools/capture-chr-warning.js'
 $out = Join-Path $env:RUNNER_TEMP 'chr-warning-output.log'
@@ -30,13 +32,10 @@ try {
     $graphics.CopyFromScreen([int]$rect.X,[int]$rect.Y,0,0,$bitmap.Size)
     $bitmap.Save((Join-Path $env:RUNNER_TEMP 'chr-warning.jpg'),[System.Drawing.Imaging.ImageFormat]::Jpeg)
   } finally { $graphics.Dispose(); $bitmap.Dispose() }
-  $cancelName = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,'Отмена')
-  $buttonType = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty,[System.Windows.Automation.ControlType]::Button)
-  $cancel = [System.Windows.Automation.AndCondition]::new($cancelName,$buttonType)
-  $button = $dialog.FindFirst([System.Windows.Automation.TreeScope]::Descendants,$cancel)
-  if (!$button) { throw 'Cancel button not found' }
-  $pattern = $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
-  $pattern.Invoke()
+  # The desktop is a disposable runner; send Escape to the real native
+  # dialog. Its default and cancel buttons are both configured as Cancel.
+  [void][Microsoft.VisualBasic.Interaction]::AppActivate($title)
+  [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
   if (!$p.WaitForExit(30000)) { throw 'Electron did not exit after cancelling' }
   if ($p.ExitCode -ne 0) { throw "Electron failed: $(Get-Content -Raw $err -ErrorAction SilentlyContinue)" }
   if ((Get-Item (Join-Path $env:RUNNER_TEMP 'chr-warning.jpg')).Length -lt 5000) { throw 'Screenshot unexpectedly small' }

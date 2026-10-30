@@ -33,7 +33,7 @@ class ChrSession {
     if (this.internetConsent && (this.testInternet || this.testBackupInternet)) throw new Error('Несовместимые режимы интернет-сети');
     if (this.testBackupInternet && !this.testInternet) throw new Error('Резервный сетевой тест требует основной сетевой тест');
     this.proc = null; this.server = null; this.console = null; this.socket = null; this.directory = null;
-    this.closed = false; this.started = false; this.exitPromise = null; this.acceptTimer = null;
+    this.closed = false; this.started = false; this.exitPromise = null; this.acceptTimer = null; this.stopPromise = null;
   }
   async start(plan) {
     if (this.started || this.closed) throw new Error('Сессия CHR уже использована');
@@ -131,7 +131,15 @@ class ChrSession {
       throw new Error('Не удалось запустить или настроить виртуальную CHR: ' + error.message);
     }
   }
-  async stop() {
+  stop() {
+    if (!this.stopPromise) {
+      this.stopPromise = this.stopOnce();
+      // A failed cleanup can be retried; concurrent/successive calls share it.
+      this.stopPromise.catch(() => { this.stopPromise = null; });
+    }
+    return this.stopPromise;
+  }
+  async stopOnce() {
     this.closed = true;
     if (this.acceptTimer) { clearTimeout(this.acceptTimer); this.acceptTimer = null; }
     if (this.console) this.console.close(); else if (this.socket) this.socket.destroy();
