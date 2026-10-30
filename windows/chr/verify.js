@@ -40,15 +40,16 @@ async function verifyConfiguration(expected, get, diagnostic = () => {}) {
   const lists = await get('/rest/interface/list');
   check(one(lists, x => x.name === 'LAN') && one(lists, x => x.name === 'WAN'), 'списки интерфейсов');
   const members = await get('/rest/interface/list/member');
-  check(one(members, x => x.list === 'LAN' && x.interface === 'bridge-lan') && one(members, x => x.list === 'WAN' && x.interface === expected.wanPort), 'состав списков интерфейсов');
+  const wans = expected.wans || [{port:expected.wanPort, address:expected.wanAddress, gateway:expected.wanGateway, distance:'1'}];
+  check(one(members, x => x.list === 'LAN' && x.interface === 'bridge-lan') && wans.every(w => one(members, x => x.list === 'WAN' && x.interface === w.port)), 'состав списков интерфейсов');
   const wanClients = list(await get('/rest/ip/dhcp-client'));
-  check(!wanClients.some(x => x.interface === expected.wanPort && enabled(x)), 'лишний DHCP-клиент WAN');
+  check(!wanClients.some(x => wans.some(w => w.port === x.interface) && enabled(x)), 'лишний DHCP-клиент WAN');
   const addresses = await get('/rest/ip/address');
-  check(one(addresses, x => x.address === expected.lanAddress && x.interface === 'bridge-lan') && one(addresses, x => x.address === expected.wanAddress && x.interface === expected.wanPort), 'адреса LAN и WAN');
-  check(list(addresses).filter(x => x.interface === expected.wanPort && x.disabled !== 'true' && x.disabled !== true).length === 1, 'лишние адреса WAN');
+  check(one(addresses, x => x.address === expected.lanAddress && x.interface === 'bridge-lan') && wans.every(w => one(addresses, x => x.address === w.address && x.interface === w.port)), 'адреса LAN и WAN');
+  check(wans.every(w => list(addresses).filter(x => x.interface === w.port && x.disabled !== 'true' && x.disabled !== true).length === 1), 'лишние адреса WAN');
   if (expected.vlan) check(one(addresses, x => x.address === expected.guestAddress && x.interface === 'vlan-guest'), 'адрес гостевого VLAN');
   const routes = await get('/rest/ip/route');
-  check(list(routes).some(x => x['dst-address'] === '0.0.0.0/0' && x.gateway === expected.wanGateway && String(x.distance) === '1' && x['check-gateway'] === 'ping'), 'маршрут WAN');
+  check(wans.every(w => one(routes, x => x['dst-address'] === '0.0.0.0/0' && x.gateway === w.gateway && String(x.distance) === w.distance && x['check-gateway'] === 'ping' && x.disabled !== 'true' && x.disabled !== true)), 'маршруты WAN');
   if (expected.staticRoute) {
     const found = list(routes).filter(x => x['dst-address'] === expected.staticRoute.destination);
     if (!one(found, x => x.gateway === expected.staticRoute.gateway && String(x.distance) === expected.staticRoute.distance && x.disabled !== true && x.disabled !== 'true')) {

@@ -40,6 +40,16 @@ const get = async key => { assert(key in records, key); return records[key]; };
   records['/rest/ip/dns/static'][0].address = '192.0.2.8'; await assert.rejects(verifyConfiguration(e,get),/DNS-запись/);
   records['/rest/ip/dns/static'][0].address = e.dnsStatic.address; records['/rest/ip/firewall/filter'][1].action = e.filterRules[0].action;
   const dstnat = records['/rest/ip/firewall/nat'].find(x => x.chain === 'dstnat'); dstnat['to-ports'] = '444'; await assert.rejects(verifyConfiguration(e,get),/правила NAT/);
+  // Both WAN entries must be checked, including duplicate/incorrect settings.
+  const dual = makePlan(E,require('./chr-ci-dual-wan-fixture').state,'r',{testDualStaticWan:true}).expected;
+  const second = dual.wans[1];
+  const oldNat=records['/rest/ip/firewall/nat'].find(x=>x.chain==='dstnat'); oldNat['to-ports']='443';
+  records['/rest/interface/list/member'].push({list:'WAN',interface:second.port});
+  records['/rest/ip/address'].push({address:second.address,interface:second.port});
+  records['/rest/ip/route'].push({'dst-address':'0.0.0.0/0',gateway:second.gateway,distance:'2','check-gateway':'ping'});
+  await verifyConfiguration(dual,get);
+  records['/rest/ip/route'].at(-1).distance='1'; await assert.rejects(verifyConfiguration(dual,get),/маршруты WAN/); records['/rest/ip/route'].at(-1).distance='2';
+  records['/rest/ip/address'].at(-1).address='198.51.101.3/30'; await assert.rejects(verifyConfiguration(dual,get),/адреса LAN и WAN/);
   assert.throws(()=>makeReader(0,'admin','secret'), /параметры/);
   console.log('CHR сверка: неправильные адреса и правила не выдаются за успех.');
 })().catch(err => {console.error(err);process.exitCode = 1;});

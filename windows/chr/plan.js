@@ -7,7 +7,7 @@ function ruleProperties(command) {
   for (const m of command.matchAll(/\b([a-z][a-z-]*)=([^\s]+)/g)) result[m[1]] = m[2];
   return result;
 }
-function makePlan(engine, state, routerId) {
+function makePlan(engine, state, routerId, options = {}) {
   if (!state || !Array.isArray(state.devices) || !Array.isArray(state.links) || state.devices.length > 100 || state.links.length > 100) throw new Error('Недопустимый размер или формат схемы');
   const initial = engine.chrPreflight(state, routerId);
   const blockers = initial.blockers.slice();
@@ -15,9 +15,10 @@ function makePlan(engine, state, routerId) {
   const isps = state.devices.filter(d => d.type === 'isp');
   if (router) {
     const c = router.cfg || {};
-    if (c.wanFailover || c.routerFailover) blockers.push('Переключение провайдеров и роутеров ещё не проверено в виртуальной CHR; выключите резервирование.');
+    if (c.routerFailover || (c.wanFailover && options.testDualStaticWan !== true)) blockers.push('Переключение провайдеров и роутеров ещё не проверено в виртуальной CHR; выключите резервирование.');
   }
-  if (isps.length !== 1 || !isps[0].cfg || isps[0].cfg.kind !== 'static') blockers.push('Пока проверен только один провайдер со статическим IPv4; виртуальный провайдер не подключён к интернету.');
+  const dualExperiment = options.testDualStaticWan === true && isps.length === 2 && router && router.cfg && router.cfg.wanFailover === true && isps.every(x => x.cfg && x.cfg.kind === 'static');
+  if (!dualExperiment && (isps.length !== 1 || !isps[0].cfg || isps[0].cfg.kind !== 'static')) blockers.push('Пока проверен только один провайдер со статическим IPv4; виртуальный провайдер не подключён к интернету.');
   if (state.devices.some(d => d.on === false)) blockers.push('Состояние выключенных устройств ещё не воспроизводится в CHR.');
   if (state.devices.some(d => d.cfg && d.cfg.nics && d.cfg.nics.length)) blockers.push('Дополнительные сетевые карты клиентов ещё не проверены в CHR.');
   if (blockers.length) return { blockers, notices: initial.notices, groups: [] };
@@ -36,6 +37,7 @@ function makePlan(engine, state, routerId) {
   const r = result.model.router, wan = result.model.primaryIsp;
   const expected = {
     lanAddress: r.gw + '/24', wanAddress: wan.cfg.ip, wanPort: wan.phys, wanGateway: wan.cfg.gw,
+    wans: result.model.isps.map(i => ({address:i.cfg.ip, port:i.phys, gateway:i.cfg.gw, distance:i.priority === 'primary' ? '1' : '2'})),
     dns: r.dns, dnsCache: r.cfg.dnsCache !== false,
     staticRoute: r.cfg.staticRoute ? {destination:r.cfg.routeDst, gateway:r.cfg.routeGw, distance:String(r.cfg.routeDistance)} : null,
     dnsStatic: r.cfg.dnsStatic ? {name:r.cfg.dnsStaticName, address:r.cfg.dnsStaticIp} : null,

@@ -35,6 +35,13 @@ for (let i=0; i<3; i++) {
   s.links.push({a:'r',b:id});
 }
 plan=makePlan(engine,s,'r'); assert(plan.blockers.some(x=>/максимум 100/.test(x))); assert.deepStrictEqual(plan.groups,[]);
+const dualState = require('./chr-ci-dual-wan-fixture').state;
+assert(makePlan(engine,dualState,'r').blockers.length, 'Dual WAN must remain blocked by default');
+plan = makePlan(engine,dualState,'r',{testDualStaticWan:true});
+assert.deepStrictEqual(plan.blockers,[]); assert.deepStrictEqual(plan.expected.wans.map(w=>w.distance),['1','2']);
+assert(plan.expected.wans.some(w=>w.address==='198.51.101.2/30' && w.gateway==='198.51.101.1'));
+const notStatic=JSON.parse(JSON.stringify(dualState));notStatic.devices.find(x=>x.id==='isp2').cfg.kind='dhcp';assert(makePlan(engine,notStatic,'r',{testDualStaticWan:true}).blockers.length);
+const routers=JSON.parse(JSON.stringify(dualState));routers.devices.find(x=>x.id==='r').cfg.routerFailover=true;assert(makePlan(engine,routers,'r',{testDualStaticWan:true}).blockers.length);
 s = sample(); s.devices[2].cfg.nics = [{id:'nic2'}]; assert(makePlan(engine,s,'r').blockers.length);
 s = sample(); s.devices[1].cfg.lan = '172.31.254.0/24'; assert(makePlan(engine,s,'r').blockers.length);
 s = sample(); s.devices[0].on = false; assert(makePlan(engine,s,'r').blockers.length);

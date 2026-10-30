@@ -6,6 +6,8 @@ on:
       - '.github/workflows/windows-chr-nat.yml'
       - 'app/js/lab-sim.js'
       - 'tools/chr-ci-fixture.js'
+      - 'tools/chr-ci-dual-wan-fixture.js'
+      - 'tools/test-chr-dual-wan.js'
       - 'tools/test-chr-verify.js'
       - 'tools/test-chr-session.js'
       - 'tools/test-chr-internet.js'
@@ -75,4 +77,12 @@ jobs:
             Write-Output "::notice title=CHR test run::$attempt"
             node tools/test-chr-session.js "$env:QEMU_EXE" "$env:CHR_IMAGE" (Join-Path $dir 'fixture.json') (Join-Path $dir 'sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe')
             if ($LASTEXITCODE -ne 0) { throw "QEMU candidate session failed on run $attempt" }
+          }
+      - name: Verify both static WANs on real isolated CHR
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'qemu-candidate'
+          foreach ($attempt in 1..2) {
+            node tools/test-chr-dual-wan.js "$env:QEMU_EXE" "$env:CHR_IMAGE" (Join-Path $dir 'dual-sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe')
+            if ($LASTEXITCODE -ne 0) { throw "Dual WAN CHR test failed on run $attempt" }
           }
