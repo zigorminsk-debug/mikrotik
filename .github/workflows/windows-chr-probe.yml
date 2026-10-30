@@ -7,6 +7,7 @@ on:
       - 'tools/test-chr-windows.py'
       - 'tools/chr-ci-fixture.js'
       - 'tools/test-chr-node.js'
+      - 'tools/test-chr-session.js'
       - 'tools/test-chr-download-integration.js'
       - 'windows/package-lock.json'
       - 'windows/chr/**'
@@ -85,3 +86,12 @@ jobs:
           $env:NODE_PATH = (Join-Path $env:GITHUB_WORKSPACE 'tools/node_modules')
           node tools/test-chr-download-integration.js (Join-Path $env:RUNNER_TEMP 'chr-probe/cache')
           if ($LASTEXITCODE -ne 0) { throw 'Application CHR download test failed' }
+      - name: Exercise isolated CHR session and loopback REST
+        shell: pwsh
+        run: |
+          $fresh = Join-Path $env:RUNNER_TEMP 'chr-probe/session-original'
+          Expand-Archive -LiteralPath (Join-Path $env:RUNNER_TEMP 'chr-probe/chr.zip') -DestinationPath $fresh
+          $original = @(Get-ChildItem -Path $fresh -Recurse -File -Filter '*.img')
+          if ($original.Count -ne 1) { throw 'Expected exactly one CHR image' }
+          node tools/test-chr-session.js "$env:QEMU_EXE" $original[0].FullName (Join-Path $env:RUNNER_TEMP 'chr-probe/fixture.json') (Join-Path $env:RUNNER_TEMP 'chr-probe/sessions')
+          if ($LASTEXITCODE -ne 0) { throw 'CHR session integration failed' }
