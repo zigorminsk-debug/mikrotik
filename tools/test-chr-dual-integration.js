@@ -55,6 +55,7 @@ vm.runInNewContext(source,{require:req,process:{platform:'win32',resourcesPath:p
  await waitActive('10.0.2.2'); await actual.console.command(fetch);
  await actual.console.command('/interface ethernet disable [find where name=ether1]'); await waitActive('10.0.3.2'); await actual.console.command(fetch);
  await actual.console.command('/interface ethernet enable [find where name=ether1]'); await waitActive('10.0.2.2'); await actual.console.command(fetch);
- const dir=actual.directory; await actual.stop();assert(!fs.existsSync(dir));
+ // Close the WebFig window like a user: main clears active before stopping.
+ const dir=actual.directory; windows[1].destroy(); await actual.stop(); assert(!fs.existsSync(dir));
  console.log('::notice title=Main handler dual WAN integration::Real main handler, generated plan, CHR session, selected routes and interface failover verified; Electron dialogs/windows and image download were mocked. Both WANs use one host; test fetch does not validate TLS.');
 })().catch(e=>{console.log('::error title=Dual WAN main integration::'+String(e.message).replace(/[\r\n%]/g,' '));console.log('::notice title=Integration diagnostics::'+JSON.stringify(events));process.exitCode=1;}).finally(async()=>{if(actual)await actual.stop().catch(e=>{console.log('::error title=Integration cleanup::'+String(e.message).replace(/[\r\n%]/g,' '));process.exitCode=1;});});
