@@ -30,6 +30,13 @@ const {validateDualInternet} = require('../windows/chr/online');
  const state=JSON.parse(JSON.stringify(captured.state)), plan=makePlan(E,state,r,{allowDualStaticWan:true});
  assert.deepStrictEqual(plan.blockers,[]);assert(validateDualInternet(plan.expected));
  assert.deepStrictEqual(plan.expected.wans.map(x=>x.port),['ether1','ether4']);
- assert.equal(plan.expected.dns,'10.0.2.3,10.0.3.3');assert(!errors.length,errors.join('; '));
+ assert.equal(plan.expected.dns,'10.0.2.3,10.0.3.3');
+ // The preset never overwrites an existing project without confirmation and
+ // does not start CHR; it creates exactly the supported example when accepted.
+ const before=JSON.stringify(w.Lab.state); w.confirm=()=>false; $('lab_example_chr').click();assert.equal(JSON.stringify(w.Lab.state),before);
+ w.confirm=()=>true; captured=null; $('lab_example_chr').click();assert.equal(captured,null);
+ const preset=JSON.parse(JSON.stringify(w.Lab.state)), router=preset.devices.find(x=>x.type==='router');
+ const presetPlan=makePlan(E,preset,router.id,{allowDualStaticWan:true});assert.deepStrictEqual(presetPlan.blockers,[]);assert(validateDualInternet(presetPlan.expected));
+ assert(!errors.length,errors.join('; '));
  dom.window.close();console.log('Два WAN: настройки форм и порядок соединений передаются в план CHR без замены адресов.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

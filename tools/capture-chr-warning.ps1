@@ -19,7 +19,9 @@ try {
     Start-Sleep -Seconds 1
   }
   if (!$dialog) { throw 'Native warning not found through UI Automation' }
-  $dialog.SetFocus(); Start-Sleep -Seconds 2
+  # Native dialogs can expose a non-focusable UIA root even while visible.
+  # Capture the foreground dialog without forcing focus.
+  Start-Sleep -Seconds 2
   $rect = $dialog.Current.BoundingRectangle
   if ($rect.Width -lt 200 -or $rect.Height -lt 100 -or $rect.Width -gt 3000 -or $rect.Height -gt 2000) { throw "Invalid screenshot dimensions: $($rect.Width)x$($rect.Height)" }
   $bitmap = [System.Drawing.Bitmap]::new([int]$rect.Width,[int]$rect.Height)

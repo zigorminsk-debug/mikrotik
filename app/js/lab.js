@@ -1067,6 +1067,20 @@ function init() {
     addLink(isp, rt); addLink(rt, sw); addLink(sw, pc); addLink(sw, server);
     setMode('select');
   });
+  $('lab_example_chr').addEventListener('click', function () {
+    if (state.devices.length && !window.confirm('Заменить текущую схему примером CHR с двумя виртуальными WAN? Текущие устройства и их настройки будут удалены. Это не запускает CHR и не включает интернет.')) return;
+    resetBtn.click();
+    var w = canvas.clientWidth || 800, left = Math.max(0, w * .08), right = Math.max(0, w - 110), mid = Math.max(0, (w - DEV_W) / 2);
+    var isp1 = place('isp', left, 10), isp2 = place('isp', right, 10), rt = place('router', mid, 150);
+    var pc1 = place('pc', left, 330), pc2 = place('pc', right, 330);
+    Object.assign(byId(isp1).cfg, {kind:'static',priority:'primary',ip:'10.0.2.20/24',gw:'10.0.2.2',dns:'10.0.2.3'});
+    Object.assign(byId(isp2).cfg, {kind:'static',priority:'backup',ip:'10.0.3.20/24',gw:'10.0.3.2',dns:'10.0.3.3'});
+    Object.assign(byId(rt).cfg, {wanFailover:true,routerFailover:false,customDns:true,dnsPrimary:'10.0.2.3',dnsSecondary:'10.0.3.3'});
+    byId(pc1).cfg.mode='dhcp'; byId(pc2).cfg.mode='dhcp';
+    // Link order is significant: primary ether1, LAN ether2/3, backup ether4.
+    addLink(isp1,rt); addLink(rt,pc1); addLink(rt,pc2); addLink(isp2,rt);
+    setMode('select'); renderAll();
+  });
   $('lab_example_backup').addEventListener('click', function () {
     resetBtn.click();
     var w = canvas.clientWidth || 800, left = Math.max(0, w * .08), right = Math.max(0, w - 110), middle = Math.max(0, (w - DEV_W) / 2);
