@@ -16,7 +16,7 @@ permissions:
 jobs:
   evaluate:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -65,5 +65,9 @@ jobs:
         shell: pwsh
         run: |
           $dir = Join-Path $env:RUNNER_TEMP 'qemu-candidate'
-          node tools/test-chr-session.js "$env:QEMU_EXE" "$env:CHR_IMAGE" (Join-Path $dir 'fixture.json') (Join-Path $dir 'sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe')
-          if ($LASTEXITCODE -ne 0) { throw 'QEMU candidate session failed' }
+          # Repeated cold boots help expose intermittent connectivity failures.
+          foreach ($attempt in 1..3) {
+            Write-Output "::notice title=CHR test run::$attempt"
+            node tools/test-chr-session.js "$env:QEMU_EXE" "$env:CHR_IMAGE" (Join-Path $dir 'fixture.json') (Join-Path $dir 'sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe')
+            if ($LASTEXITCODE -ne 0) { throw "QEMU candidate session failed on run $attempt" }
+          }

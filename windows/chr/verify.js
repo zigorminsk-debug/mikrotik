@@ -1,12 +1,16 @@
 'use strict';
 const http = require('http');
 // Queries only QEMU's locally forwarded management port. No arbitrary URLs.
-function makeReader(port, user, password) {
+function makeReader(port, user, password, diagnostic = () => {}) {
   if (!Number.isInteger(port) || port < 1 || port > 65535 || user !== 'admin' || typeof password !== 'string') throw new Error('Неверные параметры управления CHR');
   const headers = { authorization: 'Basic ' + Buffer.from(user + ':' + password).toString('base64') };
   return endpoint => new Promise((resolve, reject) => {
     if (!/^\/rest\/[a-z\-/]+$/.test(endpoint)) return reject(new Error('Недопустимый запрос CHR'));
+    const started = Date.now();
+    let timedOut = false;
+    const report = detail => { try { diagnostic({endpoint, elapsedMs: Date.now() - started, ...detail}); } catch (_) {} };
     const request = http.get({hostname:'127.0.0.1', port, path:endpoint, headers, timeout:15000}, response => {
+      report({status:response.statusCode});
       let body = ''; response.setEncoding('utf8');
       response.on('data', chunk => { body += chunk; if (body.length > 1000000) request.destroy(); });
       response.on('error', () => reject(new Error('Ошибка ответа CHR')));
@@ -15,8 +19,8 @@ function makeReader(port, user, password) {
         try { resolve(JSON.parse(body)); } catch (_) { reject(new Error('Некорректный ответ CHR')); }
       });
     });
-    request.on('timeout', () => request.destroy());
-    request.on('error', () => reject(new Error('Не удалось подключиться к виртуальной CHR')));
+    request.on('timeout', () => { timedOut = true; request.destroy(); });
+    request.on('error', error => { report({error: timedOut ? 'TIMEOUT' : (typeof error.code === 'string' && /^[A-Z_0-9]+$/.test(error.code) ? error.code : 'NETWORK_ERROR')}); reject(new Error('Не удалось подключиться к виртуальной CHR')); });
   });
 }
 function check(ok, description) { if (!ok) throw new Error('CHR не подтвердила настройку: ' + description); }

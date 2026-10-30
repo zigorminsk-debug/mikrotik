@@ -12,7 +12,8 @@ const testState = require('./chr-ci-fixture').state;
 const [qemu,image,fixture,work,supervisor] = process.argv.slice(2);
 if (!qemu || !image || !fixture || !work || !supervisor) throw Error('Missing CI paths');
 const commands = JSON.parse(fs.readFileSync(fixture,'utf8').replace(/^\uFEFF/,''));
-const session = new ChrSession({qemu:path.resolve(qemu), image:path.resolve(image), tempRoot:path.resolve(work), supervisor:path.resolve(supervisor)});
+const events = [];
+const session = new ChrSession({qemu:path.resolve(qemu), image:path.resolve(image), tempRoot:path.resolve(work), supervisor:path.resolve(supervisor), diagnostic:event => events.push(event)});
 function get(url, user, password, route) {
   const root = new URL(url);
   return new Promise((resolve, reject) => {
@@ -48,4 +49,4 @@ function get(url, user, password, route) {
   await session.stop();
   assert(!fs.existsSync(dir));
   console.log('Windows CHR session: isolated QEMU, loopback REST, applied LAN/VLAN/DHCP and cleanup verified.');
-})().catch(e => { const msg=String(e.message).replace(/[\r\n%]/g, ' '); console.error('CHR session test failed:', msg); console.log('::error title=CHR session test::' + msg); process.exitCode = 1; }).finally(() => session.stop().catch(e => {console.error('Cleanup failed:',e.message);process.exitCode=1;}));
+})().catch(e => { const msg=String(e.message).replace(/[\r\n%]/g, ' '); console.error('CHR session test failed:', msg); console.log('::error title=CHR session test::' + msg); console.log('::notice title=CHR network diagnostics::' + JSON.stringify(events)); process.exitCode = 1; }).finally(() => session.stop().catch(e => {console.error('Cleanup failed:',e.message);process.exitCode=1;}));

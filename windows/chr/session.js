@@ -20,10 +20,11 @@ async function temporaryPort() {
   const s = net.createServer(); const port = await bind(s); await closeServer(s); return port;
 }
 class ChrSession {
-  constructor({qemu, image, tempRoot, supervisor}) {
+  constructor({qemu, image, tempRoot, supervisor, diagnostic}) {
     if (![qemu, image, tempRoot, supervisor].every(x => typeof x === 'string' && path.isAbsolute(x))) throw new Error('Неверные пути CHR');
     if (path.basename(qemu).toLowerCase() !== 'qemu-system-x86_64.exe' || path.basename(image) !== 'chr-7.23.8.img' || path.basename(supervisor).toLowerCase() !== 'chr-supervisor.exe') throw new Error('Неверные компоненты CHR');
     this.qemu = qemu; this.image = image; this.root = tempRoot; this.supervisor = supervisor;
+    this.diagnostic = typeof diagnostic === 'function' ? diagnostic : () => {};
     this.proc = null; this.server = null; this.console = null; this.socket = null; this.directory = null;
     this.closed = false; this.started = false; this.exitPromise = null; this.acceptTimer = null;
   }
@@ -77,7 +78,7 @@ class ChrSession {
         '/ip firewall filter add chain=input in-interface=ether6 action=accept comment="Lab management"'
       ]) await this.console.command(command);
       for (const command of commands) await this.console.command(command);
-      const get = makeReader(managementPort, 'admin', password);
+      const get = makeReader(managementPort, 'admin', password, this.diagnostic);
       let verificationError;
       // Under software emulation, WebFig can become reachable after the serial
       // console and configuration. Retry only connection failures, never a
