@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/windows-qemu-candidate.yml'
       - 'tools/test-chr-session.js'
+      - 'tools/test-chr-internet.js'
+      - 'tools/chr-ci-fixture.js'
       - 'windows/chr/session.js'
       - 'windows/chr/console.js'
       - 'windows/chr/plan.js'
@@ -71,3 +73,9 @@ jobs:
             node tools/test-chr-session.js "$env:QEMU_EXE" "$env:CHR_IMAGE" (Join-Path $dir 'fixture.json') (Join-Path $dir 'sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe')
             if ($LASTEXITCODE -ne 0) { throw "QEMU candidate session failed on run $attempt" }
           }
+      - name: Research outbound connectivity from the guest
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'qemu-candidate'
+          node tools/test-chr-internet.js "$env:QEMU_EXE" "$env:CHR_IMAGE" (Join-Path $dir 'internet-sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe')
+          if ($LASTEXITCODE -ne 0) { throw 'CHR outbound research test failed' }

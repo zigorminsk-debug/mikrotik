@@ -11,10 +11,12 @@ let s = sample(), plan = makePlan(engine,s,'r');
 assert.deepStrictEqual(plan.blockers, []);
 assert(plan.groups.some(g => g.id === 'dhcp' && g.commands.some(x => x.includes('dhcp-lan'))));
 assert(!plan.groups.some(g => g.id === 'verify'));
-for (const flag of ['vpn','wifiAp','secureManagement','cloudDdns','wanFailover','routerFailover','staticRoute','dnsStatic','identityOn']) {
+for (const flag of ['vpn','wifiAp','secureManagement','cloudDdns','wanFailover','routerFailover']) {
   s = sample(); s.devices[1].cfg[flag] = true; plan = makePlan(engine,s,'r');
   assert(plan.blockers.length && !plan.groups.length, flag);
 }
+s = sample(); Object.assign(s.devices[1].cfg, {staticRoute:true, routeDst:'10.20.0.0/24', routeGw:'192.168.88.254', routeDistance:'2', dnsStatic:true, dnsStaticName:'host.lan', dnsStaticIp:'192.168.88.20', identityOn:true, systemIdentity:'Router Lab'});
+plan = makePlan(engine,s,'r'); assert.deepStrictEqual(plan.blockers, []); assert(plan.groups.some(g=>g.id==='route')); assert(plan.groups.some(g=>g.id==='services')); assert.strictEqual(plan.expected.identity, 'Router Lab');
 s = sample(); s.devices[0].cfg.kind = 'dhcp'; assert(makePlan(engine,s,'r').blockers.length);
 s = sample(); s.devices[0].cfg.kind = 'lte'; assert(makePlan(engine,s,'r').blockers.some(x => /LTE/.test(x)));
 s = sample(); s.devices[2].cfg.external = true; assert(makePlan(engine,s,'r').blockers.length);

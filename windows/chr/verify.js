@@ -46,6 +46,9 @@ async function verifyConfiguration(expected, get) {
   if (expected.vlan) check(one(addresses, x => x.address === expected.guestAddress && x.interface === 'vlan-guest'), 'адрес гостевого VLAN');
   const routes = await get('/rest/ip/route');
   check(list(routes).some(x => x['dst-address'] === '0.0.0.0/0' && x.gateway === expected.wanGateway && String(x.distance) === '1' && x['check-gateway'] === 'ping'), 'маршрут WAN');
+  if (expected.staticRoute) check(one(routes, x => x['dst-address'] === expected.staticRoute.destination && x.gateway === expected.staticRoute.gateway && String(x.distance) === expected.staticRoute.distance && enabled(x)), 'статический маршрут LAN');
+  if (expected.identity !== null) { const identity = await get('/rest/system/identity'); check(identity && identity.name === expected.identity, 'системное имя'); }
+  if (expected.dnsStatic) { const entries = await get('/rest/ip/dns/static'); check(one(entries, x => x.name === expected.dnsStatic.name && x.address === expected.dnsStatic.address && x.type === 'A' && enabled(x)), 'локальная DNS-запись'); }
   const dns = await get('/rest/ip/dns');
   check(dns && dns.servers === expected.dns && String(dns['allow-remote-requests']) === String(expected.dnsCache), 'DNS');
   const dhcp = await get('/rest/ip/dhcp-server');

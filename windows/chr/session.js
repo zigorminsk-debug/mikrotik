@@ -20,12 +20,13 @@ async function temporaryPort() {
   const s = net.createServer(); const port = await bind(s); await closeServer(s); return port;
 }
 class ChrSession {
-  constructor({qemu, image, tempRoot, supervisor, diagnostic, diagnoseManagement = false}) {
+  constructor({qemu, image, tempRoot, supervisor, diagnostic, diagnoseManagement = false, testInternet = false}) {
     if (![qemu, image, tempRoot, supervisor].every(x => typeof x === 'string' && path.isAbsolute(x))) throw new Error('Неверные пути CHR');
     if (path.basename(qemu).toLowerCase() !== 'qemu-system-x86_64.exe' || path.basename(image) !== 'chr-7.23.8.img' || path.basename(supervisor).toLowerCase() !== 'chr-supervisor.exe') throw new Error('Неверные компоненты CHR');
     this.qemu = qemu; this.image = image; this.root = tempRoot; this.supervisor = supervisor;
     this.diagnostic = typeof diagnostic === 'function' ? diagnostic : () => {};
     this.diagnoseManagement = diagnoseManagement === true;
+    this.testInternet = testInternet === true; // Only used by the Windows CI connectivity experiment; never passed by the app.
     this.proc = null; this.server = null; this.console = null; this.socket = null; this.directory = null;
     this.closed = false; this.started = false; this.exitPromise = null; this.acceptTimer = null;
   }
@@ -49,8 +50,13 @@ class ChrSession {
       if (this.closed) throw new Error('Сессия остановлена');
       const args = ['-machine','pc,accel=tcg','-m','256','-smp','1','-display','none','-monitor','none',
         '-serial', `tcp:127.0.0.1:${serialPort}`, '-drive', `file=${disk.replace(/,/g, ',,')},format=raw,if=ide`];
-      // Five topology ports remain isolated: no bridge, TAP or host forwarding.
-      for (let i = 0; i < 5; i++) args.push('-netdev', `user,id=n${i},restrict=on`, '-device', `e1000,netdev=n${i}`);
+      // The application remains isolated. CI can explicitly test one pinned
+      // NAT subnet; no arbitrary network parameters are accepted in this probe.
+      if (this.testInternet && (plan.expected.wanPort !== 'ether1' || plan.expected.wanAddress !== '10.0.2.15/24' || plan.expected.wanGateway !== '10.0.2.2')) throw new Error('Недопустимые параметры сетевого теста');
+      for (let i = 0; i < 5; i++) {
+        const netdev = this.testInternet && i === 0 ? `user,id=n${i},net=10.0.2.0/24,host=10.0.2.2` : `user,id=n${i},restrict=on`;
+        args.push('-netdev', netdev, '-device', `e1000,netdev=n${i}`);
+      }
       // Dedicated management port; the only host forward binds to loopback.
       args.push('-netdev', `user,id=mgmt,restrict=on,net=172.31.254.0/24,host=172.31.254.2,hostfwd=tcp:127.0.0.1:${managementPort}-172.31.254.15:80`, '-device', 'e1000,netdev=mgmt');
       const accepted = new Promise((resolve, reject) => {

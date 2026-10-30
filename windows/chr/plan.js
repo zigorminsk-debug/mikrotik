@@ -1,7 +1,7 @@
 'use strict';
 // Private main-process preflight; never accept RouterOS command strings from
 // a renderer. Selected unsupported capabilities block the whole plan.
-const allowedGroups = new Set(['iface', 'addr', 'wan', 'dhcp', 'guest-vlan', 'filter', 'nat', 'activate-lan']);
+const allowedGroups = new Set(['iface', 'addr', 'wan', 'dhcp', 'guest-vlan', 'filter', 'nat', 'activate-lan', 'route', 'services']);
 function ruleProperties(command) {
   const result = {};
   for (const m of command.matchAll(/\b([a-z][a-z-]*)=([^\s]+)/g)) result[m[1]] = m[2];
@@ -16,7 +16,6 @@ function makePlan(engine, state, routerId) {
   if (router) {
     const c = router.cfg || {};
     if (c.wanFailover || c.routerFailover) blockers.push('Переключение провайдеров и роутеров ещё не проверено в виртуальной CHR; выключите резервирование.');
-    if (c.staticRoute || c.dnsStatic || c.identityOn) blockers.push('Статический маршрут, локальная DNS-запись и имя системы ещё не проверены в виртуальной CHR.');
   }
   if (isps.length !== 1 || !isps[0].cfg || isps[0].cfg.kind !== 'static') blockers.push('Пока проверен только один провайдер со статическим IPv4; виртуальный провайдер не подключён к интернету.');
   if (state.devices.some(d => d.on === false)) blockers.push('Состояние выключенных устройств ещё не воспроизводится в CHR.');
@@ -37,6 +36,9 @@ function makePlan(engine, state, routerId) {
   const expected = {
     lanAddress: r.gw + '/24', wanAddress: wan.cfg.ip, wanPort: wan.phys, wanGateway: wan.cfg.gw,
     dns: r.dns, dnsCache: r.cfg.dnsCache !== false,
+    staticRoute: r.cfg.staticRoute ? {destination:r.cfg.routeDst, gateway:r.cfg.routeGw, distance:String(r.cfg.routeDistance)} : null,
+    dnsStatic: r.cfg.dnsStatic ? {name:r.cfg.dnsStaticName, address:r.cfg.dnsStaticIp} : null,
+    identity: r.cfg.identityOn ? r.cfg.systemIdentity : null,
     lanPorts: r.lanPorts.map(p => ({name:p.phys, segment:p.segment})),
     dhcp: !!r.cfg.dhcp, lanPool: r.pool.start + '-' + r.pool.end,
     lanNetwork: r.net.first + '/24', lanGateway: r.gw, lanClientDns: r.clientDns,
