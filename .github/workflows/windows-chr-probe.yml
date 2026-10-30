@@ -49,6 +49,8 @@ jobs:
           Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $dir 'chr')
           $image = @(Get-ChildItem -Path (Join-Path $dir 'chr') -Recurse -File -Filter '*.img')
           if ($image.Count -ne 1) { throw 'Expected exactly one CHR image' }
+          $rawSha = (Get-FileHash -Algorithm SHA256 $image[0].FullName).Hash.ToLowerInvariant()
+          Write-Output "::notice title=Official CHR 7.23.8 image SHA-256::$rawSha"
           "CHR_IMAGE=$($image[0].FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Boot isolated CHR and verify console
         shell: pwsh
