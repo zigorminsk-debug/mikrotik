@@ -13,7 +13,7 @@ const records = {
   '/rest/interface/list': [{name:'LAN'},{name:'WAN'}],
   '/rest/interface/list/member': [{list:'LAN',interface:'bridge-lan'},{list:'WAN',interface:e.wanPort}],
   '/rest/ip/address': [{address:e.lanAddress,interface:'bridge-lan'}, {address:e.wanAddress,interface:e.wanPort}, {address:e.guestAddress,interface:'vlan-guest'}],
-  '/rest/ip/route': [{'dst-address':'0.0.0.0/0',gateway:e.wanGateway,distance:'1','check-gateway':'ping'}, {'dst-address':e.staticRoute.destination,gateway:e.staticRoute.gateway,distance:e.staticRoute.distance,disabled:'false'}],
+  '/rest/ip/route': [{'dst-address':'0.0.0.0/0',gateway:e.wanGateway,distance:'1','check-gateway':'ping'}, {'dst-address':e.staticRoute.destination,gateway:e.staticRoute.gateway,distance:e.staticRoute.distance}],
   '/rest/system/identity': {name:e.identity},
   '/rest/ip/dns/static': [{name:e.dnsStatic.name,address:e.dnsStatic.address,type:'A',disabled:'false'}],
   '/rest/ip/dns': {servers:e.dns,'allow-remote-requests':'true'},
@@ -33,6 +33,7 @@ const get = async key => { assert(key in records, key); return records[key]; };
   records['/rest/ip/address'][0].address = e.lanAddress;
   records['/rest/ip/firewall/filter'][1].action = 'drop';
   await assert.rejects(verifyConfiguration(e,get),/firewall/);
+  records['/rest/ip/route'][1].disabled = 'true'; await assert.rejects(verifyConfiguration(e,get),/статический маршрут/); delete records['/rest/ip/route'][1].disabled;
   records['/rest/system/identity'].name = 'wrong'; await assert.rejects(verifyConfiguration(e,get),/имя/); records['/rest/system/identity'].name = e.identity;
   records['/rest/ip/dns/static'][0].address = '192.0.2.8'; await assert.rejects(verifyConfiguration(e,get),/DNS-запись/);
   assert.throws(()=>makeReader(0,'admin','secret'), /параметры/);

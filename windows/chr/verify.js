@@ -48,7 +48,7 @@ async function verifyConfiguration(expected, get, diagnostic = () => {}) {
   check(list(routes).some(x => x['dst-address'] === '0.0.0.0/0' && x.gateway === expected.wanGateway && String(x.distance) === '1' && x['check-gateway'] === 'ping'), 'маршрут WAN');
   if (expected.staticRoute) {
     const found = list(routes).filter(x => x['dst-address'] === expected.staticRoute.destination);
-    if (!one(found, x => x.gateway === expected.staticRoute.gateway && String(x.distance) === expected.staticRoute.distance && enabled(x))) {
+    if (!one(found, x => x.gateway === expected.staticRoute.gateway && String(x.distance) === expected.staticRoute.distance && x.disabled !== true && x.disabled !== 'true')) {
       try { diagnostic({route: found.map(x => ({gateway:x.gateway, distance:x.distance, disabled:x.disabled, inactive:x.inactive}))}); } catch (_) {}
       check(false, 'статический маршрут LAN');
     }
