@@ -204,7 +204,21 @@ async function main() {
   })), 0) };
   win.runAutoUpdate(); await delay(30);
   ok(!$('upd-modal').hidden && /Доступна версия 99/.test($('upd-title').textContent), 'асинхронный мост предлагает новую версию при автопроверке');
+  // Android WebView: a newer published release must offer the APK, not EXE.
+  Object.defineProperty(win.navigator, 'userAgent', {configurable:true,value:'Mozilla/5.0 (Linux; Android 14)'});
+  win.Android = { httpGetAsync: (url, id) => setTimeout(() => win.onNativeUpdateResponse(id, JSON.stringify({
+    tag_name:'v99.0.0', assets:[
+      {name:'MikroTik-Guide-v99.0.0.apk',browser_download_url:'https://github.com/zigorminsk-debug/mikrotik/releases/download/v99.0.0/MikroTik-Guide-v99.0.0.apk'},
+      {name:'MikroTik-Guide-Setup-99.0.0.exe',browser_download_url:'https://github.com/zigorminsk-debug/mikrotik/releases/download/v99.0.0/MikroTik-Guide-Setup-99.0.0.exe'}
+    ]
+  })), 0) };
+  $('btn_update').click(); await delay(30);
+  const androidLink=$('upd-actions').querySelector('a');
+  ok(/Доступна версия 99/.test($('upd-title').textContent) && !!androidLink && /\.apk$/.test(androidLink.href) && /Скачать APK/.test(androidLink.textContent), 'Android-мост предлагает именно APK из опубликованного более нового релиза');
   delete win.Android;
+  let fetchCache=null;
+  win.fetch = (_url,opts) => { fetchCache=opts.cache;return Promise.resolve({ok:true,json:()=>Promise.resolve({tag_name:'v'+win.APP_VERSION,assets:[]})}); };
+  $('btn_update').click();await delay(30);ok(fetchCache==='no-store','проверка обновлений не запрашивает устаревший кэш fetch');
   // d) закрытие
   $('upd_close').dispatchEvent(new win.Event('click', { bubbles: true }));
   ok($('upd-modal').hidden === true, 'диалог закрывается');

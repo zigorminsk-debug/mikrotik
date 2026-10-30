@@ -62,15 +62,15 @@ public class MainActivity extends Activity {
             }
         });
 
+        // Register before loading the page so the bridge is present when JS starts.
+        // Только GitHub API; никаких произвольных URL или системных команд.
+        webView.addJavascriptInterface(new GithubBridge(), "Android");
+
         if (savedInstanceState != null) {
             webView.restoreState(savedInstanceState);
         } else {
             webView.loadUrl(START_URL);
         }
-
-        // Мост для кнопки «⟳ Обновить»: запрос к api.github.com выполняется
-        // нативно (без CORS-ограничений file://). URL строго ограничен allowlist.
-        webView.addJavascriptInterface(new GithubBridge(), "Android");
     }
 
     /**
@@ -109,6 +109,9 @@ public class MainActivity extends Activity {
                 conn = (HttpURLConnection) new URL(url).openConnection();
                 conn.setConnectTimeout(6000);
                 conn.setReadTimeout(6000);
+                // A just-published release must not be hidden by a cached response.
+                conn.setUseCaches(false);
+                conn.setRequestProperty("Cache-Control", "no-cache");
                 conn.setRequestMethod("GET");
                 conn.setRequestProperty("Accept", "application/vnd.github+json");
                 conn.setRequestProperty("User-Agent", "MikroTik-Guide-App");

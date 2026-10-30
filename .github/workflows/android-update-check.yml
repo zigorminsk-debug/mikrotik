@@ -1,0 +1,76 @@
+name: Android published update discovery
+
+# A release is initially a draft. Capture the previously published APK first,
+# then wait for the new tag to be verified and deliberately published.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  android-update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TARGET_TAG: ${{ github.ref_name }}
+      OLD_APK: ${{ runner.temp }}/previous.apk
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download previously published clean APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          previous=$(gh api "repos/$GH_REPO/releases/latest" --jq .tag_name)
+          test -n "$previous"
+          if [[ "$previous" == "$TARGET_TAG" ]]; then
+            echo '::error::Latest already points to this tag; cannot determine the previous release safely.'
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/previous-release"
+          gh release download "$previous" -p '*.apk' -D "$RUNNER_TEMP/previous-release"
+          mapfile -t apks < <(find "$RUNNER_TEMP/previous-release" -maxdepth 1 -type f -name '*.apk')
+          if [[ ${#apks[@]} -ne 1 ]]; then echo '::error::Expected exactly one previous release APK'; exit 1; fi
+          cp "${apks[0]}" "$OLD_APK"
+          echo "Testing installed $previous -> published $TARGET_TAG"
+      - name: Wait for verified draft to be published
+        shell: bash
+        run: |
+          set -euo pipefail
+          # A human/agent reviews the draft and publishes it. A failed build or
+          # unpublished draft must never be presented as a successful update.
+          deadline=$((SECONDS+2100))
+          while (( SECONDS < deadline )); do
+            latest=$(gh api "repos/$GH_REPO/releases/latest" --jq .tag_name 2>/dev/null || true)
+            if [[ "$latest" == "$TARGET_TAG" ]]; then exit 0; fi
+            sleep 30
+          done
+          echo '::error::The tagged release was not published as latest within 35 minutes.'
+          exit 1
+      - name: Configure KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify older APK finds the new published version in Android WebView
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          disable-animations: true
+          script: bash tools/test-android-update.sh
+      - name: Save UI hierarchy for diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-update-diagnostic
+          path: ${{ runner.temp }}/android-update.xml
+          if-no-files-found: ignore
+          retention-days: 7

@@ -570,7 +570,7 @@ function httpGetJson(url, cb, allowLegacyBridge) {
     }
   } catch (e) { /* fall back to fetch */ }
   if (typeof fetch === 'function') {
-    fetch(url, { headers: { 'Accept': 'application/vnd.github+json' } })
+    fetch(url, { cache: 'no-store', headers: { 'Accept': 'application/vnd.github+json' } })
       .then(function (r) { return r && r.ok ? r.json() : null; })
       .then(function (j) { cb(j); })
       .catch(function () { cb(null); });

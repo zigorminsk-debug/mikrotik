@@ -76,9 +76,17 @@ jobs:
         run: gradle -p android assembleRelease --stacktrace
       - name: Проверка подписи APK
         run: |
+          set -euo pipefail
           APK=$(ls android/app/build/outputs/apk/release/*.apk | head -1)
           echo "APK: $APK"
-          $ANDROID_HOME/build-tools/34.0.0/apksigner verify --print-certs "$APK" | head -20
+          signature=$($ANDROID_HOME/build-tools/34.0.0/apksigner verify --print-certs "$APK")
+          echo "$signature"
+          echo "$signature" | grep -qi 'Signer #1 certificate SHA-256 digest: 71a7bab089b395259e0c9980130652c5f996319892a928b1e4a5025ab602d31a'
+          code=$(sed -n 's/^[[:space:]]*versionCode[[:space:]]\+\([0-9]\+\).*/\1/p' android/app/build.gradle)
+          version=$(node -p "require('./windows/package.json').version")
+          badging=$($ANDROID_HOME/build-tools/34.0.0/aapt dump badging "$APK")
+          printf '%s\n' "${badging%%$'\n'*}"
+          grep -Fq "package: name='by.mikrotik.tutor' versionCode='$code' versionName='$version'" <<< "$badging"
       # Только для передачи между job при сборке тега. Пользователь скачивает
       # из GitHub Release чистый APK, не архив Actions.
       - uses: actions/upload-artifact@v4
