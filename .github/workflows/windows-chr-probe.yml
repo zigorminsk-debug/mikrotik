@@ -44,6 +44,8 @@ jobs:
           $dir = Join-Path $env:RUNNER_TEMP 'chr-probe'
           $zip = Join-Path $dir 'chr.zip'
           Invoke-WebRequest -Uri 'https://download.mikrotik.com/routeros/7.23.8/chr-7.23.8.img.zip' -OutFile $zip
+          $sha = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant()
+          Write-Output "::notice title=Official CHR 7.23.8 ZIP SHA-256::$sha"
           Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $dir 'chr')
           $image = @(Get-ChildItem -Path (Join-Path $dir 'chr') -Recurse -File -Filter '*.img')
           if ($image.Count -ne 1) { throw 'Expected exactly one CHR image' }
