@@ -16,7 +16,7 @@ const session = new ChrSession({qemu:path.resolve(qemu), image:path.resolve(imag
 function get(url, user, password, route) {
   const root = new URL(url);
   return new Promise((resolve, reject) => {
-    const request = http.get({hostname:'127.0.0.1',port:root.port,path:route,timeout:5000,headers:{authorization:'Basic ' + Buffer.from(user + ':' + password).toString('base64')}}, res => {
+    const request = http.get({hostname:'127.0.0.1',port:root.port,path:route,timeout:15000,headers:{authorization:'Basic ' + Buffer.from(user + ':' + password).toString('base64')}}, res => {
       let body = ''; res.setEncoding('utf8'); res.on('data', chunk => { body += chunk; if (body.length > 500000) request.destroy(); });
       res.on('end', () => { if (res.statusCode !== 200) return reject(Error('CHR HTTP response ' + res.statusCode)); try { resolve(JSON.parse(body)); } catch (_) { reject(Error('Invalid CHR REST response')); } });
     });

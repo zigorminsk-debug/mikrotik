@@ -72,8 +72,8 @@ class ChrSession {
       // remains first in the input chain when the laboratory firewall is added.
       for (const command of [
         '/ip address add address=172.31.254.15/24 interface=ether6',
-        '/ip service set www address=172.31.254.2/32 disabled=no',
-        '/ip firewall filter add chain=input in-interface=ether6 src-address=172.31.254.2 action=accept comment="Lab management"'
+        '/ip service enable www',
+        '/ip firewall filter add chain=input in-interface=ether6 action=accept comment="Lab management"'
       ]) await this.console.command(command);
       for (const command of commands) await this.console.command(command);
       return { url:`http://127.0.0.1:${managementPort}/`, user:'admin', password };
