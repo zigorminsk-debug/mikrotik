@@ -12,4 +12,5 @@ const result = E.run(state);
 if (result.errors.length) throw new Error(result.errors.join('; '));
 const commands = result.groups.filter(g => g.id !== 'verify').flatMap(g => g.code.split('\n').filter(s => s && !s.startsWith('#')));
 if (!commands.length || commands.some(s => /[\r\n\0]/.test(s))) throw new Error('Invalid test commands');
-process.stdout.write(JSON.stringify(commands));
+if (require.main === module) process.stdout.write(JSON.stringify(commands));
+module.exports = { state, commands };

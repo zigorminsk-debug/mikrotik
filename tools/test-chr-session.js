@@ -6,6 +6,9 @@ const fs = require('fs');
 const http = require('http');
 const assert = require('assert');
 const { ChrSession } = require('../windows/chr/session');
+const { makePlan } = require('../windows/chr/plan');
+const engine = require('../app/js/lab-sim');
+const testState = require('./chr-ci-fixture').state;
 const [qemu,image,fixture,work] = process.argv.slice(2);
 if (!qemu || !image || !fixture || !work) throw Error('Missing CI paths');
 const commands = JSON.parse(fs.readFileSync(fixture,'utf8').replace(/^\uFEFF/,''));
@@ -21,7 +24,10 @@ function get(url, user, password, route) {
   });
 }
 (async () => {
-  const info = await session.start([{id:'fixture',commands}]);
+  const plan = makePlan(engine, testState, 'r');
+  assert.deepStrictEqual(plan.blockers, []);
+  assert.deepStrictEqual(plan.groups.flatMap(g => g.commands), commands);
+  const info = await session.start(plan.groups);
   assert.strictEqual(new URL(info.url).hostname,'127.0.0.1');
   const resource = await get(info.url, info.user, info.password, '/rest/system/resource');
   assert(/^7\.23\.8/.test(resource.version)); assert.strictEqual(resource['architecture-name'],'x86_64');
