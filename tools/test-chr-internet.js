@@ -8,7 +8,7 @@ const engine = require('../app/js/lab-sim');
 const {makePlan} = require('../windows/chr/plan');
 const {ChrSession} = require('../windows/chr/session');
 const state = JSON.parse(JSON.stringify(require('./chr-ci-fixture').state));
-Object.assign(state.devices[0].cfg, {ip:'10.0.2.15/24',gw:'10.0.2.2',dns:'1.1.1.1'});
+Object.assign(state.devices[0].cfg, {ip:'10.0.2.20/24',gw:'10.0.2.2',dns:'1.1.1.1'});
 const [qemu,image,work,supervisor] = process.argv.slice(2);
 const events = [];
 let session;

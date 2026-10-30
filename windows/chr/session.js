@@ -52,7 +52,7 @@ class ChrSession {
         '-serial', `tcp:127.0.0.1:${serialPort}`, '-drive', `file=${disk.replace(/,/g, ',,')},format=raw,if=ide`];
       // The application remains isolated. CI can explicitly test one pinned
       // NAT subnet; no arbitrary network parameters are accepted in this probe.
-      if (this.testInternet && (plan.expected.wanPort !== 'ether1' || plan.expected.wanAddress !== '10.0.2.15/24' || plan.expected.wanGateway !== '10.0.2.2')) throw new Error('Недопустимые параметры сетевого теста');
+      if (this.testInternet && (plan.expected.wanPort !== 'ether1' || plan.expected.wanAddress !== '10.0.2.20/24' || plan.expected.wanGateway !== '10.0.2.2')) throw new Error('Недопустимые параметры сетевого теста');
       for (let i = 0; i < 5; i++) {
         const netdev = this.testInternet && i === 0 ? `user,id=n${i},net=10.0.2.0/24,host=10.0.2.2` : `user,id=n${i},restrict=on`;
         args.push('-netdev', netdev, '-device', `e1000,netdev=n${i}`);
