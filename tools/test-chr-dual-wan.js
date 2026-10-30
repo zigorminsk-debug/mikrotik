@@ -19,7 +19,7 @@ if (internet) {
 const [qemu,image,work,supervisor] = process.argv.slice(2);
 if (!qemu || !image || !work || !supervisor) throw Error('Missing CI paths');
 const events = [];
-const session = new ChrSession({qemu:path.resolve(qemu),image:path.resolve(image),tempRoot:path.resolve(work),supervisor:path.resolve(supervisor),diagnostic:e=>events.push(e),diagnoseManagement:true,testInternet:internet,testBackupInternet:internet});
+const session = new ChrSession({qemu:path.resolve(qemu),image:path.resolve(image),tempRoot:path.resolve(work),supervisor:path.resolve(supervisor),diagnostic:e=>events.push(e),diagnoseManagement:true,internetConsent:internet});
 (async () => {
   assert(makePlan(engine,state,'r').blockers.length, 'Experiment must remain inaccessible from the app');
   const plan = makePlan(engine,state,'r',{testDualStaticWan:true});

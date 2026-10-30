@@ -13,6 +13,8 @@ on:
       - 'tools/test-chr-internet.js'
       - 'tools/chr-ci-fixture.js'
       - 'windows/chr/session.js'
+      - 'windows/chr/online.js'
+      - 'tools/test-chr-online.js'
       - 'windows/chr/console.js'
       - 'windows/chr/plan.js'
       - 'tools/windows/chr-supervisor.c'

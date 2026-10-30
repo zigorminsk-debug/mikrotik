@@ -8,6 +8,7 @@ const { spawn } = require('child_process');
 const { randomBytes } = require('crypto');
 const { ChrConsole } = require('./console');
 const { makeReader, verifyConfiguration } = require('./verify');
+const { validateDualInternet } = require('./online');
 
 function bind(server) {
   return new Promise((resolve, reject) => {
@@ -20,7 +21,7 @@ async function temporaryPort() {
   const s = net.createServer(); const port = await bind(s); await closeServer(s); return port;
 }
 class ChrSession {
-  constructor({qemu, image, tempRoot, supervisor, diagnostic, diagnoseManagement = false, testInternet = false, testBackupInternet = false}) {
+  constructor({qemu, image, tempRoot, supervisor, diagnostic, diagnoseManagement = false, testInternet = false, testBackupInternet = false, internetConsent = false}) {
     if (![qemu, image, tempRoot, supervisor].every(x => typeof x === 'string' && path.isAbsolute(x))) throw new Error('Неверные пути CHR');
     if (path.basename(qemu).toLowerCase() !== 'qemu-system-x86_64.exe' || path.basename(image) !== 'chr-7.23.8.img' || path.basename(supervisor).toLowerCase() !== 'chr-supervisor.exe') throw new Error('Неверные компоненты CHR');
     this.qemu = qemu; this.image = image; this.root = tempRoot; this.supervisor = supervisor;
@@ -28,6 +29,8 @@ class ChrSession {
     this.diagnoseManagement = diagnoseManagement === true;
     this.testInternet = testInternet === true; // CI-only; never passed by the application.
     this.testBackupInternet = testBackupInternet === true;
+    this.internetConsent = internetConsent === true;
+    if (this.internetConsent && (this.testInternet || this.testBackupInternet)) throw new Error('Несовместимые режимы интернет-сети');
     if (this.testBackupInternet && !this.testInternet) throw new Error('Резервный сетевой тест требует основной сетевой тест');
     this.proc = null; this.server = null; this.console = null; this.socket = null; this.directory = null;
     this.closed = false; this.started = false; this.exitPromise = null; this.acceptTimer = null;
@@ -38,6 +41,7 @@ class ChrSession {
     if (!plan || !plan.expected || !Array.isArray(plan.groups) || plan.groups.length > 100) throw new Error('Недопустимый план CHR');
     const commands = plan.groups.flatMap(g => Array.isArray(g.commands) ? g.commands : []);
     if (!commands.length || commands.length > 100 || commands.some(s => typeof s !== 'string' || !s.startsWith('/') || /[\r\n\0]/.test(s) || s.length > 8192)) throw new Error('Недопустимые команды CHR');
+    if (this.internetConsent && !validateDualInternet(plan.expected)) throw new Error('Неподдерживаемые параметры сетей для CHR');
     try {
       await fs.mkdir(this.root, {recursive:true, mode:0o700});
       this.directory = await fs.mkdtemp(path.join(this.root, 'session-'));
@@ -52,12 +56,12 @@ class ChrSession {
       if (this.closed) throw new Error('Сессия остановлена');
       const args = ['-machine','pc,accel=tcg','-m','256','-smp','1','-display','none','-monitor','none',
         '-serial', `tcp:127.0.0.1:${serialPort}`, '-drive', `file=${disk.replace(/,/g, ',,')},format=raw,if=ide`];
-      // The application remains isolated. CI can explicitly test one pinned
-      // NAT subnet; no arbitrary network parameters are accepted in this probe.
-      if (this.testInternet && (plan.expected.wanPort !== 'ether1' || plan.expected.wanAddress !== '10.0.2.20/24' || plan.expected.wanGateway !== '10.0.2.2')) throw new Error('Недопустимые параметры сетевого теста');
-      if (this.testBackupInternet && (!Array.isArray(plan.expected.lanPorts) || plan.expected.lanPorts.some(p => p.name === 'ether4'))) throw new Error('ether4 должен быть свободен для сетевого теста');
+      // Offline by default. The online branch accepts only pinned subnets and
+      // requires an explicit main-process consent decision. No WAN forwarding.
+      if ((this.testInternet || this.internetConsent) && (plan.expected.wanPort !== 'ether1' || plan.expected.wanAddress !== '10.0.2.20/24' || plan.expected.wanGateway !== '10.0.2.2')) throw new Error('Недопустимые параметры сетевого теста');
+      if ((this.testBackupInternet || this.internetConsent) && (!Array.isArray(plan.expected.lanPorts) || plan.expected.lanPorts.some(p => p.name === 'ether4'))) throw new Error('ether4 должен быть свободен для сетевого теста');
       for (let i = 0; i < 5; i++) {
-        const netdev = this.testInternet && i === 0 ? `user,id=n${i},net=10.0.2.0/24,host=10.0.2.2` : this.testBackupInternet && i === 3 ? `user,id=n${i},net=10.0.3.0/24,host=10.0.3.2` : `user,id=n${i},restrict=on`;
+        const netdev = (this.testInternet || this.internetConsent) && i === 0 ? `user,id=n${i},net=10.0.2.0/24,host=10.0.2.2` : (this.testBackupInternet || this.internetConsent) && i === 3 ? `user,id=n${i},net=10.0.3.0/24,host=10.0.3.2` : `user,id=n${i},restrict=on`;
         args.push('-netdev', netdev, '-device', `e1000,netdev=n${i}`);
       }
       // Dedicated management port; the only host forward binds to loopback.
