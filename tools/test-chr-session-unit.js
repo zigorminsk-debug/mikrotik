@@ -11,6 +11,7 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'chr-session-test-'));
   assert.throws(() => new ChrSession({qemu:path.join(root,'other.exe'), image:path.join(root,'chr-7.23.8.img'), tempRoot:root, supervisor:path.join(root,'chr-supervisor.exe')}), /компоненты/);
   const qemu = path.join(root,'qemu-system-x86_64.exe'), image = path.join(root,'chr-7.23.8.img'), work = path.join(root,'sessions'), supervisor = path.join(root,'chr-supervisor.exe');
   fs.writeFileSync(qemu,'not an executable'); fs.writeFileSync(supervisor,'not an executable'); fs.writeFileSync(image,'pristine');
+  assert.throws(() => new ChrSession({qemu,image,tempRoot:work,supervisor,testBackupInternet:true}), /основной сетевой тест/);
   let s = new ChrSession({qemu,image,tempRoot:work,supervisor});
   await assert.rejects(s.start({expected:{}, groups:[{commands:['/ok\n/bad']}]}), /Недопустим/);
   s = new ChrSession({qemu,image,tempRoot:work,supervisor});

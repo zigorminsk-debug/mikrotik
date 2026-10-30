@@ -20,13 +20,15 @@ async function temporaryPort() {
   const s = net.createServer(); const port = await bind(s); await closeServer(s); return port;
 }
 class ChrSession {
-  constructor({qemu, image, tempRoot, supervisor, diagnostic, diagnoseManagement = false, testInternet = false}) {
+  constructor({qemu, image, tempRoot, supervisor, diagnostic, diagnoseManagement = false, testInternet = false, testBackupInternet = false}) {
     if (![qemu, image, tempRoot, supervisor].every(x => typeof x === 'string' && path.isAbsolute(x))) throw new Error('Неверные пути CHR');
     if (path.basename(qemu).toLowerCase() !== 'qemu-system-x86_64.exe' || path.basename(image) !== 'chr-7.23.8.img' || path.basename(supervisor).toLowerCase() !== 'chr-supervisor.exe') throw new Error('Неверные компоненты CHR');
     this.qemu = qemu; this.image = image; this.root = tempRoot; this.supervisor = supervisor;
     this.diagnostic = typeof diagnostic === 'function' ? diagnostic : () => {};
     this.diagnoseManagement = diagnoseManagement === true;
-    this.testInternet = testInternet === true; // Only used by the Windows CI connectivity experiment; never passed by the app.
+    this.testInternet = testInternet === true; // CI-only; never passed by the application.
+    this.testBackupInternet = testBackupInternet === true;
+    if (this.testBackupInternet && !this.testInternet) throw new Error('Резервный сетевой тест требует основной сетевой тест');
     this.proc = null; this.server = null; this.console = null; this.socket = null; this.directory = null;
     this.closed = false; this.started = false; this.exitPromise = null; this.acceptTimer = null;
   }
@@ -53,8 +55,9 @@ class ChrSession {
       // The application remains isolated. CI can explicitly test one pinned
       // NAT subnet; no arbitrary network parameters are accepted in this probe.
       if (this.testInternet && (plan.expected.wanPort !== 'ether1' || plan.expected.wanAddress !== '10.0.2.20/24' || plan.expected.wanGateway !== '10.0.2.2')) throw new Error('Недопустимые параметры сетевого теста');
+      if (this.testBackupInternet && (!Array.isArray(plan.expected.lanPorts) || plan.expected.lanPorts.some(p => p.name === 'ether4'))) throw new Error('ether4 должен быть свободен для сетевого теста');
       for (let i = 0; i < 5; i++) {
-        const netdev = this.testInternet && i === 0 ? `user,id=n${i},net=10.0.2.0/24,host=10.0.2.2` : `user,id=n${i},restrict=on`;
+        const netdev = this.testInternet && i === 0 ? `user,id=n${i},net=10.0.2.0/24,host=10.0.2.2` : this.testBackupInternet && i === 3 ? `user,id=n${i},net=10.0.3.0/24,host=10.0.3.2` : `user,id=n${i},restrict=on`;
         args.push('-netdev', netdev, '-device', `e1000,netdev=n${i}`);
       }
       // Dedicated management port; the only host forward binds to loopback.

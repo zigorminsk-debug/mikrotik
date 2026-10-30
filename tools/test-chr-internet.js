@@ -4,7 +4,6 @@
 // GitHub runner. Not used by the app, and no incoming WAN port is forwarded.
 const path = require('path');
 const assert = require('assert');
-const {randomBytes} = require('crypto');
 const engine = require('../app/js/lab-sim');
 const {makePlan} = require('../windows/chr/plan');
 const {ChrSession} = require('../windows/chr/session');
@@ -18,7 +17,7 @@ let session;
   assert(qemu && image && work && supervisor);
   const plan = makePlan(engine,state,'r');
   assert.deepStrictEqual(plan.blockers, []);
-  session = new ChrSession({qemu:path.resolve(qemu),image:path.resolve(image),tempRoot:path.resolve(work),supervisor:path.resolve(supervisor),testInternet:true,diagnoseManagement:true,diagnostic:e=>events.push(e)});
+  session = new ChrSession({qemu:path.resolve(qemu),image:path.resolve(image),tempRoot:path.resolve(work),supervisor:path.resolve(supervisor),testInternet:true,testBackupInternet:true,diagnoseManagement:true,diagnostic:e=>events.push(e)});
   const info = await session.start(plan);
   const get = makeReader(Number(new URL(info.url).port), info.user, info.password);
   const routes = await get('/rest/ip/route');
@@ -29,28 +28,37 @@ let session;
   console.log('::notice title=CHR WAN state::' + JSON.stringify({dhcp:dhcp.map(x=>({interface:x.interface,disabled:x.disabled,status:x.status})), wan}));
   assert(!dhcp.some(x => x.interface === 'ether1' && x.disabled !== 'true' && x.disabled !== true), 'Unexpected enabled DHCP client on static WAN');
   assert(wan.length === 1 && wan[0].address === '10.0.2.20/24', 'Unexpected WAN addresses');
-  // This test checks connectivity only, not TLS trust. No secret is sent.
-  // github.com may return headers larger than RouterOS fetch supports. Use
-  // a small public endpoint to distinguish HTTP parsing failure from no WAN.
-  await session.console.command('/tool fetch url="https://api.github.com/zen" output=none check-certificate=no');
-  console.log('::notice title=CHR small outbound fetch::Small HTTPS response fetched; TLS trust and failover are not tested.');
-  // CI only, fixed public URL and no credentials: report the RouterOS error
-  // without exposing the general-purpose console to the app or renderer.
-  const token = 'NETDIAG' + randomBytes(12).toString('hex');
-  const marker = '"' + token.slice(0,16) + '" . "' + token.slice(16) + '"';
-  const command = ':onerror e in={ /tool fetch url="https://github.com/" output=none check-certificate=no; :put (' + marker + ' . "OKEND") } do={ :put (' + marker + ' . "ERR" . $e . "END") }';
-  await session.console.settle(); session.console.send(command);
-  let reply;
-  try { reply = await session.console.expect(new RegExp(token + '(?:OK|ERR)[^\\r\\n]*?END'), 60000); }
-  catch (error) {
-    // Only the fixed public-URL command above has run since settle(); no
-    // credentials or arbitrary customer commands are printed by this test.
-    const raw = session.console.buffer.slice(-2500).replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '').replace(/[\x00-\x1f\x7f%]/g, ' ');
-    console.log('::notice title=CHR fixed fetch console::' + raw);
-    throw error;
+  // The host's internet is shared by both independent QEMU NAT segments. This
+  // is NOT two physical providers and must never be presented as production.
+  // TLS validation is off only for this public, secret-free CI request.
+  const fetch = '/tool fetch url="https://api.github.com/zen" output=none check-certificate=no';
+  await session.console.command(fetch);
+  console.log('::notice title=CHR primary WAN::Small HTTPS response fetched on the primary test segment.');
+  // ether4 is unused in the fixture and is the backup test WAN. The normal
+  // application never constructs sessions with testBackupInternet=true.
+  for (const command of [
+    '/ip address add address=10.0.3.20/24 interface=ether4',
+    '/interface list member add list=WAN interface=ether4',
+    '/ip route set [find where dst-address="0.0.0.0/0"] check-gateway=none',
+    '/ip route add dst-address=0.0.0.0/0 gateway=10.0.3.2 distance=2',
+    '/ip dns set servers=10.0.3.3',
+  ]) await session.console.command(command);
+  async function waitActive(gateway) {
+    for (let i=0;i<15;i++) {
+      const list=await get('/rest/ip/route');
+      if (list.some(x => x['dst-address']==='0.0.0.0/0' && x.gateway===gateway && (x.active==='true' || x.active===true))) return;
+      await new Promise(r=>setTimeout(r,1000));
+    }
+    throw new Error('Expected default route did not become active: '+gateway);
   }
-  const diagnostic = reply.slice(token.length, -3).replace(/[\x00-\x1f\x7f%]/g, ' ').slice(0,300);
-  console.log('::notice title=CHR outbound result::' + diagnostic);
-  assert.strictEqual(diagnostic, 'OK', 'Outbound request from CHR failed; see diagnostic annotation');
-  console.log('::notice title=CHR outbound test::HTTPS fetch from guest completed; TLS certificate validation was not tested.');
+  await waitActive('10.0.2.2');
+  await session.console.command('/interface ethernet disable [find where name=ether1]');
+  await waitActive('10.0.3.2');
+  await session.console.command(fetch);
+  console.log('::notice title=CHR backup WAN::After disabling ether1, backup default route became active and fetched the small response.');
+  await session.console.command('/interface ethernet enable [find where name=ether1]');
+  await waitActive('10.0.2.2');
+  await session.console.command(fetch);
+  console.log('::notice title=CHR WAN restore::After re-enabling ether1, the primary route became active and fetched the small response.');
+
 })().catch(e => { console.log('::error title=CHR outbound test::' + String(e.message).replace(/[\r\n%]/g,' ')); console.log('::notice title=CHR outbound diagnostics::' + JSON.stringify(events)); process.exitCode=1; }).finally(async () => { if (session) await session.stop(); });
