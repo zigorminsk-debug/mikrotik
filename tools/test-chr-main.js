@@ -35,6 +35,7 @@ const req=name=>{
   if(name==='./www/js/lab-sim')return {};
   if(name==='./chr/plan')return {makePlan:()=>plan};
   if(name==='./chr/online')return {validateDualInternet:()=>onlineValid};
+  if(name==='./chr/network-warning')return require('../windows/chr/network-warning');
   if(name==='./chr/download')return {ensureImage:async(root,consent)=>{downloads.push({root,consent});return '/image/chr-7.23.8.img';}};
   if(name==='./chr/session')return {ChrSession:Session};
   return require(name);

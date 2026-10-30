@@ -10,6 +10,7 @@ on:
       - 'tools/test-chr-dual-wan.js'
       - 'tools/test-chr-dual-integration.js'
       - 'windows/main.js'
+      - 'windows/chr/network-warning.js'
       - 'tools/test-chr-verify.js'
       - 'tools/test-chr-session.js'
       - 'tools/test-chr-internet.js'

@@ -7,6 +7,7 @@ const { randomBytes } = require('crypto');
 const engine = require('./www/js/lab-sim');
 const { makePlan } = require('./chr/plan');
 const { validateDualInternet } = require('./chr/online');
+const { networkWarning } = require('./chr/network-warning');
 const { ensureImage } = require('./chr/download');
 const { ChrSession } = require('./chr/session');
 
@@ -79,12 +80,7 @@ ipcMain.handle('chr:launch', async (event, routerId, state) => {
     const online = Array.isArray(plan.expected.wans) && plan.expected.wans.length === 2;
     if (online) {
       if (!validateDualInternet(plan.expected)) return {ok:false, message:'Этот интернет-режим пока поддерживает только два виртуальных статических WAN: ether1 — 10.0.2.20/24, шлюз 10.0.2.2; ether4 — 10.0.3.20/24, шлюз 10.0.3.2; DNS 10.0.2.3 и 10.0.3.3. Порты зависят от порядка подключения на схеме. Программа не заменяет выбранные адреса. Настоящие независимые провайдеры, DHCP и PPPoE пока не поддерживаются.'};
-      const networkChoice = await dialog.showMessageBox(mainWindow, {
-        type:'warning', title:'Доступ виртуальной CHR к сети',
-        message:'Разрешить виртуальной RouterOS сетевой доступ через этот компьютер?',
-        detail:'CHR сможет обращаться к интернету, службам этого компьютера и устройствам локальной сети. Запускайте только доверенную конфигурацию в безопасной сети. Два виртуальных WAN используют одно подключение Windows и не являются независимыми провайдерами. Переключение проверено только при отключении интерфейса, а не при обрыве интернета за работающим шлюзом. Клиенты схемы не запускаются. Входящий WAN-проброс на компьютере не создаётся; управление CHR доступно только через localhost. Доступ прекратится при закрытии CHR.',
-        buttons:['Отмена', 'Разрешить для этого запуска'], defaultId:0, cancelId:0, noLink:true
-      });
+      const networkChoice = await dialog.showMessageBox(mainWindow, networkWarning());
       if (networkChoice.response !== 1 || quitting || !mainWindow || mainWindow.isDestroyed()) return {ok:false, cancelled:true};
     }
     status('Ознакомьтесь с условиями лицензии MikroTik.');
