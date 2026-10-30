@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/windows-chr-probe.yml'
       - 'tools/test-chr-windows.py'
+      - 'tools/chr-ci-fixture.js'
+      - 'app/js/lab-sim.js'
   workflow_dispatch:
 permissions:
   contents: read
@@ -49,5 +51,8 @@ jobs:
         env:
           PYTHONUTF8: "1"
         run: |
-          python tools/test-chr-windows.py "$env:QEMU_EXE" "$env:CHR_IMAGE"
+          $fixture = Join-Path $env:RUNNER_TEMP 'chr-probe/fixture.json'
+          node tools/chr-ci-fixture.js | Out-File -FilePath $fixture -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to generate fixture' }
+          python tools/test-chr-windows.py "$env:QEMU_EXE" "$env:CHR_IMAGE" "$fixture"
           if ($LASTEXITCODE -ne 0) { throw 'CHR probe failed' }

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """CI feasibility probe: a throwaway CHR on isolated QEMU, not app runtime."""
 import base64
+import json
+import secrets
 import os
 import pathlib
 import re
@@ -20,7 +22,7 @@ serial = f'tcp:127.0.0.1:{port},server=on,wait=off'
 args = [str(qemu), '-machine', 'pc,accel=tcg', '-m', '256', '-smp', '2',
         '-display', 'none', '-monitor', 'none', '-serial', serial,
         '-drive', f'file={image},format=raw,if=ide',
-        '-netdev', 'user,id=isolated,restrict=on', '-device', 'e1000,netdev=isolated']
+        *sum((['-netdev', f'user,id=n{i},restrict=on', '-device', f'e1000,netdev=n{i}'] for i in range(6)), [])]
 # Firmware location differs between archives. Prefer QEMU's normal defaults.
 proc = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                         stderr=subprocess.PIPE, creationflags=subprocess.CREATE_NO_WINDOW)
@@ -108,6 +110,42 @@ try:
     wait_for(rb'architecture-name:\s*[^\r\n]+')
     wait_for(rb'\[admin@[^\]]+\]\s*>')
     print('Windows QEMU: CHR boot and resource output verified via serial.')
+    if len(sys.argv) > 3:
+        commands = json.loads(pathlib.Path(sys.argv[3]).read_text(encoding='utf-8-sig'))
+        if not isinstance(commands, list) or not 1 <= len(commands) <= 100:
+            raise RuntimeError('Invalid CI fixture')
+        # Tokens are concatenated at runtime: echoes of the command cannot
+        # match the result marker. This tests only synthetic CI credentials.
+        def execute(command, should_fail=False):
+            token = secrets.token_hex(16)
+            ok, bad = 'LABOK' + token, 'LABERR' + token
+            def expr(s):
+                mid = len(s) // 2
+                return '"' + s[:mid] + '" . "' + s[mid:] + '"'
+            wrapper = ':do { ' + command + '; :put (' + expr(ok) + ') } on-error={ :put (' + expr(bad) + ') }'
+            settle(); send(wrapper)
+            _, mark = wait_for((ok + '|' + bad).encode(), timeout=30)
+            if (mark.group().decode() == bad) != should_fail:
+                raise RuntimeError('CHR command acceptance differs from expected')
+        # Ensure errors actually reach on-error instead of silently succeeding.
+        execute('/interface bridge add name=bridge-lan', should_fail=False)
+        execute('/interface bridge add name=bridge-lan', should_fail=True)
+        execute('/interface bridge remove [find where name="bridge-lan"]')
+        for command in commands:
+            execute(command)
+        # Query actual values, not just process exit or console echo.
+        for assertion in [
+            '[:len [/ip address find where address="192.168.88.1/24" and interface="bridge-lan"]] = 1',
+            '[:len [/ip address find where address="192.168.99.1/24" and interface="vlan-guest"]] = 1',
+            '[:len [/ip dhcp-server find where name="dhcp-lan" and disabled=no]] = 1',
+            '[:len [/ip dhcp-server find where name="dhcp-guest" and disabled=no]] = 1',
+            '[/interface bridge get [find where name="bridge-lan"] vlan-filtering] = true',
+            '[:len [/ip firewall nat find where chain=srcnat and action=masquerade]] = 1',
+            '[:len [/ip firewall filter find where chain=input and action=drop]] > 0'
+        ]:
+            execute(':if (!(' + assertion + ')) do={ :error "assertion failed" }')
+        print('Windows QEMU: fixture commands and RouterOS settings verified.')
+
 finally:
     if sock:
         sock.close()
