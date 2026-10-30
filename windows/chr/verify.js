@@ -1,0 +1,68 @@
+'use strict';
+const http = require('http');
+// Queries only QEMU's locally forwarded management port. No arbitrary URLs.
+function makeReader(port, user, password) {
+  if (!Number.isInteger(port) || port < 1 || port > 65535 || user !== 'admin' || typeof password !== 'string') throw new Error('Неверные параметры управления CHR');
+  const headers = { authorization: 'Basic ' + Buffer.from(user + ':' + password).toString('base64') };
+  return endpoint => new Promise((resolve, reject) => {
+    if (!/^\/rest\/[a-z\-/]+$/.test(endpoint)) return reject(new Error('Недопустимый запрос CHR'));
+    const request = http.get({hostname:'127.0.0.1', port, path:endpoint, headers, timeout:15000}, response => {
+      let body = ''; response.setEncoding('utf8');
+      response.on('data', chunk => { body += chunk; if (body.length > 1000000) request.destroy(); });
+      response.on('error', () => reject(new Error('Ошибка ответа CHR')));
+      response.on('end', () => {
+        if (response.statusCode !== 200) return reject(new Error('Не удалось получить состояние CHR'));
+        try { resolve(JSON.parse(body)); } catch (_) { reject(new Error('Некорректный ответ CHR')); }
+      });
+    });
+    request.on('timeout', () => request.destroy());
+    request.on('error', () => reject(new Error('Не удалось подключиться к виртуальной CHR')));
+  });
+}
+function check(ok, description) { if (!ok) throw new Error('CHR не подтвердила настройку: ' + description); }
+function list(rows) { if (!Array.isArray(rows)) throw new Error('Некорректный ответ CHR'); return rows; }
+function one(rows, predicate) { return list(rows).filter(predicate).length === 1; }
+function enabled(row) { return row.disabled === 'false' || row.disabled === false; }
+async function verifyConfiguration(expected, get) {
+  if (!expected || typeof get !== 'function') throw new Error('Нет параметров проверки CHR');
+  const resource = await get('/rest/system/resource');
+  check(resource && /^7\.23\.8(?:\s|$)/.test(resource.version || '') && resource['architecture-name'] === 'x86_64', 'версия и архитектура');
+  const bridges = await get('/rest/interface/bridge');
+  check(one(bridges, x => x.name === 'bridge-lan' && String(x['vlan-filtering']) === String(expected.vlan)), 'мост и VLAN filtering');
+  const ports = await get('/rest/interface/bridge/port');
+  for (const port of expected.lanPorts) {
+    check(one(ports, x => x.bridge === 'bridge-lan' && x.interface === port.name && enabled(x) && (!expected.vlan || String(x.pvid) === (port.segment === 'guest' ? expected.guestId : '1'))), 'порты моста');
+  }
+  const lists = await get('/rest/interface/list');
+  check(one(lists, x => x.name === 'LAN') && one(lists, x => x.name === 'WAN'), 'списки интерфейсов');
+  const members = await get('/rest/interface/list/member');
+  check(one(members, x => x.list === 'LAN' && x.interface === 'bridge-lan') && one(members, x => x.list === 'WAN' && x.interface === expected.wanPort), 'состав списков интерфейсов');
+  const addresses = await get('/rest/ip/address');
+  check(one(addresses, x => x.address === expected.lanAddress && x.interface === 'bridge-lan') && one(addresses, x => x.address === expected.wanAddress && x.interface === expected.wanPort), 'адреса LAN и WAN');
+  if (expected.vlan) check(one(addresses, x => x.address === expected.guestAddress && x.interface === 'vlan-guest'), 'адрес гостевого VLAN');
+  const routes = await get('/rest/ip/route');
+  check(list(routes).some(x => x['dst-address'] === '0.0.0.0/0' && x.gateway === expected.wanGateway && String(x.distance) === '1'), 'маршрут WAN');
+  const dns = await get('/rest/ip/dns');
+  check(dns && dns.servers === expected.dns && String(dns['allow-remote-requests']) === String(expected.dnsCache), 'DNS');
+  const dhcp = await get('/rest/ip/dhcp-server');
+  check(expected.dhcp ? one(dhcp, x => x.name === 'dhcp-lan' && x.interface === 'bridge-lan' && x['address-pool'] === 'pool-lan' && enabled(x)) : !list(dhcp).some(x => x.name === 'dhcp-lan'), 'DHCP LAN');
+  check(expected.guestDhcp ? one(dhcp, x => x.name === 'dhcp-guest' && x.interface === 'vlan-guest' && x['address-pool'] === 'pool-guest' && enabled(x)) : !list(dhcp).some(x => x.name === 'dhcp-guest'), 'DHCP гостей');
+  const pools = await get('/rest/ip/pool');
+  if (expected.dhcp) check(one(pools, x => x.name === 'pool-lan' && x.ranges === expected.lanPool), 'пул LAN');
+  if (expected.guestDhcp) check(one(pools, x => x.name === 'pool-guest' && x.ranges === expected.guestPool), 'пул гостей');
+  const networks = await get('/rest/ip/dhcp-server/network');
+  if (expected.dhcp) check(one(networks, x => x.address === expected.lanNetwork && x.gateway === expected.lanGateway && x['dns-server'] === expected.lanClientDns), 'сеть DHCP LAN');
+  if (expected.guestDhcp) check(one(networks, x => x.address === expected.guestNetwork && x.gateway === expected.guestGateway && x['dns-server'] === expected.guestDns), 'сеть DHCP гостей');
+  if (expected.vlan) {
+    const vlans = await get('/rest/interface/vlan');
+    check(one(vlans, x => x.name === 'vlan-guest' && x.interface === 'bridge-lan' && String(x['vlan-id']) === expected.guestId), 'гостевой VLAN');
+    const table = await get('/rest/interface/bridge/vlan');
+    check(list(table).some(x => x.bridge === 'bridge-lan' && String(x['vlan-ids']) === expected.guestId && (x.tagged || '').split(',').includes('bridge-lan')), 'таблица VLAN');
+  }
+  const filter = list(await get('/rest/ip/firewall/filter'));
+  check(filter.length === expected.filterRules.length + 1 && filter[0].chain === 'input' && filter[0].action === 'accept' && filter[0]['in-interface'] === 'ether6', 'правила управления');
+  expected.filterRules.forEach((rule, n) => check(filter[n+1].chain === rule.chain && filter[n+1].action === rule.action, 'правила firewall'));
+  const nat = list(await get('/rest/ip/firewall/nat'));
+  check(nat.length === expected.natRules.length && expected.natRules.every((rule, n) => nat[n].chain === rule.chain && nat[n].action === rule.action), 'правила NAT');
+}
+module.exports = { makeReader, verifyConfiguration };

@@ -28,6 +28,24 @@ function makePlan(engine, state, routerId) {
     groups.push({ id: group.id, commands });
   }
   if (!groups.length) return {blockers:['Нет настроек для проверки.'], notices:initial.notices, groups:[]};
-  return { blockers: [], notices: initial.notices, groups };
+  const r = result.model.router, wan = result.model.primaryIsp;
+  const expected = {
+    lanAddress: r.gw + '/24', wanAddress: wan.cfg.ip, wanPort: wan.phys, wanGateway: wan.cfg.gw,
+    dns: r.dns, dnsCache: r.cfg.dnsCache !== false,
+    lanPorts: r.lanPorts.map(p => ({name:p.phys, segment:p.segment})),
+    dhcp: !!r.cfg.dhcp, lanPool: r.pool.start + '-' + r.pool.end,
+    lanNetwork: r.net.first + '/24', lanGateway: r.gw, lanClientDns: r.clientDns,
+    vlan: !!r.cfg.vlanGuest, guestId: String(r.cfg.guestVlan || ''), guestAddress: r.cfg.guestGw + '/24',
+    guestNetwork: r.cfg.guestNet, guestGateway: r.cfg.guestGw, guestDns: r.guestDns,
+    guestDhcp: !!(r.cfg.vlanGuest && r.cfg.guestDhcp),
+    filterRules: groups.filter(g => g.id === 'filter').flatMap(g => g.commands).map(s => ({
+      chain: (/\bchain=(\w+)/.exec(s) || [])[1], action: (/\baction=(\w+)/.exec(s) || [])[1]
+    })),
+    natRules: groups.filter(g => g.id === 'nat').flatMap(g => g.commands).map(s => ({
+      chain: (/\bchain=(\w+)/.exec(s) || [])[1], action: (/\baction=([\w-]+)/.exec(s) || [])[1]
+    }))
+  };
+  if (r.cfg.vlanGuest) { const guest = engine.poolOf(engine.parseCidr(r.cfg.guestNet)); expected.guestPool = guest.start + '-' + guest.end; }
+  return { blockers: [], notices: initial.notices, groups, expected };
 }
 module.exports = { makePlan };

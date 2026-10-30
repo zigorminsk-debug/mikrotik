@@ -8,6 +8,7 @@ on:
       - 'windows/chr/session.js'
       - 'windows/chr/console.js'
       - 'windows/chr/plan.js'
+      - 'windows/chr/verify.js'
   workflow_dispatch:
 permissions:
   contents: read

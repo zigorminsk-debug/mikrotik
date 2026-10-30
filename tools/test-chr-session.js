@@ -27,7 +27,7 @@ function get(url, user, password, route) {
   const plan = makePlan(engine, testState, 'r');
   assert.deepStrictEqual(plan.blockers, []);
   assert.deepStrictEqual(plan.groups.flatMap(g => g.commands), commands);
-  const info = await session.start(plan.groups);
+  const info = await session.start(plan);
   assert.strictEqual(new URL(info.url).hostname,'127.0.0.1');
   const resource = await get(info.url, info.user, info.password, '/rest/system/resource');
   assert(/^7\.23\.8/.test(resource.version)); assert.strictEqual(resource['architecture-name'],'x86_64');

@@ -8,6 +8,7 @@ const net = require('net');
 const { spawn } = require('child_process');
 const { randomBytes } = require('crypto');
 const { ChrConsole } = require('./console');
+const { makeReader, verifyConfiguration } = require('./verify');
 
 function bind(server) {
   return new Promise((resolve, reject) => {
@@ -27,11 +28,11 @@ class ChrSession {
     this.proc = null; this.server = null; this.console = null; this.socket = null; this.directory = null;
     this.closed = false; this.started = false; this.exitPromise = null; this.acceptTimer = null;
   }
-  async start(groups) {
+  async start(plan) {
     if (this.started || this.closed) throw new Error('Сессия CHR уже использована');
     this.started = true;
-    if (!Array.isArray(groups) || groups.length > 100) throw new Error('Недопустимый план CHR');
-    const commands = groups.flatMap(g => Array.isArray(g.commands) ? g.commands : []);
+    if (!plan || !plan.expected || !Array.isArray(plan.groups) || plan.groups.length > 100) throw new Error('Недопустимый план CHR');
+    const commands = plan.groups.flatMap(g => Array.isArray(g.commands) ? g.commands : []);
     if (!commands.length || commands.length > 100 || commands.some(s => typeof s !== 'string' || !s.startsWith('/') || /[\r\n\0]/.test(s) || s.length > 8192)) throw new Error('Недопустимые команды CHR');
     try {
       await fs.mkdir(this.root, {recursive:true, mode:0o700});
@@ -76,6 +77,7 @@ class ChrSession {
         '/ip firewall filter add chain=input in-interface=ether6 action=accept comment="Lab management"'
       ]) await this.console.command(command);
       for (const command of commands) await this.console.command(command);
+      await verifyConfiguration(plan.expected, makeReader(managementPort, 'admin', password));
       return { url:`http://127.0.0.1:${managementPort}/`, user:'admin', password };
     } catch (error) {
       await this.stop();
