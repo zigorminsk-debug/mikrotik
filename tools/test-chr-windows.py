@@ -89,14 +89,24 @@ try:
     settle(); send('admin')
     wait_for(rb'password:')
     settle(); send('')
-    for _ in range(12):
+    new_sent = False
+    repeat_sent = False
+    for _ in range(20):
         _, match = wait_for(rb'(do you want to see the software license|(?:new password|repeat new password)[^\r\n]*[>:]|press (?:enter|return)|\[admin@[^\]]+\]\s*>|password:)')
         choice = match.group().lower()
         settle()
         if b'license' in choice:
             send('n')
-        elif b'password' in choice:
-            send('Temporary-CI-Only-42!')
+        elif b'repeat new password' in choice:
+            if not repeat_sent:
+                send('Temporary-CI-Only-42!')
+                repeat_sent = True
+        elif b'new password' in choice:
+            if not new_sent:
+                send('Temporary-CI-Only-42!')
+                new_sent = True
+        elif b'password:' in choice:
+            raise RuntimeError('Неожиданный повторный запрос пароля')
         elif b'press' in choice:
             send('')
         else:
@@ -109,7 +119,7 @@ try:
     wait_for(rb'version:\s*[^\r\n]+')
     wait_for(rb'architecture-name:\s*[^\r\n]+')
     wait_for(rb'\[admin@[^\]]+\]\s*>')
-    print('Windows QEMU: CHR загрузилась и подтвердила системные сведения через serial.')
+    print('Windows QEMU: CHR boot and resource output verified via serial.')
 finally:
     if sock:
         sock.close()

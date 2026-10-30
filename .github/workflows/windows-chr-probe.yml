@@ -46,6 +46,8 @@ jobs:
           "CHR_IMAGE=$($image[0].FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Boot isolated CHR and verify console
         shell: pwsh
+        env:
+          PYTHONUTF8: "1"
         run: |
           python tools/test-chr-windows.py "$env:QEMU_EXE" "$env:CHR_IMAGE"
           if ($LASTEXITCODE -ne 0) { throw 'CHR probe failed' }
