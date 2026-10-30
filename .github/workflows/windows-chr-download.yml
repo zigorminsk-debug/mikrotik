@@ -22,7 +22,9 @@ jobs:
         shell: pwsh
         run: |
           $log = Join-Path $env:RUNNER_TEMP 'chr-npm.log'
-          npm install --prefix windows --omit=dev --ignore-scripts --no-audit --no-fund *> $log
+          Push-Location windows
+          npm install --omit=dev --ignore-scripts --no-audit --no-fund *> $log
+          Pop-Location
           if ($LASTEXITCODE -ne 0) {
             $text = ((Get-Content -Raw $log) -replace '%','%25' -replace "`r",'' -replace "`n",'%0A')
             Write-Output "::error title=CHR npm diagnostic::$text"
