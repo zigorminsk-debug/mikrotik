@@ -25,6 +25,12 @@ proc = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNUL
                         stderr=subprocess.PIPE, creationflags=subprocess.CREATE_NO_WINDOW)
 sock = None
 buffer = b''
+transcript = bytearray()
+
+def record(data):
+    transcript.extend(data)
+    if len(transcript) > 40000:
+        del transcript[:-20000]
 
 def wait_for(pattern, timeout=180):
     global buffer
@@ -41,6 +47,7 @@ def wait_for(pattern, timeout=180):
             data = sock.recv(16384)
             if not data:
                 raise RuntimeError('Соединение с консолью CHR закрыто')
+            record(data)
             buffer += data
             if len(buffer) > 200000:
                 buffer = buffer[-100000:]
@@ -54,13 +61,15 @@ def settle():
     buffer = b''
     while True:
         try:
-            if not sock.recv(16384):
+            data = sock.recv(16384)
+            if not data:
                 raise RuntimeError('Консоль CHR закрылась')
+            record(data)
         except socket.timeout:
             return
 
 def send(line):
-    sock.sendall((line + '\r\n').encode())
+    sock.sendall((line + '\n').encode())
 
 try:
     deadline = time.monotonic() + 60
@@ -108,5 +117,9 @@ finally:
     except subprocess.TimeoutExpired:
         proc.kill()
         _, err = proc.communicate()
-    if sys.exc_info()[0] is not None and err:
-        print('QEMU stderr:', err.decode(errors='replace')[-3000:], file=sys.stderr)
+    if sys.exc_info()[0] is not None:
+        safe = bytes(transcript).replace(b'Temporary-CI-Only-42!', b'[redacted]')
+        safe = re.sub(rb'\x1b\[[0-9;?]*[A-Za-z]', b'', safe)
+        print('Serial tail:', safe.decode(errors='replace')[-4000:], file=sys.stderr)
+        if err:
+            print('QEMU stderr:', err.decode(errors='replace')[-3000:], file=sys.stderr)
