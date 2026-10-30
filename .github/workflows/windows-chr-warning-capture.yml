@@ -26,8 +26,19 @@ jobs:
         working-directory: windows
         run: npm run copy
       - name: Display, capture and cancel the actual native warning
-        shell: pwsh
-        run: ./tools/capture-chr-warning.ps1
+        shell: powershell
+        run: |
+          try { ./tools/capture-chr-warning.ps1 }
+          catch {
+            $text = $_.Exception.ToString() -replace '%','%25' -replace "`r",'' -replace "`n",'%0A'
+            Write-Output "::error title=Native dialog capture::$text"
+            $log = Join-Path $env:RUNNER_TEMP 'chr-warning-error.log'
+            if (Test-Path $log) {
+              $details = (Get-Content -Raw $log) -replace '%','%25' -replace "`r",'' -replace "`n",'%0A'
+              Write-Output "::notice title=Electron capture diagnostics::$details"
+            }
+            exit 1
+          }
       - name: Export screenshot 0–9
         run: python tools/export-chr-warning.py 0
       - name: Export screenshot 10–19
