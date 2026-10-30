@@ -23,17 +23,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Install test and Electron dependencies
+      - name: Install test dependencies
+        working-directory: tools
         shell: pwsh
-        run: |
-          npm install --prefix tools --no-audit --no-fund
-          if ($LASTEXITCODE -ne 0) { throw 'Test dependencies failed' }
-          Push-Location windows
-          npm install --no-audit --no-fund
-          if ($LASTEXITCODE -ne 0) { throw 'Electron installation failed' }
-          npm run copy
-          if ($LASTEXITCODE -ne 0) { throw 'Copy failed' }
-          Pop-Location
+        run: npm install --no-audit --no-fund
+      - name: Install Electron
+        working-directory: windows
+        shell: pwsh
+        run: npm install --no-audit --no-fund
+      - name: Copy application
+        working-directory: windows
+        run: npm run copy
       - name: Render and decode PNG and animated GIF in Windows Electron
         shell: pwsh
         run: |
