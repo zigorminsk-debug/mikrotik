@@ -21,10 +21,10 @@ async function temporaryPort() {
   const s = net.createServer(); const port = await bind(s); await closeServer(s); return port;
 }
 class ChrSession {
-  constructor({qemu, image, tempRoot}) {
-    if (![qemu, image, tempRoot].every(x => typeof x === 'string' && path.isAbsolute(x))) throw new Error('Неверные пути CHR');
-    if (path.basename(qemu).toLowerCase() !== 'qemu-system-x86_64.exe' || path.basename(image) !== 'chr-7.23.8.img') throw new Error('Неверные компоненты CHR');
-    this.qemu = qemu; this.image = image; this.root = tempRoot;
+  constructor({qemu, image, tempRoot, supervisor}) {
+    if (![qemu, image, tempRoot, supervisor].every(x => typeof x === 'string' && path.isAbsolute(x))) throw new Error('Неверные пути CHR');
+    if (path.basename(qemu).toLowerCase() !== 'qemu-system-x86_64.exe' || path.basename(image) !== 'chr-7.23.8.img' || path.basename(supervisor).toLowerCase() !== 'chr-supervisor.exe') throw new Error('Неверные компоненты CHR');
+    this.qemu = qemu; this.image = image; this.root = tempRoot; this.supervisor = supervisor;
     this.proc = null; this.server = null; this.console = null; this.socket = null; this.directory = null;
     this.closed = false; this.started = false; this.exitPromise = null; this.acceptTimer = null;
   }
@@ -57,7 +57,8 @@ class ChrSession {
         this.server.once('connection', socket => { clearTimeout(this.acceptTimer); this.acceptTimer = null; resolve(socket); });
         this.server.once('error', () => { clearTimeout(this.acceptTimer); this.acceptTimer = null; reject(new Error('Ошибка консоли CHR')); });
       });
-      this.proc = spawn(this.qemu, args, {stdio:'ignore', windowsHide:true});
+      this.proc = spawn(this.supervisor, [disk, this.qemu, ...args], {stdio:['pipe','ignore','ignore'], windowsHide:true});
+      this.proc.stdin.on('error', () => {});
       this.exitPromise = new Promise(resolve => {
         this.proc.once('error', () => resolve({error:true}));
         this.proc.once('exit', (code, signal) => resolve({code,signal}));
@@ -90,14 +91,17 @@ class ChrSession {
     if (this.acceptTimer) { clearTimeout(this.acceptTimer); this.acceptTimer = null; }
     if (this.console) this.console.close(); else if (this.socket) this.socket.destroy();
     if (this.server && this.server.listening) this.server.close();
-    if (this.proc && this.proc.exitCode === null && this.proc.signalCode === null) this.proc.kill();
+    if (this.proc && this.proc.exitCode === null && this.proc.signalCode === null) this.proc.stdin.end();
     if (this.exitPromise) {
       let timer;
       const result = await Promise.race([this.exitPromise, new Promise(resolve => { timer = setTimeout(() => resolve(null), 10000); })]);
       clearTimeout(timer);
-      if (!result) throw new Error('Не удалось остановить QEMU; временный диск сохранён для безопасного удаления после остановки процесса.');
+      if (!result) {
+        this.proc.kill();
+        await this.exitPromise;
+      }
     }
-    if (this.directory) await fs.rm(this.directory, {recursive:true, force:true});
+    if (this.directory) await fs.rm(this.directory, {recursive:true, force:true, maxRetries:5, retryDelay:200});
   }
 }
 module.exports = { ChrSession };

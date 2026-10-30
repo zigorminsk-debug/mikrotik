@@ -1,0 +1,30 @@
+name: Windows CHR supervisor
+on:
+  push:
+    paths:
+      - '.github/workflows/windows-chr-supervisor.yml'
+      - 'tools/windows/chr-supervisor.c'
+      - 'tools/test-chr-supervisor.js'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  supervisor:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Build supervisor
+        shell: pwsh
+        run: |
+          cl /nologo /O2 /W3 tools/windows/chr-supervisor.c "/Fo$env:RUNNER_TEMP/chr-supervisor.obj" /link "/OUT:$env:RUNNER_TEMP/chr-supervisor.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Supervisor compilation failed' }
+      - name: Test parent disconnect and cleanup
+        shell: pwsh
+        run: |
+          node tools/test-chr-supervisor.js (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe')
+          if ($LASTEXITCODE -ne 0) { throw 'Supervisor test failed' }

@@ -8,6 +8,7 @@ on:
       - 'windows/chr/session.js'
       - 'windows/chr/console.js'
       - 'windows/chr/plan.js'
+      - 'tools/windows/chr-supervisor.c'
       - 'windows/chr/verify.js'
   workflow_dispatch:
 permissions:
@@ -54,9 +55,15 @@ jobs:
           "CHR_IMAGE=$($img[0].FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           node tools/chr-ci-fixture.js | Out-File -FilePath (Join-Path $dir 'fixture.json') -Encoding utf8
           if ($LASTEXITCODE -ne 0) { throw 'Fixture generation failed' }
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Build Windows QEMU supervisor
+        shell: pwsh
+        run: |
+          cl /nologo /O2 /W3 tools/windows/chr-supervisor.c "/Fo$env:RUNNER_TEMP/chr-supervisor.obj" /link "/OUT:$env:RUNNER_TEMP/chr-supervisor.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Supervisor compilation failed' }
       - name: Test real isolated CHR session using candidate
         shell: pwsh
         run: |
           $dir = Join-Path $env:RUNNER_TEMP 'qemu-candidate'
-          node tools/test-chr-session.js "$env:QEMU_EXE" "$env:CHR_IMAGE" (Join-Path $dir 'fixture.json') (Join-Path $dir 'sessions')
+          node tools/test-chr-session.js "$env:QEMU_EXE" "$env:CHR_IMAGE" (Join-Path $dir 'fixture.json') (Join-Path $dir 'sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe')
           if ($LASTEXITCODE -ne 0) { throw 'QEMU candidate session failed' }

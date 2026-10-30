@@ -11,6 +11,7 @@ on:
       - 'tools/test-chr-download-integration.js'
       - 'windows/package-lock.json'
       - 'windows/chr/**'
+      - 'tools/windows/chr-supervisor.c'
       - 'app/js/lab-sim.js'
   workflow_dispatch:
 permissions:
@@ -78,6 +79,12 @@ jobs:
           Copy-Item -LiteralPath $original[0].FullName -Destination $image
           node tools/test-chr-node.js "$env:QEMU_EXE" "$image" (Join-Path $env:RUNNER_TEMP 'chr-probe/fixture.json')
           if ($LASTEXITCODE -ne 0) { throw 'Node serial integration failed' }
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Build Windows QEMU supervisor
+        shell: pwsh
+        run: |
+          cl /nologo /O2 /W3 tools/windows/chr-supervisor.c "/Fo$env:RUNNER_TEMP/chr-supervisor.obj" /link "/OUT:$env:RUNNER_TEMP/chr-supervisor.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Supervisor compilation failed' }
       - name: Exercise isolated CHR session and loopback REST
         shell: pwsh
         run: |
@@ -85,7 +92,7 @@ jobs:
           Expand-Archive -LiteralPath (Join-Path $env:RUNNER_TEMP 'chr-probe/chr.zip') -DestinationPath $fresh
           $original = @(Get-ChildItem -Path $fresh -Recurse -File -Filter '*.img')
           if ($original.Count -ne 1) { throw 'Expected exactly one CHR image' }
-          node tools/test-chr-session.js "$env:QEMU_EXE" "$($original[0].FullName)" (Join-Path $env:RUNNER_TEMP 'chr-probe/fixture.json') (Join-Path $env:RUNNER_TEMP 'chr-probe/sessions')
+          node tools/test-chr-session.js "$env:QEMU_EXE" "$($original[0].FullName)" (Join-Path $env:RUNNER_TEMP 'chr-probe/fixture.json') (Join-Path $env:RUNNER_TEMP 'chr-probe/sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe')
           if ($LASTEXITCODE -ne 0) { throw 'CHR session integration failed' }
       - name: Verify application CHR downloader and cache
         shell: pwsh
