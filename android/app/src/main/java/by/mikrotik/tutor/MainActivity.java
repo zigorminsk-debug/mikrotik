@@ -16,6 +16,7 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import org.json.JSONObject;
 
 /**
  * Оболочка приложения: WebView загружает общий веб-контент учебника
@@ -76,9 +77,27 @@ public class MainActivity extends Activity {
      * Небольшой HTTP-клиент, доступный из JavaScript.
      * Вызывается из фонового потока WebView, сеть там разрешена.
      */
-    public static class GithubBridge {
+    public class GithubBridge {
         private static final String ALLOW_PREFIX =
                 "https://api.github.com/repos/zigorminsk-debug/mikrotik/";
+
+        // Separate thread prevents an offline update check from freezing WebView.
+        @JavascriptInterface
+        public void httpGetAsync(String url, String requestId) {
+            if (requestId == null || !requestId.matches("u[0-9]{1,10}") ||
+                    !"https://api.github.com/repos/zigorminsk-debug/mikrotik/releases/latest".equals(url)) return;
+            new Thread(() -> {
+                String response = httpGet(url);
+                WebView view = webView;
+                if (view == null) return;
+                view.post(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    String script = "window.onNativeUpdateResponse && window.onNativeUpdateResponse(" +
+                            JSONObject.quote(requestId) + "," + (response == null ? "null" : JSONObject.quote(response)) + ")";
+                    view.evaluateJavascript(script, null);
+                });
+            }, "release-check").start();
+        }
 
         @JavascriptInterface
         public String httpGet(String url) {
@@ -103,6 +122,7 @@ public class MainActivity extends Activity {
                 String line;
                 while ((line = br.readLine()) != null) {
                     sb.append(line).append('\n');
+                    if (sb.length() > 2_000_000) return null;
                 }
                 br.close();
                 return sb.toString();

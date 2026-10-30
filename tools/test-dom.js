@@ -35,6 +35,12 @@ async function main() {
       // заглушки для API, которых нет в jsdom
       window.HTMLElement.prototype.scrollIntoView = function () {};
       window.scrollTo = function () {};
+      window.routerOS = {};
+      const originalTimeout = window.setTimeout.bind(window);
+      window.setTimeout = (fn, ms, ...args) => {
+        if (ms === 5000) { window.runAutoUpdate = fn; return 0; }
+        return originalTimeout(fn, ms, ...args);
+      };
     }
   });
 
@@ -154,8 +160,8 @@ async function main() {
         return Promise.resolve({
           tag_name: 'v99.0.0',
           assets: [
-            { name: 'MikroTik-Guide-v99.0.0.apk', browser_download_url: 'https://example.com/a.apk' },
-            { name: 'MikroTik-Guide-Setup-99.0.0.exe', browser_download_url: 'https://example.com/s.exe' }
+            { name: 'MikroTik-Guide-v99.0.0.apk', browser_download_url: 'https://github.com/zigorminsk-debug/mikrotik/releases/download/v99.0.0/MikroTik-Guide-v99.0.0.apk' },
+            { name: 'MikroTik-Guide-Setup-99.0.0.exe', browser_download_url: 'https://github.com/zigorminsk-debug/mikrotik/releases/download/v99.0.0/MikroTik-Guide-Setup-99.0.0.exe' }
           ]
         });
       }
@@ -176,6 +182,29 @@ async function main() {
   $('btn_update').dispatchEvent(new win.Event('click', { bubbles: true }));
   await delay(40);
   ok(/последняя версия/.test($('upd-title').textContent), 'актуальная версия → «У вас последняя версия»');
+  // d) локальная веточная сборка новее публичного релиза
+  win.fetch = () => Promise.resolve({ ok: true, json: () => Promise.resolve({ tag_name: 'v1.2.0', assets: [] }) });
+  $('btn_update').click(); await delay(30);
+  ok(/более новая сборка/.test($('upd-title').textContent), 'локальная версия новее публичного релиза не объявляется последней');
+  $('upd_close').click();
+  win.runAutoUpdate(); await delay(30);
+  ok($('upd-modal').hidden, 'при автопроверке старый релиз не открывает диалог');
+  // Вредоносные ссылки и отсутствующий EXE не предлагаются для Windows.
+  win.fetch = () => Promise.resolve({ ok: true, json: () => Promise.resolve({ tag_name: 'v99.0.0', assets: [
+    { name: 'bad.exe', browser_download_url: 'https://example.com/bad.exe' },
+    { name: 'app.apk', browser_download_url: 'https://github.com/zigorminsk-debug/mikrotik/releases/download/v99.0.0/app.apk' }
+  ] }) });
+  win.runAutoUpdate(); await delay(30);
+  ok($('upd-modal').hidden, 'автопроверка не предлагает чужую ссылку или APK на Windows');
+  $('btn_update').click(); await delay(30);
+  ok(/нет подходящего файла/.test($('upd-body').textContent) && !/Скачать/.test($('upd-actions').textContent), 'ручная проверка сообщает об отсутствии файла платформы');
+  $('upd_close').click();
+  win.Android = { httpGetAsync: (url, id) => setTimeout(() => win.onNativeUpdateResponse(id, JSON.stringify({
+    tag_name: 'v99.0.0', assets: [{ name: 'app.exe', browser_download_url: 'https://github.com/zigorminsk-debug/mikrotik/releases/download/v99.0.0/app.exe' }]
+  })), 0) };
+  win.runAutoUpdate(); await delay(30);
+  ok(!$('upd-modal').hidden && /Доступна версия 99/.test($('upd-title').textContent), 'асинхронный мост предлагает новую версию при автопроверке');
+  delete win.Android;
   // d) закрытие
   $('upd_close').dispatchEvent(new win.Event('click', { bubbles: true }));
   ok($('upd-modal').hidden === true, 'диалог закрывается');

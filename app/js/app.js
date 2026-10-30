@@ -541,23 +541,38 @@ function closeUpd() { updModalEl().hidden = true; }
 document.getElementById('upd_close').addEventListener('click', closeUpd);
 updModalEl().addEventListener('click', function (e) { if (e.target === updModalEl()) closeUpd(); });
 
-/* HTTP GET с поддержкой Android-моста (обход CORS на file://) и обычного fetch */
-function httpGetJson(url, cb) {
+/* Android runs the request in a native background thread, so a slow or
+   offline connection does not freeze the WebView. Older shells still have
+   the synchronous bridge for manual checks. */
+var updateRequests = Object.create(null), updateRequestId = 0;
+window.onNativeUpdateResponse = function(id, body) {
+  var finish = updateRequests[id]; if (finish) finish(body);
+};
+function httpGetJson(url, cb, allowLegacyBridge) {
   try {
-    if (typeof window !== 'undefined' && window.Android && typeof window.Android.httpGet === 'function') {
-      var body = window.Android.httpGet(url);
-      cb(body ? JSON.parse(body) : null);
+    if (window.Android && typeof window.Android.httpGetAsync === 'function') {
+      var id = 'u' + (++updateRequestId), timer;
+      updateRequests[id] = function(body) {
+        if (!updateRequests[id]) return;
+        delete updateRequests[id]; clearTimeout(timer);
+        var data = null; try { data = body ? JSON.parse(body) : null; } catch (_) {}
+        cb(data);
+      };
+      timer = setTimeout(function(){ if (updateRequests[id]) updateRequests[id](null); }, 15000);
+      try { window.Android.httpGetAsync(url, id); } catch (_) { updateRequests[id](null); }
       return;
     }
-  } catch (e) { /* падаем в fetch */ }
+    if (allowLegacyBridge && window.Android && typeof window.Android.httpGet === 'function') {
+      var body = window.Android.httpGet(url);
+      cb(body ? JSON.parse(body) : null); return;
+    }
+  } catch (e) { /* fall back to fetch */ }
   if (typeof fetch === 'function') {
     fetch(url, { headers: { 'Accept': 'application/vnd.github+json' } })
       .then(function (r) { return r && r.ok ? r.json() : null; })
       .then(function (j) { cb(j); })
       .catch(function () { cb(null); });
-  } else {
-    cb(null);
-  }
+  } else cb(null);
 }
 function updTitle(t) { document.getElementById('upd-title').textContent = t; }
 function updBody(html) { document.getElementById('upd-body').innerHTML = html; }
@@ -594,58 +609,62 @@ function semverNewer(a, b) {
 function currentVersion() {
   return (typeof window !== 'undefined' && window.APP_VERSION) ? String(window.APP_VERSION) : '0.0.0';
 }
-function pickAsset(assets, preferApk) {
-  var apk = assets.filter(function (a) { return /\.apk$/i.test(a.name || ''); })[0];
-  var exe = assets.filter(function (a) { return /\.exe$/i.test(a.name || ''); })[0];
+function pickAsset(assets, preferApk, tag) {
+  // Only links belonging to this exact GitHub release may be displayed.
+  var prefix = '/zigorminsk-debug/mikrotik/releases/download/' + encodeURIComponent(tag) + '/';
+  function valid(a, ext) {
+    if (!a || typeof a.name !== 'string' || !ext.test(a.name) || typeof a.browser_download_url !== 'string') return false;
+    try {
+      var url = new URL(a.browser_download_url);
+      return url.protocol === 'https:' && url.hostname === 'github.com' && !url.port && !url.username && !url.password && !url.search && !url.hash && url.pathname === prefix + encodeURIComponent(a.name);
+    } catch (_) { return false; }
+  }
+  var apk = assets.filter(function (a) { return valid(a, /\.apk$/i); })[0];
+  var exe = assets.filter(function (a) { return valid(a, /\.exe$/i); })[0];
   return { main: preferApk ? apk : exe, alt: preferApk ? exe : apk };
 }
-function checkUpdates() {
-  openUpd();
-  updTitle('Проверка обновлений…');
-  updBody('Соединяемся с GitHub…');
-  updActions([]);
+function checkUpdates(silent) {
+  if (!silent) {
+    openUpd(); updTitle('Проверка обновлений…'); updBody('Соединяемся с GitHub…'); updActions([]);
+  }
   httpGetJson(UPD_API, function (data) {
     var cur = currentVersion();
-    if (!data || !data.tag_name) {
+    if (!data || typeof data.tag_name !== 'string' || !/^v?\d+\.\d+\.\d+$/.test(data.tag_name) || !Array.isArray(data.assets)) {
+      if (silent) return;
       updTitle('Обновления');
       updBody('<span class="upd-err">⚠ Не удалось проверить обновления — проверьте подключение к интернету.</span><br><br>' +
         'Текущая версия: <span class="ver">' + esc(cur) + '</span>');
-      updActions([
-        { t: 'Страница релизов', href: RELEASES_URL, primary: true },
-        { t: 'Повторить', onClick: checkUpdates },
-        { t: 'Закрыть', onClick: closeUpd }
-      ]);
+      updActions([{ t:'Страница релизов', href:RELEASES_URL, primary:true }, { t:'Повторить', onClick:function(){checkUpdates(false);} }, { t:'Закрыть', onClick:closeUpd }]);
       return;
     }
-    var latest = String(data.tag_name).replace(/^v/, '');
-    var assets = data.assets || [];
+    var latest = data.tag_name.replace(/^v/, '');
     var preferApk = /Android/i.test(navigator.userAgent || '');
     if (semverNewer(latest, cur)) {
-      updTitle('Доступна версия ' + latest);
-      var pick = pickAsset(assets, preferApk);
-      updBody('<span class="upd-new">Обновление: <span class="ver">' + esc(cur) + '</span> → <span class="ver">' +
-        esc(latest) + '</span></span><br><br>' +
-        (pick.main
-          ? 'Файл: <b>' + esc(pick.main.name) + '</b>.<br>Скачайте и откройте его — обновление установится поверх текущей версии (данные сохранятся).'
-          : 'Скачайте нужный файл со страницы релиза.'));
+      var pick = pickAsset(data.assets, preferApk, data.tag_name);
+      if (silent && !pick.main) return;
+      openUpd(); updTitle('Доступна версия ' + latest);
+      updBody('<span class="upd-new">Обновление: <span class="ver">' + esc(cur) + '</span> → <span class="ver">' + esc(latest) + '</span></span><br><br>' +
+        (pick.main ? 'Файл: <b>' + esc(pick.main.name) + '</b>. Скачайте и откройте установщик. Подтвердите обновление в системе; тихая установка не выполняется.' : 'Для этой платформы в релизе нет подходящего файла. Проверьте страницу релиза.'));
       var acts = [];
       if (pick.main) acts.push({ t: 'Скачать ' + (/\.apk$/i.test(pick.main.name) ? 'APK' : 'установщик'), href: pick.main.browser_download_url, primary: true });
-      else acts.push({ t: 'Страница релизов', href: RELEASES_URL, primary: true });
-      if (pick.alt) acts.push({ t: 'Другой файл: ' + (/\.apk$/i.test(pick.alt.name) ? 'APK' : 'EXE'), href: pick.alt.browser_download_url });
-      acts.push({ t: 'Позже', onClick: closeUpd });
-      updActions(acts);
+      else acts.push({ t:'Страница релизов', href:RELEASES_URL, primary:true });
+      acts.push({ t:'Позже', onClick:closeUpd }); updActions(acts);
     } else {
-      updTitle('У вас последняя версия');
-      updBody('<span class="upd-ok">✓ Версия <span class="ver">' + esc(cur) + '</span> актуальна — последний релиз ' +
-        esc(data.tag_name) + '.</span>');
-      updActions([
-        { t: 'Страница релизов', href: RELEASES_URL },
-        { t: 'Готово', onClick: closeUpd, primary: true }
-      ]);
+      if (silent) return;
+      if (semverNewer(cur, latest)) {
+        updTitle('Установлена более новая сборка');
+        updBody('Версия приложения <span class="ver">' + esc(cur) + '</span> новее последнего опубликованного релиза <span class="ver">' + esc(data.tag_name) + '</span>. Проверка не подтверждает наличие обновлений из других сборок.');
+      } else {
+        updTitle('У вас последняя версия');
+        updBody('<span class="upd-ok">✓ Версия <span class="ver">' + esc(cur) + '</span> совпадает с последним релизом ' + esc(data.tag_name) + '.</span>');
+      }
+      updActions([{ t:'Страница релизов', href:RELEASES_URL }, { t:'Готово', onClick:closeUpd, primary:true }]);
     }
-  });
+  }, !silent);
 }
-document.getElementById('btn_update').addEventListener('click', checkUpdates);
+document.getElementById('btn_update').addEventListener('click', function(){ checkUpdates(false); });
+// No popup on startup unless a newer release has a matching, trusted asset.
+if (window.Android || window.routerOS) setTimeout(function(){ checkUpdates(true); }, 5000);
 
 /* ---------- масштаб шрифта A−/A+ (сохраняется между запусками) ---------- */
 (function initFontScale() {

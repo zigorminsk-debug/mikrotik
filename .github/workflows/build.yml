@@ -77,10 +77,15 @@ jobs:
           APK=$(ls android/app/build/outputs/apk/release/*.apk | head -1)
           echo "APK: $APK"
           $ANDROID_HOME/build-tools/34.0.0/apksigner verify --print-certs "$APK" | head -20
-      # APK в артефакты НЕ выкладываем: GitHub всегда упаковывает артефакты в zip,
-      # а пользователю нужен чистый .apk. Он доступен напрямую:
-      #  - в релизе: releases/download/<тег>/MikroTik-Guide-<тег>.apk
-      #  - в дереве: releases/MikroTik-Guide.apk (перезаписывается шагом ниже)
+      # Только для передачи между job при сборке тега. Пользователь скачивает
+      # из GitHub Release чистый APK, не архив Actions.
+      - uses: actions/upload-artifact@v4
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          name: MikroTik-Guide-Android-internal
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 1
       - name: Выложить чистый APK в репозиторий (releases/MikroTik-Guide.apk)
         if: github.ref_type == 'branch'
         run: |
@@ -145,6 +150,12 @@ jobs:
     needs: [android, windows]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - name: Проверка тега и версии
+        shell: bash
+        run: |
+          [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          node -e "const fs=require('fs'); const tag=process.env.GITHUB_REF_NAME.slice(1); const gradle=fs.readFileSync('android/app/build.gradle','utf8'); const app=fs.readFileSync('app/js/version.js','utf8'); if (require('./windows/package.json').version!==tag || !gradle.includes('versionName \"'+tag+'\"') || !app.includes(\"APP_VERSION = '\"+tag+\"'\")) process.exit(1)"
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -153,14 +164,14 @@ jobs:
         run: |
           set -e
           mkdir -p out
-          for f in dist/*.apk; do
-            [ -e "$f" ] || continue
-            cp "$f" "out/MikroTik-Guide-${GITHUB_REF_NAME}.apk"
-          done
-          for f in dist/*.exe; do
-            [ -e "$f" ] || continue
-            cp "$f" "out/$(basename "$f")"
-          done
+          shopt -s nullglob
+          apks=(dist/*.apk)
+          exes=(dist/*.exe)
+          test "${#apks[@]}" -eq 1
+          test "${#exes[@]}" -eq 1
+          test "$(basename "${exes[0]}")" = "MikroTik-Guide-Setup-${GITHUB_REF_NAME#v}.exe"
+          cp "${apks[0]}" "out/MikroTik-Guide-${GITHUB_REF_NAME}.apk"
+          cp "${exes[0]}" out/
           ls -la out/
       - uses: softprops/action-gh-release@v2
         with:
