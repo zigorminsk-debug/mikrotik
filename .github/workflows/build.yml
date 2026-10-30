@@ -40,6 +40,8 @@ jobs:
         run: node tools/audit-screens.js --check
       - name: Тесты графической лаборатории
         run: node tools/test-lab.js
+      - name: Тесты консоли виртуальной CHR
+        run: node tools/test-chr-console.js
       - name: DOM-тест (интерактивный стенд, шрифт, автодополнение)
         run: |
           npm install --prefix tools --no-audit --no-fund

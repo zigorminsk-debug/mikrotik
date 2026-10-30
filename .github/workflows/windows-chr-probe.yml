@@ -6,6 +6,8 @@ on:
       - '.github/workflows/windows-chr-probe.yml'
       - 'tools/test-chr-windows.py'
       - 'tools/chr-ci-fixture.js'
+      - 'tools/test-chr-node.js'
+      - 'windows/chr/**'
       - 'app/js/lab-sim.js'
   workflow_dispatch:
 permissions:
@@ -56,3 +58,16 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Failed to generate fixture' }
           python tools/test-chr-windows.py "$env:QEMU_EXE" "$env:CHR_IMAGE" "$fixture"
           if ($LASTEXITCODE -ne 0) { throw 'CHR probe failed' }
+      - name: Exercise Windows serial module on a fresh CHR
+        shell: pwsh
+        run: |
+          $image = Join-Path $env:RUNNER_TEMP 'chr-probe/chr-fresh.img'
+          # The previous probe modified its own image. Re-extract the untouched
+          # official ZIP, then copy the one image into a second disposable disk.
+          $fresh = Join-Path $env:RUNNER_TEMP 'chr-probe/fresh'
+          Expand-Archive -LiteralPath (Join-Path $env:RUNNER_TEMP 'chr-probe/chr.zip') -DestinationPath $fresh
+          $original = @(Get-ChildItem -Path $fresh -Recurse -File -Filter '*.img')
+          if ($original.Count -ne 1) { throw 'Expected exactly one CHR image' }
+          Copy-Item -LiteralPath $original[0].FullName -Destination $image
+          node tools/test-chr-node.js "$env:QEMU_EXE" "$image" (Join-Path $env:RUNNER_TEMP 'chr-probe/fixture.json')
+          if ($LASTEXITCODE -ne 0) { throw 'Node serial integration failed' }
