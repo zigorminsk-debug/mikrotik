@@ -58,6 +58,14 @@ async function verifyConfiguration(expected, get, diagnostic = () => {}) {
     }
   }
   if (expected.identity !== null) { const identity = await get('/rest/system/identity'); check(identity && identity.name === expected.identity, 'системное имя'); }
+  if (expected.ntp) {
+    const clock = await get('/rest/system/clock');
+    check(clock && clock['time-zone-name'] === expected.ntp.zone && String(clock['time-zone-autodetect']) === 'false', 'часовой пояс');
+    const ntp = await get('/rest/system/ntp/client');
+    check(ntp && String(ntp.enabled) === 'true', 'клиент NTP');
+    const servers = list(await get('/rest/system/ntp/client/servers'));
+    check(servers.length === 1 && one(servers, x => x.address === expected.ntp.server && enabled(x)), 'NTP-сервер');
+  }
   if (expected.dnsStatic) { const entries = await get('/rest/ip/dns/static'); check(one(entries, x => x.name === expected.dnsStatic.name && x.address === expected.dnsStatic.address && x.type === 'A' && enabled(x)), 'локальная DNS-запись'); }
   const dns = await get('/rest/ip/dns');
   check(dns && dns.servers === expected.dns && String(dns['allow-remote-requests']) === String(expected.dnsCache), 'DNS');

@@ -105,17 +105,12 @@ fi
 # that any particular dialog opened.
 win=$(xdotool search --onlyvisible --pid "$pid" | head -n 1)
 xdotool windowfocus --sync "$win"
-xdotool mousemove --sync 170 203
+# Explore the actual System menu of WinBox 4; verify the capture visually
+# before using it in documentation. No router changes from the GUI.
+xdotool mousemove --sync 180 443
 xdotool click 1
 sleep 8
-rm -f "$3/winbox.png"
 scrot "$3/winbox.png"
-scrot -q 45 "$3/winbox-list.jpg"
-# Open the actual Ethernet interface properties, not an illustration or a
-# third-party image. The disposable CHR has no production credentials.
-xdotool mousemove --sync 398 301
-xdotool click --repeat 2 --delay 150 1
-sleep 8
 scrot -q 45 "$3/winbox.jpg"
 kill "$pid" 2>/dev/null || true
 '''

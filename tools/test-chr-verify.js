@@ -29,6 +29,15 @@ const records = {
 const get = async key => { assert(key in records, key); return records[key]; };
 (async () => {
   await verifyConfiguration(e,get);
+  const withNtp={...e,ntp:{server:'192.0.2.123',zone:'Europe/Minsk'}};
+  records['/rest/system/clock']={'time-zone-name':'Europe/Minsk','time-zone-autodetect':'false'};
+  records['/rest/system/ntp/client']={enabled:'true'};
+  records['/rest/system/ntp/client/servers']=[{address:'192.0.2.123',disabled:'false'}];
+  await verifyConfiguration(withNtp,get);
+  records['/rest/system/ntp/client'].enabled='false';await assert.rejects(verifyConfiguration(withNtp,get),/клиент NTP/);records['/rest/system/ntp/client'].enabled='true';
+  records['/rest/system/clock']['time-zone-name']='Etc/UTC';await assert.rejects(verifyConfiguration(withNtp,get),/часовой пояс/);records['/rest/system/clock']['time-zone-name']='Europe/Minsk';
+  records['/rest/system/ntp/client/servers'][0].address='192.0.2.124';await assert.rejects(verifyConfiguration(withNtp,get),/NTP-сервер/);records['/rest/system/ntp/client/servers'][0].address='192.0.2.123';
+  records['/rest/system/ntp/client/servers'].push({address:'192.0.2.124',disabled:'false'});await assert.rejects(verifyConfiguration(withNtp,get),/NTP-сервер/);records['/rest/system/ntp/client/servers'].pop();
   records['/rest/ip/dhcp-client'][0].disabled = 'false'; await assert.rejects(verifyConfiguration(e,get),/DHCP-клиент WAN/); records['/rest/ip/dhcp-client'][0].disabled = 'true';
   records['/rest/ip/address'][0].address = '192.0.2.1/24';
   await assert.rejects(verifyConfiguration(e,get),/адреса/);

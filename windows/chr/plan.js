@@ -9,7 +9,7 @@ function ruleProperties(command) {
 }
 function makePlan(engine, state, routerId, options = {}) {
   if (!state || !Array.isArray(state.devices) || !Array.isArray(state.links) || state.devices.length > 100 || state.links.length > 100) throw new Error('Недопустимый размер или формат схемы');
-  const initial = engine.chrPreflight(state, routerId);
+  const initial = engine.chrPreflight(state, routerId, {allowNtpConfig: options.allowNtpConfig === true});
   const blockers = initial.blockers.slice();
   const router = state.devices.find(d => d.type === 'router' && d.id === routerId);
   const isps = state.devices.filter(d => d.type === 'isp');
@@ -42,6 +42,7 @@ function makePlan(engine, state, routerId, options = {}) {
     staticRoute: r.cfg.staticRoute ? {destination:r.cfg.routeDst, gateway:r.cfg.routeGw, distance:String(r.cfg.routeDistance)} : null,
     dnsStatic: r.cfg.dnsStatic ? {name:r.cfg.dnsStaticName, address:r.cfg.dnsStaticIp} : null,
     identity: r.cfg.identityOn ? r.cfg.systemIdentity : null,
+    ntp: r.cfg.ntpClient ? {server:r.cfg.ntpServer, zone:r.cfg.timeZone} : null,
     lanPorts: r.lanPorts.map(p => ({name:p.phys, segment:p.segment})),
     dhcp: !!r.cfg.dhcp, lanPool: r.pool.start + '-' + r.pool.end,
     lanNetwork: r.net.first + '/24', lanGateway: r.gw, lanClientDns: r.clientDns,

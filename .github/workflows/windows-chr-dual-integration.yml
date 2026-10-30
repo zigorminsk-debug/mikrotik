@@ -9,6 +9,7 @@ on:
       - 'tools/chr-ci-dual-wan-fixture.js'
       - 'tools/test-chr-dual-wan.js'
       - 'tools/test-chr-dual-integration.js'
+      - 'tools/test-chr-ntp.js'
       - 'windows/main.js'
       - 'windows/chr/network-warning.js'
       - 'tools/test-chr-verify.js'
@@ -79,3 +80,9 @@ jobs:
           $dir = Join-Path $env:RUNNER_TEMP 'qemu-candidate'
           node tools/test-chr-dual-integration.js "$env:QEMU_EXE" "$env:CHR_IMAGE" (Join-Path $dir 'integration-sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe')
           if ($LASTEXITCODE -ne 0) { throw 'Main-process and real CHR integration failed' }
+      - name: Verify isolated NTP settings in two real CHRs (CI only)
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'qemu-candidate'
+          node tools/test-chr-ntp.js "$env:QEMU_EXE" "$env:CHR_IMAGE" (Join-Path $dir 'ntp-sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe')
+          if ($LASTEXITCODE -ne 0) { throw 'Isolated NTP settings verification failed' }
