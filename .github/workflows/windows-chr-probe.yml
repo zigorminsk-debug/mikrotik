@@ -1,0 +1,51 @@
+# Исследовательская проверка на Windows; НЕ дистрибутив и НЕ функциональность приложения.
+name: Windows CHR feasibility
+on:
+  push:
+    paths:
+      - '.github/workflows/windows-chr-probe.yml'
+      - 'tools/test-chr-windows.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  boot:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download pinned QEMU and verify SHA-256
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dir = Join-Path $env:RUNNER_TEMP 'chr-probe'
+          New-Item -ItemType Directory -Path $dir -Force | Out-Null
+          $zip = Join-Path $dir 'qemu.zip'
+          Invoke-WebRequest -Uri 'https://github.com/jzombie/lab-qemu-portable/releases/download/qemu-v11.1.2/qemu-portable-win-x64-UCRT64-11.1.2.zip' -OutFile $zip
+          $hash = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant()
+          if ($hash -ne '67f298f79b7b110f633a6656eb742d5a919cdf5a55d92ed184ac0195c77a7a5c') { throw 'QEMU SHA-256 mismatch' }
+          Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $dir 'qemu')
+          $exe = @(Get-ChildItem -Path (Join-Path $dir 'qemu') -Recurse -File -Filter qemu-system-x86_64.exe)
+          if ($exe.Count -ne 1) { throw 'Expected exactly one QEMU executable' }
+          & $exe[0].FullName --version
+          if ($LASTEXITCODE -ne 0) { throw 'QEMU failed to start' }
+          "QEMU_EXE=$($exe[0].FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Download official CHR to temporary runner
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dir = Join-Path $env:RUNNER_TEMP 'chr-probe'
+          $zip = Join-Path $dir 'chr.zip'
+          Invoke-WebRequest -Uri 'https://download.mikrotik.com/routeros/7.23.8/chr-7.23.8.img.zip' -OutFile $zip
+          Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $dir 'chr')
+          $image = @(Get-ChildItem -Path (Join-Path $dir 'chr') -Recurse -File -Filter '*.img')
+          if ($image.Count -ne 1) { throw 'Expected exactly one CHR image' }
+          "CHR_IMAGE=$($image[0].FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Boot isolated CHR and verify console
+        shell: pwsh
+        run: |
+          python tools/test-chr-windows.py "$env:QEMU_EXE" "$env:CHR_IMAGE"
+          if ($LASTEXITCODE -ne 0) { throw 'CHR probe failed' }
