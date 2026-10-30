@@ -1,0 +1,34 @@
+name: Windows CHR downloader
+on:
+  push:
+    paths:
+      - '.github/workflows/windows-chr-download.yml'
+      - 'windows/chr/download.js'
+      - 'tools/test-chr-download-integration.js'
+      - 'tools/package-lock.json'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  download:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install test dependencies
+        run: npm install --prefix tools --no-audit --no-fund
+      - name: Verify official download and cache
+        shell: pwsh
+        run: |
+          $env:NODE_PATH = (Join-Path $env:GITHUB_WORKSPACE 'tools/node_modules')
+          $log = Join-Path $env:RUNNER_TEMP 'chr-download-test.log'
+          node tools/test-chr-download-integration.js (Join-Path $env:RUNNER_TEMP 'chr-download-cache') *> $log
+          if ($LASTEXITCODE -ne 0) {
+            $text = ((Get-Content -Raw $log) -replace '%','%25' -replace "`r",'' -replace "`n",'%0A')
+            Write-Output "::error title=CHR download diagnostic::$text"
+            throw 'Application CHR download test failed'
+          }
+          Get-Content $log
