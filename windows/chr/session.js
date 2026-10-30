@@ -91,7 +91,7 @@ class ChrSession {
       // console and configuration. Retry only connection failures, never a
       // mismatch in the settings themselves.
       for (let attempt = 0; attempt < 4; attempt++) {
-        try { await verifyConfiguration(plan.expected, get); verificationError = null; break; }
+        try { await verifyConfiguration(plan.expected, get, this.diagnostic); verificationError = null; break; }
         catch (error) {
           verificationError = error;
           if (!/Не удалось подключиться к виртуальной CHR/.test(error.message) || this.closed) throw error;

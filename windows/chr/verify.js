@@ -27,7 +27,7 @@ function check(ok, description) { if (!ok) throw new Error('CHR не подтв�
 function list(rows) { if (!Array.isArray(rows)) throw new Error('Некорректный ответ CHR'); return rows; }
 function one(rows, predicate) { return list(rows).filter(predicate).length === 1; }
 function enabled(row) { return row.disabled === 'false' || row.disabled === false; }
-async function verifyConfiguration(expected, get) {
+async function verifyConfiguration(expected, get, diagnostic = () => {}) {
   if (!expected || typeof get !== 'function') throw new Error('Нет параметров проверки CHR');
   const resource = await get('/rest/system/resource');
   check(resource && /^7\.23\.8(?:\s|$)/.test(resource.version || '') && resource['architecture-name'] === 'x86_64', 'версия и архитектура');
@@ -46,7 +46,13 @@ async function verifyConfiguration(expected, get) {
   if (expected.vlan) check(one(addresses, x => x.address === expected.guestAddress && x.interface === 'vlan-guest'), 'адрес гостевого VLAN');
   const routes = await get('/rest/ip/route');
   check(list(routes).some(x => x['dst-address'] === '0.0.0.0/0' && x.gateway === expected.wanGateway && String(x.distance) === '1' && x['check-gateway'] === 'ping'), 'маршрут WAN');
-  if (expected.staticRoute) check(one(routes, x => x['dst-address'] === expected.staticRoute.destination && x.gateway === expected.staticRoute.gateway && String(x.distance) === expected.staticRoute.distance && enabled(x)), 'статический маршрут LAN');
+  if (expected.staticRoute) {
+    const found = list(routes).filter(x => x['dst-address'] === expected.staticRoute.destination);
+    if (!one(found, x => x.gateway === expected.staticRoute.gateway && String(x.distance) === expected.staticRoute.distance && enabled(x))) {
+      try { diagnostic({route: found.map(x => ({gateway:x.gateway, distance:x.distance, disabled:x.disabled, inactive:x.inactive}))}); } catch (_) {}
+      check(false, 'статический маршрут LAN');
+    }
+  }
   if (expected.identity !== null) { const identity = await get('/rest/system/identity'); check(identity && identity.name === expected.identity, 'системное имя'); }
   if (expected.dnsStatic) { const entries = await get('/rest/ip/dns/static'); check(one(entries, x => x.name === expected.dnsStatic.name && x.address === expected.dnsStatic.address && x.type === 'A' && enabled(x)), 'локальная DNS-запись'); }
   const dns = await get('/rest/ip/dns');
