@@ -100,6 +100,10 @@ tools/                   # генератор схемы и модульные �
 .github/workflows/       # сборка на GitHub Actions
 ```
 
+Экспорт схемы PNG/GIF использует локально включённый gifenc 1.0.3
+(MIT, `app/vendor/gifenc/LICENSE.md`, https://github.com/mattdesl/gifenc).
+Код работает офлайн; GIF показывает только условный трафик модели.
+
 ## Сборка на GitHub Actions
 
 Воркфлоу `.github/workflows/build.yml` запускается на **каждый push**:

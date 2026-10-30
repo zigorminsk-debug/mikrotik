@@ -5,7 +5,8 @@ const fs = require('fs');
 const vm = require('vm');
 const {EventEmitter} = require('events');
 const source = fs.readFileSync(require('path').join(__dirname,'../windows/main.js'),'utf8');
-const windows = [], handlers = {}, choices = [], downloads = [], opened = [], created = [], errors = [];
+const windows = [], handlers = {}, choices = [], downloads = [], opened = [], created = [], errors = [], writes = [];
+let saveChoice = {canceled:true};
 let plan = {blockers:[],groups:[{id:'iface',commands:['/interface print']}],expected:{}};
 class Window extends EventEmitter {
   constructor(options) {
@@ -25,9 +26,9 @@ class Session {
 }
 const app=new EventEmitter();Object.assign(app,{isPackaged:true,getPath:()=>'/test-data',requestSingleInstanceLock:()=>true,whenReady:()=>Promise.resolve(),quit:()=>{}});
 const electron={app,BrowserWindow:Window,shell:{openExternal:async url=>opened.push(url)},
-  dialog:{showMessageBox:async()=>({response:choices.shift()}),showErrorBox:(_title,msg)=>errors.push(msg)},
+  dialog:{showMessageBox:async()=>({response:choices.shift()}),showErrorBox:(_title,msg)=>errors.push(msg),showSaveDialog:async()=>saveChoice},
   ipcMain:{handle:(name,fn)=>handlers[name]=fn},clipboard:{writeText(){},readText(){return '';},clear(){}}};
-const mockfs={promises:{readdir:async()=>{const e=new Error();e.code='ENOENT';throw e;},access:async()=>{},rm:async()=>{}}};
+const mockfs={promises:{readdir:async()=>{const e=new Error();e.code='ENOENT';throw e;},access:async()=>{},rm:async()=>{},writeFile:async(file,data)=>writes.push({file,data:Buffer.from(data)})}};
 const req=name=>{
   if(name==='electron')return electron;if(name==='fs')return mockfs;
   if(name==='./www/js/lab-sim')return {};
@@ -42,6 +43,15 @@ vm.runInNewContext(source,{require:req,process:{platform:'win32',resourcesPath:'
   const main=windows[0], call=handlers['chr:launch'];assert(main && call);
   const good={sender:main.webContents,senderFrame:main.webContents.mainFrame};
   const bad=await call({sender:{},senderFrame:{}},'r',{});assert(!bad.ok && !downloads.length);
+  const save=handlers['diagram:save'], png=Uint8Array.from([137,80,78,71,13,10,26,10,1]);
+  assert(!(await save({sender:{},senderFrame:{}},'png',png)).ok);
+  assert(!(await save(good,'gif',png)).ok); assert(!(await save(good,'exe',png)).ok); assert.equal(writes.length,0);
+  assert((await save(good,'png',png)).cancelled); assert.equal(writes.length,0);
+  saveChoice={canceled:false,filePath:'/chosen/scheme.png'};
+  assert((await save(good,'png',png)).ok); assert.equal(writes[0].file,'/chosen/scheme.png'); assert.deepStrictEqual(writes[0].data,Buffer.from(png));
+  saveChoice={canceled:false,filePath:'/chosen/scheme.gif'};
+  assert((await save(good,'gif',Uint8Array.from(Buffer.from('GIF89a...')))).ok); assert.equal(writes[1].file,'/chosen/scheme.gif');
+
   plan={blockers:['unsupported'],groups:[]};const rejected=await call(good,'r',{});assert(!rejected.ok && rejected.message.includes('unsupported'));assert(!downloads.length);
   plan={blockers:[],groups:[{id:'iface',commands:['/interface print']}],expected:{}};
   choices.push(2);const cancelled=await call(good,'r',{});assert(cancelled.cancelled && !downloads.length);

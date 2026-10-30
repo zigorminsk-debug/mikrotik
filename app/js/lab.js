@@ -1041,6 +1041,27 @@ function init() {
   runBtn.addEventListener('click', function () {
     run({ instant: window.LAB_INSTANT === true });
   });
+  function exportDiagram(format) {
+    var status = $('lab-export-status'), png = $('lab_export_png'), gif = $('lab_export_gif');
+    status.hidden = false;
+    if (window.Android && !window.routerOS) { status.textContent = 'Сохранение PNG и GIF пока доступно в Windows и браузере. В Android эта функция ещё не реализована.'; return; }
+    png.disabled = gif.disabled = true;
+    status.textContent = format === 'gif' ? 'Создание GIF: записываем условное движение по активным линиям…' : 'Создание изображения схемы…';
+    Promise.resolve().then(function(){ return LabExport.render(canvas, ICONS, format); }).then(function(blob) {
+      if (window.routerOS && typeof window.routerOS.saveDiagram === 'function') {
+        return blob.arrayBuffer().then(function(bytes){return window.routerOS.saveDiagram(format,new Uint8Array(bytes));}).then(function(result) {
+          if (result && result.ok) status.textContent = 'Схема сохранена. Названия и адреса будут видны; пароли из настроек специально не включаются. Это изображение, не проект для восстановления.';
+          else if (result && result.cancelled) status.textContent = 'Сохранение отменено.';
+          else throw new Error(result && result.message || 'Не удалось сохранить файл.');
+        });
+      }
+      var url=URL.createObjectURL(blob), a=document.createElement('a'); a.href=url; a.download='mikrotik-scheme.'+format; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function(){URL.revokeObjectURL(url);},60000);
+      status.textContent = 'Файл передан браузеру для сохранения. Изображение не является проектом для восстановления настроек.';
+    }).catch(function(e) { status.textContent = (e && e.message) || 'Не удалось сохранить схему.'; }).then(function(){png.disabled=gif.disabled=false;});
+  }
+  $('lab_export_png').addEventListener('click', function(){exportDiagram('png');});
+  $('lab_export_gif').addEventListener('click', function(){exportDiagram('gif');});
   $('lab_example').addEventListener('click', function () {
     resetBtn.click();
     var w = canvas.clientWidth || 800, x1 = Math.max(0, w * 0.08), x2 = Math.max(0, w * 0.52 - 48);

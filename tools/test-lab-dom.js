@@ -10,6 +10,10 @@ const {JSDOM,VirtualConsole} = require('jsdom');
  const d=w.document, $=id=>d.getElementById(id);
  w.location.hash='lab'; await new Promise(resolve=>setTimeout(resolve,20));
  assert(!$('lab-view').hidden); assert($('stand-view').hidden);
+ assert($('lab_export_png') && $('lab_export_gif'));
+ Object.defineProperty($('lab-canvas'),'clientWidth',{configurable:true,value:800});
+ Object.defineProperty($('lab-canvas'),'clientHeight',{configurable:true,value:500});
+ $('lab_export_png').click(); await new Promise(resolve=>setTimeout(resolve,20)); assert($('lab-export-status').textContent.includes('Схема пуста'));
  $('lab_example').click(); assert.equal(w.Lab.state.devices.length,5); assert.equal(w.Lab.state.links.length,4);
  $('lab_run').click(); assert(!$('lab-results').hidden); assert($('lab-results').textContent.includes('Проверка учебной модели пройдена')); assert(d.querySelector('#lab-results .copy-btn')); assert($('lab-results').textContent.includes('реальные пакеты не отправлялись')); assert($('lab-winbox')); assert($('lab-winbox').textContent.includes('Подготовка')); assert($('lab-winbox').querySelector('img[src*=winbox-login]')); assert($('lab-winbox').textContent.includes('192.168.88.1/24'));const ppStep=Array.from(d.querySelectorAll('#lab-winbox .lab-winbox-step')).find(el=>el.querySelector('img[src$="pppoe-dial.png"]'));assert(ppStep);const ppItems=ppStep.querySelectorAll('ol > li');assert(ppItems[0].querySelector('img[src$="pppoe-general.png"]'));assert(ppItems[1].querySelector('img[src$="pppoe-dial.png"]'));assert(ppItems[2].textContent.includes('отдельный скриншот пока не добавлен'));assert(ppItems[ppItems.length-1].querySelector('img[src$="interface-list-member.png"]'));
  // Изображение в учебнике: на узком и широком экране режим «Целиком»

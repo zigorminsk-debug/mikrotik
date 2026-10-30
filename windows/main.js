@@ -107,6 +107,19 @@ ipcMain.handle('chr:launch', async (event, routerId, state) => {
     return {ok:false, message:'Не удалось открыть виртуальную RouterOS: ' + (error && error.message ? error.message : 'неизвестная ошибка')};
   } finally { launching = false; if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setProgressBar(-1); }
 });
+// Only the trusted main renderer can request a save; the user chooses the path.
+ipcMain.handle('diagram:save', async (event, format, bytes) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame) return {ok:false,message:'Недопустимый источник сохранения.'};
+  if ((format !== 'png' && format !== 'gif') || !ArrayBuffer.isView(bytes) || bytes.byteLength > 20 * 1024 * 1024 || bytes.byteLength < 8) return {ok:false,message:'Недопустимый формат или размер изображения.'};
+  const data = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const valid = format === 'png' ? data.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])) : data.subarray(0,6).toString('ascii') === 'GIF89a';
+  if (!valid) return {ok:false,message:'Содержимое файла не соответствует формату.'};
+  try {
+    const result = await dialog.showSaveDialog(mainWindow, {title:'Сохранить схему',defaultPath:'MikroTik-схема.' + format,filters:[{name:format.toUpperCase(),extensions:[format]}]});
+    if (result.canceled || !result.filePath) return {ok:false,cancelled:true};
+    await fs.writeFile(result.filePath, data); return {ok:true};
+  } catch (_) { return {ok:false,message:'Не удалось записать файл. Проверьте доступ к выбранной папке.'}; }
+});
 function createWindow() {
   mainWindow = new BrowserWindow({width:1280, height:860, minWidth:860, minHeight:560, backgroundColor:'#0f172a', title:'Учебник MikroTik', autoHideMenuBar:false,
     webPreferences:{contextIsolation:true, nodeIntegration:false, sandbox:true, preload:path.join(__dirname,'preload.js')}});

@@ -1,0 +1,43 @@
+name: Windows diagram export verification
+on:
+  push:
+    paths:
+      - '.github/workflows/windows-export.yml'
+      - 'app/js/lab-export.js'
+      - 'app/js/lab.js'
+      - 'app/index.html'
+      - 'app/vendor/gifenc/**'
+      - 'tools/test-export-electron.js'
+      - 'tools/package*.json'
+      - 'windows/main.js'
+      - 'windows/preload.js'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install test and Electron dependencies
+        shell: pwsh
+        run: |
+          npm install --prefix tools --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'Test dependencies failed' }
+          Push-Location windows
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'Electron installation failed' }
+          npm run copy
+          if ($LASTEXITCODE -ne 0) { throw 'Copy failed' }
+          Pop-Location
+      - name: Render and decode PNG and animated GIF in Windows Electron
+        shell: pwsh
+        run: |
+          ./windows/node_modules/.bin/electron.cmd tools/test-export-electron.js
+          if ($LASTEXITCODE -ne 0) { throw 'Diagram export test failed' }
+      - name: Export original Windows screenshot as annotations
+        run: python tools/export-diagram-screenshot.py
