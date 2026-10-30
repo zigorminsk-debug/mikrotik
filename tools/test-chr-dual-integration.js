@@ -41,8 +41,8 @@ const req=name=>{
 };
 vm.runInNewContext(source,{require:req,process:{platform:'win32',resourcesPath:path.resolve(work)},__dirname:path.resolve(work),Buffer,URL,setTimeout,clearTimeout,console});
 (async()=>{
- await new Promise(r=>setImmediate(r));await new Promise(r=>setImmediate(r));
- const main=windows[0];assert(main);const event={sender:main.webContents,senderFrame:main.webContents.mainFrame};
+ for (let i=0;i<100 && !windows.length;i++) await new Promise(r=>setTimeout(r,100));
+ const main=windows[0];assert(main,'Main Electron window was not created after startup cleanup');const event={sender:main.webContents,senderFrame:main.webContents.mainFrame};
  const result=await handlers['chr:launch'](event,'r',state);assert(result.ok,JSON.stringify(result));
  assert(actual.internetConsent && info && windows[1]);
  assert(dialogs[0].title==='Доступ виртуальной CHR к сети' && dialogs[0].defaultId===0);
