@@ -38,6 +38,8 @@ const get = async key => { assert(key in records, key); return records[key]; };
   records['/rest/ip/route'][1].disabled = 'true'; await assert.rejects(verifyConfiguration(e,get),/статический маршрут/); delete records['/rest/ip/route'][1].disabled;
   records['/rest/system/identity'].name = 'wrong'; await assert.rejects(verifyConfiguration(e,get),/имя/); records['/rest/system/identity'].name = e.identity;
   records['/rest/ip/dns/static'][0].address = '192.0.2.8'; await assert.rejects(verifyConfiguration(e,get),/DNS-запись/);
+  records['/rest/ip/dns/static'][0].address = e.dnsStatic.address; records['/rest/ip/firewall/filter'][1].action = e.filterRules[0].action;
+  const dstnat = records['/rest/ip/firewall/nat'].find(x => x.chain === 'dstnat'); dstnat['to-ports'] = '444'; await assert.rejects(verifyConfiguration(e,get),/правила NAT/);
   assert.throws(()=>makeReader(0,'admin','secret'), /параметры/);
   console.log('CHR сверка: неправильные адреса и правила не выдаются за успех.');
 })().catch(err => {console.error(err);process.exitCode = 1;});

@@ -59,6 +59,13 @@ const {JSDOM,VirtualConsole} = require('jsdom');
  assert.equal(w.Lab.state.devices.find(x=>x.id===isp1).cfg.priority,'backup');assert.equal(w.Lab.state.devices.find(x=>x.id===isp2).cfg.priority,'primary');
  w.Lab.setMode('select'); d.querySelector('[data-id="'+clients[1]+'"] .lab-ico').click(); assert(!$('lab-modal').hidden); $('lm_cancel').click();
 
+ // Доступ извне редактируется прямо в окне MikroTik и сохраняется в сервере.
+ d.querySelector('[data-id="'+rt+'"] .lab-gear').click();
+ assert(d.getElementById('lm_pub_2_on')); $('lm_pub_2_on').checked=true; $('lm_pub_2_on').dispatchEvent(new w.Event('change')); assert(!$('lm_pub_2_box').hidden);
+ $('lm_pub_2_external').value='8443'; $('lm_pub_2_local').value='443'; $('lm_pub_2_proto').value='tcp'; $('lm_save').click();
+ assert($('lab-modal').hidden); assert.equal(w.Lab.state.devices.find(x=>x.id===clients[2]).cfg.extPort,'8443');
+ d.querySelector('[data-id="'+clients[2]+'"] .lab-gear').click(); assert($('lm_external').checked); assert.equal($('lm_ext_port').value,'8443'); assert.equal($('lm_local_port').value,'443'); $('lm_cancel').click();
+ d.querySelector('[data-id="'+rt+'"] .lab-gear').click(); $('lm_pub_2_external').value='99999'; $('lm_save').click(); assert(!$('lm_err').hidden); assert.equal(w.Lab.state.devices.find(x=>x.id===clients[2]).cfg.extPort,'8443'); $('lm_cancel').click();
  // Включение VPN и публикация сервера с сохранением портов.
  d.querySelector('[data-id="'+rt+'"] .lab-gear').click(); $('lm_vpn').checked=true; $('lm_vpn').dispatchEvent(new w.Event('change')); assert(!$('lm_vpn_box').hidden); $('lm_vpn_type').value='l2tp-ipsec'; $('lm_vpn_type').dispatchEvent(new w.Event('change')); assert(!$('lm_vpn_l2tp').hidden && $('lm_vpn_wg').hidden); $('lm_vpn_user').value='vpnuser'; $('lm_vpn_pass').value='password123'; $('lm_vpn_psk').value='longsecret'; $('lm_save').click();
  d.querySelector('[data-id="'+clients[2]+'"] .lab-gear').click(); $('lm_external').checked=true; $('lm_external').dispatchEvent(new w.Event('change')); $('lm_ext_port').value='8443'; $('lm_local_port').value='443'; $('lm_save').click();

@@ -19,7 +19,7 @@ function makePlan(engine, state, routerId) {
   }
   if (isps.length !== 1 || !isps[0].cfg || isps[0].cfg.kind !== 'static') blockers.push('Пока проверен только один провайдер со статическим IPv4; виртуальный провайдер не подключён к интернету.');
   if (state.devices.some(d => d.on === false)) blockers.push('Состояние выключенных устройств ещё не воспроизводится в CHR.');
-  if (state.devices.some(d => d.cfg && (d.cfg.external || (d.cfg.nics && d.cfg.nics.length)))) blockers.push('Публикация портов и дополнительные сетевые карты клиентов ещё не проверены в CHR.');
+  if (state.devices.some(d => d.cfg && d.cfg.nics && d.cfg.nics.length)) blockers.push('Дополнительные сетевые карты клиентов ещё не проверены в CHR.');
   if (blockers.length) return { blockers, notices: initial.notices, groups: [] };
   const result = engine.run(state);
   if (result.errors.length || result.dual || result.independent || !result.model) return {blockers: ['Схема не прошла проверку лаборатории.'], notices: initial.notices, groups: []};

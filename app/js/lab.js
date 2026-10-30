@@ -645,6 +645,24 @@ function sel(id, label, options, value) {
 function chk(id, label, on) {
   return '<label class="row-check"><input type="checkbox" id="' + id + '"' + (on ? ' checked' : '') + '> ' + esc(label) + '</label>';
 }
+// Publication belongs to the target's first NIC. Follow only switches, not
+// other routers or providers, so an independent second network is not edited.
+function publicationTargets(routerId) {
+  var seen = {}; seen[routerId] = true;
+  var queue = [routerId];
+  while (queue.length) {
+    var current = queue.shift();
+    state.links.forEach(function(link) {
+      if (link.a !== current && link.b !== current) return;
+      var otherId = link.a === current ? link.b : link.a, other = byId(otherId);
+      if (!other || seen[otherId] || ['switch', 'pc', 'server'].indexOf(other.type) < 0) return;
+      if ((other.type === 'pc' || other.type === 'server') && link.nicId && link.nicId !== 'nic1') return;
+      seen[otherId] = true;
+      if (other.type === 'switch') queue.push(otherId);
+    });
+  }
+  return state.devices.filter(function(dev) { return seen[dev.id] && (dev.type === 'pc' || dev.type === 'server'); });
+}
 function openSettings(id) {
   var d = byId(id);
   if (!d) return;
@@ -665,6 +683,18 @@ function openSettings(id) {
       chk('lm_router_failover', 'Учебное переключение на резервный MikroTik (задаётся на основном)' , c.routerFailover !== false) +
       chk('lm_vpn', 'VPN-сервер', c.vpn) +
       '<p class="fs-hint">Переключение в модели условное. Для реальной доступности интернета и резервирования двух роутеров нужна отдельная проверка оборудования и VRRP.</p>';
+    var pubTargets = publicationTargets(d.id);
+    html += '<div class="lm-t">NAT: доступ к ресурсам извне</div>' +
+      '<p class="fs-hint">Выберите подключённый к этому MikroTik ПК или сервер и задайте один TCP или UDP порт на устройство. Это общие настройки с карточкой устройства. Для нескольких портов на одном устройстве отдельные правила пока не поддерживаются. Публикация открывает сервис наружу; для реального доступа нужны белый IP, защита сервиса и проверка правил firewall. В виртуальной CHR порты в сеть хоста не пробрасываются.</p>';
+    if (!pubTargets.length) html += '<p class="fs-hint">Подключите ПК или сервер напрямую либо через коммутатор первой сетевой картой.</p>';
+    pubTargets.forEach(function(target, index) {
+      var pcfg = target.cfg || {}, prefix = 'lm_pub_' + index;
+      html += chk(prefix + '_on', target.name + ' — разрешить доступ извне', pcfg.external) +
+        '<div id="' + prefix + '_box"' + (pcfg.external ? '' : ' hidden') + '><p class="fs-hint">Адрес: ' + esc(pcfg.ip || 'не задан') + ' (' + esc(pcfg.mode === 'dhcp' ? 'DHCP' : 'статический') + '). Для публикации задайте статический адрес в настройках устройства.</p><div class="lm-grid">' +
+        sel(prefix + '_proto', 'Протокол', [['tcp','TCP'],['udp','UDP']], pcfg.extProto || 'tcp') +
+        f(prefix + '_external', 'Внешний порт', 'text', pcfg.extPort || '8080', 'inputmode="numeric"') +
+        f(prefix + '_local', 'Порт сервиса', 'text', pcfg.localPort || '80', 'inputmode="numeric"') + '</div></div>';
+    });
     html += '<div class="lm-t">LAN, VLAN и Wi‑Fi</div>' +
       '<p class="fs-hint">LAN — основная сеть моста. Гостевой VLAN создаёт отдельную подсеть; у каждого ПК/сервера/принтера выберите сегмент. Одно подключение неуправляемого коммутатора может нести только один сегмент.</p>' +
       chk('lm_guest_vlan', 'Гостевой VLAN и изоляция от LAN', c.vlanGuest) +
@@ -771,6 +801,7 @@ function openSettings(id) {
     if (vpnChk) $('lm_vpn_box').hidden = !vpnChk.checked;
     if (vpnType) { $('lm_vpn_wg').hidden = vpnType.value !== 'wireguard'; $('lm_vpn_ike').hidden = vpnType.value !== 'ikev2'; $('lm_vpn_l2tp').hidden = vpnType.value !== 'l2tp-ipsec'; }
     if (extChk) $('lm_external_box').hidden = !extChk.checked;
+    if (d.type === 'router') publicationTargets(d.id).forEach(function(_target, index) { var on = $('lm_pub_' + index + '_on'), box = $('lm_pub_' + index + '_box'); if (on && box) box.hidden = !on.checked; });
     if (guestChk) $('lm_guest_vlan_box').hidden = !guestChk.checked;
     if (wifiChk) { $('lm_wifi_box').hidden = !wifiChk.checked; if (!wifiChk.checked && wifiGuestChk) { wifiGuestChk.checked = false; if ($('lm_wifi_guest_isolation')) $('lm_wifi_guest_isolation').checked = false; } }
     if (wifiGuestChk) { $('lm_wifi_guest_box').hidden = !wifiGuestChk.checked; if (!wifiGuestChk.checked && $('lm_wifi_guest_isolation')) $('lm_wifi_guest_isolation').checked = false; }
@@ -779,6 +810,7 @@ function openSettings(id) {
   [kindSel, modeSel, vpnChk, vpnType, extChk, guestChk, wifiChk, wifiGuestChk, monitorChk, routeChk, dnsChk, staticDnsChk, ntpChk, identityChk, $('lm_nic_count')].forEach(function (e2) {
     if (e2) e2.addEventListener('change', applyVis);
   });
+  if (d.type === 'router') publicationTargets(d.id).forEach(function(_target, index) { var on = $('lm_pub_' + index + '_on'); if (on) on.addEventListener('change', applyVis); });
   var openChr = $('lm_open_chr');
   if (openChr) openChr.addEventListener('click', function() {
     if (!window.routerOS || typeof window.routerOS.launch !== 'function') return lmFail('Запуск настоящей RouterOS доступен только в Windows-установщике приложения. На Android и в браузере он пока не поддерживается.');
@@ -855,6 +887,18 @@ function saveSettings() {
     if (vpn && vp.vpnType === 'wireguard' && (!/^\d{1,5}$/.test(vp.vpnPort) || +vp.vpnPort < 1 || +vp.vpnPort > 65535)) return lmFail('Порт WireGuard — число от 1 до 65535');
     if (vpn && vp.vpnType === 'ikev2' && (!vp.vpnServerCert || !vp.vpnClientCert)) return lmFail('Для IKEv2 укажите имена сертификатов сервера и клиента');
     if (vpn && vp.vpnType === 'l2tp-ipsec' && (!vp.vpnUser || vp.vpnPass.length < 8 || vp.vpnPsk.length < 8)) return lmFail('Для L2TP/IPsec нужны имя, пароль и общий ключ не короче 8 символов');
+    // Validate every row before changing either the router or target devices.
+    var publications = publicationTargets(d.id).map(function(target, index) {
+      var prefix = 'lm_pub_' + index;
+      return {target:target, external:$(prefix + '_on').checked, extProto:$(prefix + '_proto').value,
+        extPort:$(prefix + '_external').value.trim(), localPort:$(prefix + '_local').value.trim()};
+    });
+    for (var pi = 0; pi < publications.length; pi++) {
+      var pub = publications[pi];
+      if (pub.external && pub.target.cfg.mode !== 'static') return lmFail('«' + pub.target.name + '»: для доступа извне сначала задайте статический адрес в настройках устройства.');
+      if (pub.external && (!/^\d{1,5}$/.test(pub.extPort) || +pub.extPort < 1 || +pub.extPort > 65535 || !/^\d{1,5}$/.test(pub.localPort) || +pub.localPort < 1 || +pub.localPort > 65535)) return lmFail('«' + pub.target.name + '»: внешний порт и порт сервиса должны быть от 1 до 65535.');
+    }
+    publications.forEach(function(pub) { Object.assign(pub.target.cfg, {external:pub.external, extProto:pub.extProto, extPort:pub.extPort, localPort:pub.localPort}); });
     Object.assign(c, vp);
     state.devices.forEach(function(other) { if (other.type === 'router' && other.id !== d.id) other.cfg.routerRole = vp.routerRole === 'primary' ? 'backup' : 'primary'; });
   } else if (d.type === 'isp') {

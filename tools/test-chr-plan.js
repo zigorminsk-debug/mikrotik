@@ -19,7 +19,10 @@ s = sample(); Object.assign(s.devices[1].cfg, {staticRoute:true, routeDst:'10.20
 plan = makePlan(engine,s,'r'); assert.deepStrictEqual(plan.blockers, []); assert(plan.groups.some(g=>g.id==='route')); assert(plan.groups.some(g=>g.id==='services')); assert.strictEqual(plan.expected.identity, 'Router Lab');
 s = sample(); s.devices[0].cfg.kind = 'dhcp'; assert(makePlan(engine,s,'r').blockers.length);
 s = sample(); s.devices[0].cfg.kind = 'lte'; assert(makePlan(engine,s,'r').blockers.some(x => /LTE/.test(x)));
-s = sample(); s.devices[2].cfg.external = true; assert(makePlan(engine,s,'r').blockers.length);
+s = sample(); s.devices[2].cfg.external = true; assert(makePlan(engine,s,'r').blockers.length); // DHCP target rejected
+s = sample(); Object.assign(s.devices[2].cfg,{mode:'static',ip:'192.168.88.20/24',gw:'192.168.88.1',external:true,extProto:'tcp',extPort:'8443',localPort:'443'});
+plan = makePlan(engine,s,'r'); assert.deepStrictEqual(plan.blockers,[]); assert(plan.expected.natRules.some(x => x.chain === 'dstnat' && x['dst-port'] === '8443' && x['to-addresses'] === '192.168.88.20')); assert(plan.expected.filterRules.some(x => x['connection-nat-state'] === 'dstnat' && x['dst-port'] === '443'));
+s = sample(); s.devices[2].cfg.nics = [{id:'nic2'}]; assert(makePlan(engine,s,'r').blockers.length);
 s = sample(); s.devices[1].cfg.lan = '172.31.254.0/24'; assert(makePlan(engine,s,'r').blockers.length);
 s = sample(); s.devices[0].on = false; assert(makePlan(engine,s,'r').blockers.length);
 assert.throws(() => makePlan(engine,{devices:Array(101).fill({}),links:[]},'r'), /формат/);
