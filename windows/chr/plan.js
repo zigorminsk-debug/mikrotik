@@ -1,6 +1,6 @@
 'use strict';
 // Private main-process preflight; never accept RouterOS command strings from
-// a renderer. Not wired to IPC and not a claim that the VM runtime is ready.
+// a renderer. Selected unsupported capabilities block the whole plan.
 const allowedGroups = new Set(['iface', 'addr', 'wan', 'dhcp', 'guest-vlan', 'filter', 'nat', 'activate-lan']);
 function makePlan(engine, state, routerId) {
   if (!state || !Array.isArray(state.devices) || !Array.isArray(state.links) || state.devices.length > 100 || state.links.length > 100) throw new Error('Недопустимый размер или формат схемы');

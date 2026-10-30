@@ -652,6 +652,8 @@ function openSettings(id) {
   var c = d.cfg;
   var html = f('lm_name', 'Название устройства', 'text', d.name, 'spellcheck="false"');
   if (d.type === 'router') {
+    html += '<button type="button" class="btn" id="lm_open_chr">🖥 Открыть RouterOS</button>' +
+      '<p class="fs-hint">Только в Windows-установщике: настоящая изолированная CHR, без интернета и без виртуальных клиентов. Сейчас поддерживается один статический WAN, LAN, гостевой VLAN, DHCP, NAT и firewall. Wi-Fi, LTE, VPN и резервирование не применяются: при их выборе запуск будет остановлен. Закрытие окна удаляет виртуальный диск.</p>';
     html += sel('lm_router_role', 'Роль MikroTik (для общего LAN / VRRP)', [['primary', 'Основной'], ['backup', 'Резервный']], c.routerRole || 'primary') + '<p class="fs-hint">В двух независимых сетях эта роль не переключает интернет между роутерами.</p>';
     html += '<div class="lm-grid">' + f('lm_lan', 'Подсеть LAN (CIDR)', 'text', c.lan, 'spellcheck="false" list="dl-net"') +
       f('lm_gw', 'IP роутера (шлюз)', 'text', c.gw, 'list="dl-ip" inputmode="decimal"') + '</div>';
@@ -776,6 +778,17 @@ function openSettings(id) {
   }
   [kindSel, modeSel, vpnChk, vpnType, extChk, guestChk, wifiChk, wifiGuestChk, monitorChk, routeChk, dnsChk, staticDnsChk, ntpChk, identityChk, $('lm_nic_count')].forEach(function (e2) {
     if (e2) e2.addEventListener('change', applyVis);
+  });
+  var openChr = $('lm_open_chr');
+  if (openChr) openChr.addEventListener('click', function() {
+    if (!window.routerOS || typeof window.routerOS.launch !== 'function') return lmFail('Запуск настоящей RouterOS доступен только в Windows-установщике приложения. На Android и в браузере он пока не поддерживается.');
+    var routerId = editingId;
+    saveSettings(); // Validate and save the exact checkbox values first.
+    if (editingId !== null) return;
+    var snapshot = JSON.parse(JSON.stringify(state));
+    window.routerOS.launch(routerId, snapshot).then(function(result) {
+      if (!result || (!result.ok && !result.cancelled)) window.alert((result && result.message) || 'Не удалось открыть виртуальную RouterOS.');
+    }).catch(function() { window.alert('Не удалось связаться с Windows-компонентом RouterOS.'); });
   });
   ['lm_network_guide', 'lm_routing_guide', 'lm_failover_guide'].forEach(function(id) { var link = $(id); if (link) link.addEventListener('click', function () { modal.hidden = true; editingId = null; }); });
   var fill = $('lm_fill_gw');

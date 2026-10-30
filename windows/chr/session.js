@@ -1,6 +1,5 @@
 'use strict';
-// Experimental isolated VM controller. Not wired to Electron IPC or UI yet.
-// The main process must independently validate the plan and image beforehand.
+// Isolated VM controller. The main process validates the plan and image first.
 const fs = require('fs').promises;
 const fsConstants = require('fs').constants;
 const path = require('path');

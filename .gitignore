@@ -4,6 +4,7 @@ node_modules/
 # Собранные артефакты Windows
 windows/www/
 windows/dist/
+windows/vendor/
 
 # Gradle / Android
 android/.gradle/

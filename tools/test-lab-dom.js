@@ -46,7 +46,9 @@ const {JSDOM,VirtualConsole} = require('jsdom');
  assert(!$('lab-modal').hidden); assert($('lm_kind')); assert($('lm_priority')); $('lm_kind').value='static'; $('lm_kind').dispatchEvent(new w.Event('change')); assert(!$('lm_g_static').hidden);
  $('lm_ip').value='203.0.113.2/30';$('lm_gw2').value='203.0.113.1';$('lm_dns').value='1.1.1.1';$('lm_save').click();
  assert.equal(w.Lab.state.devices.find(x=>x.id===isp2).cfg.kind,'static');
- d.querySelector('[data-id="'+rt+'"] .lab-gear').click(); assert($('lm_lan') && $('lm_gw') && $('lm_dhcp') && $('lm_nat') && $('lm_fw') && $('lm_vpn') && $('lm_wan_failover')); $('lm_wan_failover').checked=true; $('lm_save').click();
+ d.querySelector('[data-id="'+rt+'"] .lab-gear').click(); assert($('lm_lan') && $('lm_gw') && $('lm_dhcp') && $('lm_nat') && $('lm_fw') && $('lm_vpn') && $('lm_wan_failover')); assert($('lm_open_chr')); $('lm_open_chr').click(); assert(!$('lm_err').hidden && $('lm_err').textContent.includes('Windows')); $('lm_wan_failover').checked=true;
+ let launched=null; w.routerOS={launch:(id,state)=>{launched={id,state};return Promise.resolve({ok:true});}};
+ $('lm_open_chr').click(); await Promise.resolve(); assert($('lab-modal').hidden); assert(launched && launched.id===rt); assert(launched.state.devices.find(x=>x.id===rt).cfg.wanFailover); delete w.routerOS;
  d.querySelector('[data-id="'+clients[0]+'"] .lab-gear').click(); assert($('lm_mode') && $('lm_ip2') && $('lm_ep_dns')); $('lm_save').click();
  $('lab_run').click(); assert($('lab-results').textContent.includes('Проверка учебной модели пройдена')); assert($('lab-results').textContent.includes('резервный')); assert($('lab-log-lines').textContent.includes('условно')); assert(d.querySelectorAll('.lab-flow-out').length); assert(d.querySelectorAll('.lab-flow-back').length);
  // Отключение и возврат провайдера сразу меняют подсвеченный путь.

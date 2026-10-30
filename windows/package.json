@@ -1,7 +1,7 @@
 {
   "name": "mikrotik-guide",
   "productName": "MikroTik Guide",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "description": "Учебник по настройке роутеров MikroTik со скриншотами и интерактивным стендом моделирования",
   "main": "main.js",
   "author": "zigorminsk-debug",
@@ -25,6 +25,8 @@
     },
     "files": [
       "main.js",
+      "preload.js",
+      "chr/**/*",
       "package.json",
       "www/**/*"
     ],
@@ -47,7 +49,21 @@
       "createStartMenuShortcut": true,
       "shortcutName": "MikroTik Guide",
       "unicode": true
-    }
+    },
+    "extraResources": [
+      {
+        "from": "vendor/qemu",
+        "to": "qemu"
+      },
+      {
+        "from": "vendor/qemu-sources",
+        "to": "qemu-sources"
+      },
+      {
+        "from": "vendor/chr-supervisor.exe",
+        "to": "chr-supervisor.exe"
+      }
+    ]
   },
   "dependencies": {
     "yauzl": "3.2.0"

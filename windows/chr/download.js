@@ -1,6 +1,5 @@
 'use strict';
-// Prepared for the Windows main process only. No IPC, GUI or automatic download
-// is enabled here; the caller must get explicit consent to the MikroTik terms.
+// Windows main process only: caller must obtain explicit consent to MikroTik terms.
 const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
