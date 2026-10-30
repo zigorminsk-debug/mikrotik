@@ -84,7 +84,13 @@ class ChrSession {
         '/ip service enable www',
         '/ip firewall filter add chain=input in-interface=ether6 action=accept comment="Lab management"'
       ]) await this.console.command(command);
-      for (const command of commands) await this.console.command(command);
+      for (const group of plan.groups) {
+        if (!Array.isArray(group.commands)) continue;
+        for (let index = 0; index < group.commands.length; index++) {
+          try { await this.console.command(group.commands[index]); }
+          catch (error) { try { this.diagnostic({group:group.id, commandIndex:index}); } catch (_) {} throw error; }
+        }
+      }
       const get = makeReader(managementPort, 'admin', password, this.diagnostic);
       let verificationError;
       // Under software emulation, WebFig can become reachable after the serial
