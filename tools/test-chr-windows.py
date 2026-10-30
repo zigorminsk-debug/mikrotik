@@ -89,30 +89,18 @@ try:
     settle(); send('admin')
     wait_for(rb'password:')
     settle(); send('')
-    new_sent = False
-    repeat_sent = False
-    for _ in range(20):
-        _, match = wait_for(rb'(do you want to see the software license|(?:new password|repeat new password)[^\r\n]*[>:]|press (?:enter|return)|\[admin@[^\]]+\]\s*>|password:)')
-        choice = match.group().lower()
-        settle()
-        if b'license' in choice:
-            send('n')
-        elif b'repeat new password' in choice:
-            if not repeat_sent:
-                send('Temporary-CI-Only-42!')
-                repeat_sent = True
-        elif b'new password' in choice:
-            if not new_sent:
-                send('Temporary-CI-Only-42!')
-                new_sent = True
-        elif b'password:' in choice:
-            raise RuntimeError('Неожиданный повторный запрос пароля')
-        elif b'press' in choice:
-            send('')
-        else:
-            break
-    else:
-        raise RuntimeError('Нет приглашения RouterOS')
+    # A fresh CHR asks to accept the license, then set a password. Match the
+    # next state specifically so a redraw of the previous prompt cannot cause
+    # us to consume the next prompt or submit the password as a command.
+    wait_for(rb'do you want to see the software license')
+    settle(); send('n')
+    wait_for(rb'(?<!repeat )new password[^\r\n]*>')
+    settle(); send('Temporary-CI-Only-42!')
+    wait_for(rb'repeat new password[^\r\n]*>')
+    settle(); send('Temporary-CI-Only-42!')
+    wait_for(rb'password changed')
+    wait_for(rb'\[admin@[^\]]+\]\s*>')
+    settle()
     send('/system resource print')
     # Prompt redraws may occur while the command is being typed. Require actual
     # command output before looking for the next prompt, not a stale redraw.
