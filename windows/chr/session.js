@@ -20,11 +20,12 @@ async function temporaryPort() {
   const s = net.createServer(); const port = await bind(s); await closeServer(s); return port;
 }
 class ChrSession {
-  constructor({qemu, image, tempRoot, supervisor, diagnostic}) {
+  constructor({qemu, image, tempRoot, supervisor, diagnostic, diagnoseManagement = false}) {
     if (![qemu, image, tempRoot, supervisor].every(x => typeof x === 'string' && path.isAbsolute(x))) throw new Error('Неверные пути CHR');
     if (path.basename(qemu).toLowerCase() !== 'qemu-system-x86_64.exe' || path.basename(image) !== 'chr-7.23.8.img' || path.basename(supervisor).toLowerCase() !== 'chr-supervisor.exe') throw new Error('Неверные компоненты CHR');
     this.qemu = qemu; this.image = image; this.root = tempRoot; this.supervisor = supervisor;
     this.diagnostic = typeof diagnostic === 'function' ? diagnostic : () => {};
+    this.diagnoseManagement = diagnoseManagement === true;
     this.proc = null; this.server = null; this.console = null; this.socket = null; this.directory = null;
     this.closed = false; this.started = false; this.exitPromise = null; this.acceptTimer = null;
   }
@@ -87,7 +88,14 @@ class ChrSession {
         try { await verifyConfiguration(plan.expected, get); verificationError = null; break; }
         catch (error) {
           verificationError = error;
-          if (!/Не удалось подключиться к виртуальной CHR/.test(error.message) || attempt === 3 || this.closed) throw error;
+          if (!/Не удалось подключиться к виртуальной CHR/.test(error.message) || this.closed) throw error;
+          if (attempt === 3) {
+            if (this.diagnoseManagement) {
+              try { this.diagnostic({management:await this.console.managementDiagnostic()}); }
+              catch (_) { this.diagnostic({management:'diagnostic unavailable'}); }
+            }
+            throw error;
+          }
           await new Promise(resolve => setTimeout(resolve, 2000));
         }
       }

@@ -79,6 +79,17 @@ class ChrConsole {
     const marker = await this.expect(new RegExp(ok + '|' + bad), 30000);
     if (marker !== ok) throw new Error('CHR отклонила команду; применение остановлено');
   }
+  // CI-only diagnostic: return a small, fixed set of non-sensitive states.
+  // No arbitrary command or console output is exposed to the renderer.
+  async managementDiagnostic() {
+    const token = 'LABDIAG' + randomBytes(16).toString('hex');
+    const expr = '"' + token.slice(0, 16) + '" . "' + token.slice(16) + '"';
+    const line = ':put (' + expr + ' . "L" . [/interface ethernet get [find where name=ether6] running] . "A" . [:len [/ip address find where interface=ether6 and address="172.31.254.15/24" and disabled=no and invalid=no]] . "W" . [/ip service get [find where name=www] disabled] . "END")';
+    await this.settle(); this.send(line);
+    const result = await this.expect(new RegExp(token + 'L(true|false)A([0-9]+)W(true|false)END'), 30000);
+    const m = new RegExp(token + 'L(true|false)A([0-9]+)W(true|false)END').exec(result);
+    return {linkRunning:m[1] === 'true', managementAddressCount:Number(m[2]), wwwDisabled:m[3] === 'true'};
+  }
   close() {
     this.fail(new Error('Консоль CHR закрыта'));
     this.socket.removeListener('data', this.onData);

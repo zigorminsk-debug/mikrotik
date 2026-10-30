@@ -13,7 +13,7 @@ const [qemu,image,fixture,work,supervisor] = process.argv.slice(2);
 if (!qemu || !image || !fixture || !work || !supervisor) throw Error('Missing CI paths');
 const commands = JSON.parse(fs.readFileSync(fixture,'utf8').replace(/^\uFEFF/,''));
 const events = [];
-const session = new ChrSession({qemu:path.resolve(qemu), image:path.resolve(image), tempRoot:path.resolve(work), supervisor:path.resolve(supervisor), diagnostic:event => events.push(event)});
+const session = new ChrSession({qemu:path.resolve(qemu), image:path.resolve(image), tempRoot:path.resolve(work), supervisor:path.resolve(supervisor), diagnostic:event => events.push(event), diagnoseManagement:true});
 function get(url, user, password, route) {
   const root = new URL(url);
   return new Promise((resolve, reject) => {

@@ -45,6 +45,13 @@ class Fake extends EventEmitter {
   await new Promise(resolve => setImmediate(resolve));
   const f = [...s.writes[1].matchAll(/"([A-Z0-9a-f]+)"/g)].map(x => x[1]);
   s.input(f[2] + f[3]); await assert.rejects(run, /отклонила/);
+  let probe = c.managementDiagnostic();
+  await new Promise(resolve => setImmediate(resolve));
+  const probeText = s.writes[2];
+  const pieces = [...probeText.matchAll(/"([A-Za-z0-9]+)"/g)].map(x => x[1]);
+  s.input(probeText); // echo cannot match the joined diagnostic marker
+  s.input(pieces[0] + pieces[1] + 'LtrueA1WfalseEND');
+  assert.deepStrictEqual(await probe, {linkRunning:true, managementAddressCount:1, wwwDisabled:false});
   await assert.rejects(c.command('/bad\n/ip service enable www'), /Некорректная/);
   c.close();
   console.log('CHR console: таймаут, закрытие, эхо и ошибки проверены.');
