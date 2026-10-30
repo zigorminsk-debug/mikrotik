@@ -91,6 +91,7 @@ pid=$!
 ready=0
 for attempt in $(seq 1 12); do
   sleep 15
+  rm -f "$3/winbox.png"
   scrot "$3/winbox.png"
   if grep -q 'Auth OK' "$3/winbox.log" && grep -q 'WBOXSESS,INFO: first clock synced' "$3/winbox.log" && kill -0 "$pid" 2>/dev/null; then ready=1; break; fi
 done
@@ -107,6 +108,7 @@ xdotool windowfocus --sync "$win"
 xdotool mousemove --sync 170 275
 xdotool click 1
 sleep 8
+rm -f "$3/winbox.png"
 scrot "$3/winbox.png"
 kill "$pid" 2>/dev/null || true
 '''
