@@ -48,4 +48,4 @@ function get(url, user, password, route) {
   await session.stop();
   assert(!fs.existsSync(dir));
   console.log('Windows CHR session: isolated QEMU, loopback REST, applied LAN/VLAN/DHCP and cleanup verified.');
-})().catch(e => { console.error('CHR session test failed:', e.message); process.exitCode = 1; }).finally(() => session.stop().catch(e => {console.error('Cleanup failed:',e.message);process.exitCode=1;}));
+})().catch(e => { const msg=String(e.message).replace(/[\r\n%]/g, ' '); console.error('CHR session test failed:', msg); console.log('::error title=CHR session test::' + msg); process.exitCode = 1; }).finally(() => session.stop().catch(e => {console.error('Cleanup failed:',e.message);process.exitCode=1;}));

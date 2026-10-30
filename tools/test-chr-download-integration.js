@@ -11,4 +11,4 @@ if (!root) throw Error('Cache directory required');
   if (path.basename(image) !== 'chr-7.23.8.img' || !(await fs.stat(image)).size) throw Error('Invalid CHR image');
   if (await ensureImage(root, true) !== image) throw Error('Cache mismatch');
   console.log('Official CHR: download, SHA-256, extraction and cache verified.');
-})().catch(e => { console.error('CHR download test failed:', e.message); process.exitCode = 1; });
+})().catch(e => { const msg = String(e.message).replace(/[\r\n%]/g, ' '); console.error('CHR download test failed:', msg); console.log('::error title=CHR downloader test::' + msg); process.exitCode = 1; });
