@@ -28,6 +28,13 @@ function get(url, user, password, route) {
   const addresses = await get(info.url, info.user, info.password, '/rest/ip/address');
   assert(addresses.some(x => x.address === '192.168.88.1/24' && x.interface === 'bridge-lan'));
   assert(addresses.some(x => x.address === '192.168.99.1/24' && x.interface === 'vlan-guest'));
+  assert(addresses.some(x => x.address === '198.51.100.2/30' && x.interface === 'ether1'));
+  const bridges = await get(info.url, info.user, info.password, '/rest/interface/bridge');
+  assert(bridges.some(x => x.name === 'bridge-lan' && x['vlan-filtering'] === 'true'));
+  const nat = await get(info.url, info.user, info.password, '/rest/ip/firewall/nat');
+  assert(nat.some(x => x.chain === 'srcnat' && x.action === 'masquerade'));
+  const firewall = await get(info.url, info.user, info.password, '/rest/ip/firewall/filter');
+  assert(firewall.some(x => x.chain === 'input' && x.action === 'drop'));
   const dhcp = await get(info.url, info.user, info.password, '/rest/ip/dhcp-server');
   assert(dhcp.some(x => x.name === 'dhcp-lan' && x.disabled === 'false'));
   assert(dhcp.some(x => x.name === 'dhcp-guest' && x.disabled === 'false'));
