@@ -1,4 +1,4 @@
-# GitHub-hosted Windows only: show, capture and cancel the genuine native dialog.
+﻿# GitHub-hosted Windows only: show, capture and cancel the genuine native dialog.
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
