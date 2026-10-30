@@ -5,3 +5,5 @@
 Источник ПО: https://mikrotik.com/download и https://help.mikrotik.com/docs/spaces/ROS/pages/18350234/Cloud+Hosted+Router+CHR. Необрезанная копия была проверена визуально; файл предоставляется как снимок интерфейса ПО MikroTik, а не как нарисованный макет. Права на программный интерфейс принадлежат MikroTik.
 
 `router-nat-windows.jpg` — собственный снимок интерфейса лаборатории приложения на одноразовом Windows GitHub Actions runner, [запуск 41072005065](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41072005065). Показаны демонстрационные настройки TCP 8443 → 443 и UDP 5353 → 53 для тестового сервера 192.168.88.10/24. Это окно приложения, не снимок WebFig и не доказательство доступности сервера.
+
+`diagram-export-windows.jpg` — собственный снимок окна Windows Electron с кнопками сохранения PNG и GIF, GitHub Actions [41078825051](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41078825051). На нём показано только расположение кнопок, не диалог сохранения и не результат экспорта.

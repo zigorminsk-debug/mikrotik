@@ -110,6 +110,7 @@ xdotool click 1
 sleep 8
 rm -f "$3/winbox.png"
 scrot "$3/winbox.png"
+scrot -q 45 "$3/winbox.jpg"
 kill "$pid" 2>/dev/null || true
 '''
     env = os.environ.copy()

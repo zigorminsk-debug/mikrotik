@@ -36,7 +36,15 @@ let session;
   const marker = '"' + token.slice(0,16) + '" . "' + token.slice(16) + '"';
   const command = ':onerror e in={ /tool fetch url="https://github.com/" output=none check-certificate=no; :put (' + marker + ' . "OKEND") } do={ :put (' + marker + ' . "ERR" . $e . "END") }';
   await session.console.settle(); session.console.send(command);
-  const reply = await session.console.expect(new RegExp(token + '(?:OK|ERR)[^\\r\\n]*?END'), 30000);
+  let reply;
+  try { reply = await session.console.expect(new RegExp(token + '(?:OK|ERR)[^\\r\\n]*?END'), 60000); }
+  catch (error) {
+    // Only the fixed public-URL command above has run since settle(); no
+    // credentials or arbitrary customer commands are printed by this test.
+    const raw = session.console.buffer.slice(-2500).replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '').replace(/[\x00-\x1f\x7f%]/g, ' ');
+    console.log('::notice title=CHR fixed fetch console::' + raw);
+    throw error;
+  }
   const diagnostic = reply.slice(token.length, -3).replace(/[\x00-\x1f\x7f%]/g, ' ').slice(0,300);
   console.log('::notice title=CHR outbound result::' + diagnostic);
   assert.strictEqual(diagnostic, 'OK', 'Outbound request from CHR failed; see diagnostic annotation');

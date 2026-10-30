@@ -9,7 +9,7 @@ import os
 import pathlib
 import sys
 
-shot = pathlib.Path(os.environ['RUNNER_TEMP']) / 'routeros-capture/output/winbox.png'
+shot = pathlib.Path(os.environ['RUNNER_TEMP']) / 'routeros-capture/output/winbox.jpg'
 if not shot.exists():
     print('No experimental image was created')
     raise SystemExit(0)
