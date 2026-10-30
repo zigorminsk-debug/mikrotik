@@ -3,13 +3,18 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $vendor = Join-Path $root 'vendor'
 $temp = Join-Path $env:RUNNER_TEMP 'mikrotik-qemu-package'
-New-Item -ItemType Directory -Force -Path $vendor, $temp | Out-Null
+$cache = Join-Path $env:RUNNER_TEMP 'mikrotik-qemu-cache'
+New-Item -ItemType Directory -Force -Path $vendor, $temp, $cache | Out-Null
 $base = 'https://github.com/dextoros/qemu-runtime/releases/download/qemu-11.1.0-20260811'
 function Get-Checked([string] $name, [string] $sha256, [string] $dest) {
-  Write-Host "Downloading $name"
-  Invoke-WebRequest -Uri "$base/$name" -OutFile $dest
-  $actual = (Get-FileHash -LiteralPath $dest -Algorithm SHA256).Hash.ToLowerInvariant()
+  $cached = Join-Path $cache $name
+  if (!(Test-Path -LiteralPath $cached) -or (Get-FileHash -LiteralPath $cached -Algorithm SHA256).Hash.ToLowerInvariant() -ne $sha256) {
+    Write-Host "Downloading $name"
+    Invoke-WebRequest -Uri "$base/$name" -OutFile $cached
+  }
+  $actual = (Get-FileHash -LiteralPath $cached -Algorithm SHA256).Hash.ToLowerInvariant()
   if ($actual -ne $sha256) { throw "SHA-256 mismatch: $name" }
+  Copy-Item -LiteralPath $cached -Destination $dest -Force
 }
 $setup = Join-Path $temp 'setup.exe'
 Get-Checked 'qemu-w64-setup-20260811.exe' 'f98a8aeb5f7faea9765b6dee28316c266cd179d80354a2fed8e50176f9a2e59f' $setup

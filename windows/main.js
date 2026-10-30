@@ -9,8 +9,9 @@ const { makePlan } = require('./chr/plan');
 const { ensureImage } = require('./chr/download');
 const { ChrSession } = require('./chr/session');
 
-let mainWindow = null, chrWindow = null, active = null, launching = false, quitting = false;
+let mainWindow = null, chrWindow = null, active = null, launching = false, quitting = false, cleanupFailed = false;
 const sessionsRoot = () => path.join(app.getPath('userData'), 'chr-sessions');
+function publishStatus(text) { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('chr:status', text); }
 
 async function removeStale(root, pattern) {
   let entries;
@@ -57,27 +58,34 @@ function openChrWindow(info, vm) {
   win.webContents.on('will-redirect', (event, url) => { if (!allowed(url)) event.preventDefault(); });
   win.on('closed', () => {
     if (chrWindow === win) chrWindow = null;
-    if (active === vm) { active = null; vm.stop().catch(() => { if (mainWindow && !mainWindow.isDestroyed()) dialog.showErrorBox('Очистка CHR', 'Не удалось удалить временные данные CHR. Закройте приложение и удалите папку chr-sessions из его данных.'); }); }
+    if (active === vm) { active = null; vm.stop().then(() => publishStatus('Виртуальная RouterOS закрыта; временный диск удалён.')).catch(() => { publishStatus('Не удалось удалить временные данные CHR.'); if (mainWindow && !mainWindow.isDestroyed()) dialog.showErrorBox('Очистка CHR', 'Не удалось удалить временные данные CHR. Закройте приложение и удалите папку chr-sessions из его данных.'); }); }
   });
   win.loadURL(info.url).catch(() => { if (!win.isDestroyed()) win.close(); });
 }
 ipcMain.handle('chr:launch', async (event, routerId, state) => {
   if (process.platform !== 'win32' || !mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame) return {ok:false, message:'Виртуальная CHR доступна только в окне приложения Windows.'};
+  if (cleanupFailed) return {ok:false, message:'Не удалось очистить временные данные CHR. Закройте приложение и проверьте папки chr-sessions и chr-cache в его данных.'};
   if (launching || active) return {ok:false, message:'Виртуальная CHR уже запущена или запускается. Закройте её окно перед новым запуском.'};
   if (!app.isPackaged) return {ok:false, message:'Для виртуальной CHR требуется собранный Windows-установщик с QEMU.'};
   launching = true;
+  const status = text => { if (!event.sender.isDestroyed()) event.sender.send('chr:status', text); };
+  mainWindow.setProgressBar(2, {mode:'indeterminate'});
   try {
+    status('Проверка проекта виртуальной RouterOS…');
     if (typeof routerId !== 'string' || routerId.length > 128 || !state || Buffer.byteLength(JSON.stringify(state), 'utf8') > 256000) throw new Error('Недопустимый размер или формат проекта.');
     const plan = makePlan(engine, state, routerId);
     if (plan.blockers.length) return {ok:false, message:plan.blockers.join('\n')};
+    status('Ознакомьтесь с условиями лицензии MikroTik.');
     if (!await licenseConsent()) return {ok:false, cancelled:true};
     const qemu = path.join(process.resourcesPath, 'qemu', 'qemu-system-x86_64.exe');
     const supervisor = path.join(process.resourcesPath, 'chr-supervisor.exe');
     await Promise.all([fs.access(qemu), fs.access(supervisor)]);
+    status('Проверка или загрузка официального образа CHR. При первом запуске это может занять несколько минут…');
     const image = await ensureImage(path.join(app.getPath('userData'), 'chr-cache'), true);
     if (quitting || !mainWindow || mainWindow.isDestroyed()) return {ok:false, cancelled:true};
     const vm = new ChrSession({qemu, image, supervisor, tempRoot:sessionsRoot()});
     active = vm;
+    status('Запуск CHR, применение и проверка настроек. Это может занять несколько минут…');
     const info = await vm.start(plan);
     vm.exitPromise.then(() => {
       if (active === vm && !quitting) closeChr().then(() => { if (mainWindow && !mainWindow.isDestroyed()) dialog.showErrorBox('Виртуальная RouterOS', 'Виртуальная CHR неожиданно завершилась.'); }).catch(() => { if (mainWindow && !mainWindow.isDestroyed()) dialog.showErrorBox('Очистка CHR', 'Не удалось очистить временные данные CHR.'); });
@@ -97,7 +105,7 @@ ipcMain.handle('chr:launch', async (event, routerId, state) => {
   } catch (error) {
     try { await closeChr(); } catch (_) { return {ok:false, message:'Ошибка CHR; не удалось очистить временные данные. Закройте приложение и удалите папку chr-sessions из его данных.'}; }
     return {ok:false, message:'Не удалось открыть виртуальную RouterOS: ' + (error && error.message ? error.message : 'неизвестная ошибка')};
-  } finally { launching = false; }
+  } finally { launching = false; if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setProgressBar(-1); }
 });
 function createWindow() {
   mainWindow = new BrowserWindow({width:1280, height:860, minWidth:860, minHeight:560, backgroundColor:'#0f172a', title:'Учебник MikroTik', autoHideMenuBar:false,
@@ -109,7 +117,7 @@ function createWindow() {
 }
 if (!app.requestSingleInstanceLock()) app.quit();
 else app.whenReady().then(async () => {
-  try { await staleSessions(); } catch (_) { dialog.showErrorBox('Очистка CHR', 'Не удалось очистить временные диски виртуальной CHR. Проверьте папку chr-sessions в данных приложения.'); }
+  try { await staleSessions(); } catch (_) { cleanupFailed = true; dialog.showErrorBox('Очистка CHR', 'Не удалось очистить временные диски виртуальной CHR. Проверьте папку chr-sessions в данных приложения.'); }
   createWindow();
   app.on('second-instance', () => { if (mainWindow) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.focus(); } });
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });

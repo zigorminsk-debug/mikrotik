@@ -2,6 +2,11 @@
 // Private main-process preflight; never accept RouterOS command strings from
 // a renderer. Selected unsupported capabilities block the whole plan.
 const allowedGroups = new Set(['iface', 'addr', 'wan', 'dhcp', 'guest-vlan', 'filter', 'nat', 'activate-lan']);
+function ruleProperties(command) {
+  const result = {};
+  for (const m of command.matchAll(/\b([a-z][a-z-]*)=([^\s]+)/g)) result[m[1]] = m[2];
+  return result;
+}
 function makePlan(engine, state, routerId) {
   if (!state || !Array.isArray(state.devices) || !Array.isArray(state.links) || state.devices.length > 100 || state.links.length > 100) throw new Error('Недопустимый размер или формат схемы');
   const initial = engine.chrPreflight(state, routerId);
@@ -38,12 +43,8 @@ function makePlan(engine, state, routerId) {
     vlan: !!r.cfg.vlanGuest, guestId: String(r.cfg.guestVlan || ''), guestAddress: r.cfg.guestGw + '/24',
     guestNetwork: r.cfg.guestNet, guestGateway: r.cfg.guestGw, guestDns: r.guestDns,
     guestDhcp: !!(r.cfg.vlanGuest && r.cfg.guestDhcp),
-    filterRules: groups.filter(g => g.id === 'filter').flatMap(g => g.commands).map(s => ({
-      chain: (/\bchain=(\w+)/.exec(s) || [])[1], action: (/\baction=(\w+)/.exec(s) || [])[1]
-    })),
-    natRules: groups.filter(g => g.id === 'nat').flatMap(g => g.commands).map(s => ({
-      chain: (/\bchain=(\w+)/.exec(s) || [])[1], action: (/\baction=([\w-]+)/.exec(s) || [])[1]
-    }))
+    filterRules: groups.filter(g => g.id === 'filter').flatMap(g => g.commands).map(ruleProperties),
+    natRules: groups.filter(g => g.id === 'nat').flatMap(g => g.commands).map(ruleProperties)
   };
   if (r.cfg.vlanGuest) { const guest = engine.poolOf(engine.parseCidr(r.cfg.guestNet)); expected.guestPool = guest.start + '-' + guest.end; }
   return { blockers: [], notices: initial.notices, groups, expected };

@@ -785,10 +785,13 @@ function openSettings(id) {
     var routerId = editingId;
     saveSettings(); // Validate and save the exact checkbox values first.
     if (editingId !== null) return;
-    var snapshot = JSON.parse(JSON.stringify(state));
+    var snapshot = JSON.parse(JSON.stringify(state)), status = $('lab-chr-status');
+    status.hidden = false; status.textContent = 'Проверка проекта виртуальной RouterOS…';
     window.routerOS.launch(routerId, snapshot).then(function(result) {
-      if (!result || (!result.ok && !result.cancelled)) window.alert((result && result.message) || 'Не удалось открыть виртуальную RouterOS.');
-    }).catch(function() { window.alert('Не удалось связаться с Windows-компонентом RouterOS.'); });
+      if (result && result.ok) status.textContent = 'Виртуальная RouterOS открыта. Закройте её окно для удаления временного диска.';
+      else if (result && result.cancelled) { status.hidden = true; status.textContent = ''; }
+      else { status.textContent = 'Виртуальная RouterOS не запущена.'; window.alert((result && result.message) || 'Не удалось открыть виртуальную RouterOS.'); }
+    }).catch(function() { status.textContent = 'Виртуальная RouterOS не запущена.'; window.alert('Не удалось связаться с Windows-компонентом RouterOS.'); });
   });
   ['lm_network_guide', 'lm_routing_guide', 'lm_failover_guide'].forEach(function(id) { var link = $(id); if (link) link.addEventListener('click', function () { modal.hidden = true; editingId = null; }); });
   var fill = $('lm_fill_gw');
@@ -917,6 +920,9 @@ function saveSettings() {
 function init() {
   canvas = $('lab-canvas');
   if (!canvas) return;
+  if (window.routerOS && typeof window.routerOS.onStatus === 'function') window.routerOS.onStatus(function(text) {
+    var status = $('lab-chr-status'); status.hidden = false; status.textContent = text;
+  });
   svg = $('lab-svg');
   hintEl = $('lab-hint');
   emptyEl = $('lab-empty');

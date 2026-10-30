@@ -31,7 +31,7 @@ async function verifyConfiguration(expected, get) {
   check(one(bridges, x => x.name === 'bridge-lan' && String(x['vlan-filtering']) === String(expected.vlan)), 'мост и VLAN filtering');
   const ports = await get('/rest/interface/bridge/port');
   for (const port of expected.lanPorts) {
-    check(one(ports, x => x.bridge === 'bridge-lan' && x.interface === port.name && enabled(x) && (!expected.vlan || String(x.pvid) === (port.segment === 'guest' ? expected.guestId : '1'))), 'порты моста');
+    check(one(ports, x => x.bridge === 'bridge-lan' && x.interface === port.name && enabled(x) && (!expected.vlan || (String(x.pvid) === (port.segment === 'guest' ? expected.guestId : '1') && x['frame-types'] === 'admit-only-untagged-and-priority-tagged' && String(x['ingress-filtering']) === 'true'))), 'порты моста');
   }
   const lists = await get('/rest/interface/list');
   check(one(lists, x => x.name === 'LAN') && one(lists, x => x.name === 'WAN'), 'списки интерфейсов');
@@ -41,7 +41,7 @@ async function verifyConfiguration(expected, get) {
   check(one(addresses, x => x.address === expected.lanAddress && x.interface === 'bridge-lan') && one(addresses, x => x.address === expected.wanAddress && x.interface === expected.wanPort), 'адреса LAN и WAN');
   if (expected.vlan) check(one(addresses, x => x.address === expected.guestAddress && x.interface === 'vlan-guest'), 'адрес гостевого VLAN');
   const routes = await get('/rest/ip/route');
-  check(list(routes).some(x => x['dst-address'] === '0.0.0.0/0' && x.gateway === expected.wanGateway && String(x.distance) === '1'), 'маршрут WAN');
+  check(list(routes).some(x => x['dst-address'] === '0.0.0.0/0' && x.gateway === expected.wanGateway && String(x.distance) === '1' && x['check-gateway'] === 'ping'), 'маршрут WAN');
   const dns = await get('/rest/ip/dns');
   check(dns && dns.servers === expected.dns && String(dns['allow-remote-requests']) === String(expected.dnsCache), 'DNS');
   const dhcp = await get('/rest/ip/dhcp-server');
@@ -57,12 +57,12 @@ async function verifyConfiguration(expected, get) {
     const vlans = await get('/rest/interface/vlan');
     check(one(vlans, x => x.name === 'vlan-guest' && x.interface === 'bridge-lan' && String(x['vlan-id']) === expected.guestId), 'гостевой VLAN');
     const table = await get('/rest/interface/bridge/vlan');
-    check(list(table).some(x => x.bridge === 'bridge-lan' && String(x['vlan-ids']) === expected.guestId && (x.tagged || '').split(',').includes('bridge-lan')), 'таблица VLAN');
+    check(list(table).some(x => x.bridge === 'bridge-lan' && String(x['vlan-ids']) === expected.guestId && (x.tagged || '').split(',').includes('bridge-lan') && expected.lanPorts.filter(p => p.segment === 'guest').every(p => (x.untagged || '').split(',').includes(p.name))), 'таблица VLAN');
   }
   const filter = list(await get('/rest/ip/firewall/filter'));
   check(filter.length === expected.filterRules.length + 1 && filter[0].chain === 'input' && filter[0].action === 'accept' && filter[0]['in-interface'] === 'ether6', 'правила управления');
-  expected.filterRules.forEach((rule, n) => check(filter[n+1].chain === rule.chain && filter[n+1].action === rule.action, 'правила firewall'));
+  expected.filterRules.forEach((rule, n) => check(Object.keys(rule).every(k => String(filter[n+1][k]) === rule[k]), 'правила firewall'));
   const nat = list(await get('/rest/ip/firewall/nat'));
-  check(nat.length === expected.natRules.length && expected.natRules.every((rule, n) => nat[n].chain === rule.chain && nat[n].action === rule.action), 'правила NAT');
+  check(nat.length === expected.natRules.length && expected.natRules.every((rule, n) => Object.keys(rule).every(k => String(nat[n][k]) === rule[k])), 'правила NAT');
 }
 module.exports = { makeReader, verifyConfiguration };

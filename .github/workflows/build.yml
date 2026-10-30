@@ -46,6 +46,7 @@ jobs:
           node tools/test-chr-plan.js
           node tools/test-chr-verify.js
           node tools/test-chr-session-unit.js
+          node tools/test-chr-main.js
       - name: DOM-тест (интерактивный стенд, шрифт, автодополнение)
         run: |
           npm install --prefix tools --no-audit --no-fund
@@ -120,6 +121,10 @@ jobs:
       - name: Установка зависимостей
         run: npm install --no-audit --no-fund
       - uses: ilammy/msvc-dev-cmd@v1
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/mikrotik-qemu-cache
+          key: windows-qemu-sources-11.1.0-20260811-v1
       - name: Подготовка QEMU, исходников и защитного супервизора
         shell: pwsh
         run: ./scripts/prepare-qemu.ps1
