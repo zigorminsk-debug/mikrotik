@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <!-- TikSource points to a pinned, hash-checked CI-only checkout. -->
+  <ItemGroup><ProjectReference Include="$(TikSource)/tik4net/tik4net.csproj" /></ItemGroup>
+</Project>
