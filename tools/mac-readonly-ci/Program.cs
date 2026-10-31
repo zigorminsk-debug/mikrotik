@@ -6,6 +6,7 @@ using System.Text.Json;
 using tik4net;
 using tik4net.WinboxCliMac;
 
+string stage = "setup";
 try
 {
     using var input = JsonDocument.Parse(Console.ReadLine() ?? "{}");
@@ -20,6 +21,7 @@ try
         SendTimeout = TimeSpan.FromSeconds(15)
     };
     using var connection = setup.CreateWinboxCliMacConnection();
+    stage = "resource";
     var rows = connection.CreateCommand("/system/resource/print").ExecuteList().ToArray();
     if (rows.Length != 1 || !rows[0].GetResponseField("version").StartsWith("7.23.8")) throw new InvalidOperationException("Wrong device or version");
     // This optional CI fixture validates only predefined test data. It is not
@@ -27,9 +29,11 @@ try
     if (root.TryGetProperty("inventory", out var inventory) && inventory.ValueKind == JsonValueKind.True)
     {
         var expectedName = root.GetProperty("expectedIdentity").GetString() ?? throw new ArgumentException();
+        stage = "identity";
         var identity = connection.CreateCommand("/system/identity/print").ExecuteList().ToArray();
+        if (identity.Length != 1 || identity[0].GetResponseField("name") != expectedName) { stage = "identity-mismatch"; throw new InvalidOperationException(); }
+        stage = "ethernet";
         var ethernet = connection.CreateCommand("/interface/ethernet/print").ExecuteList().ToArray();
-        if (identity.Length != 1 || identity[0].GetResponseField("name") != expectedName) throw new InvalidOperationException();
         if (!ethernet.Any(row => row.GetResponseField("name") == "ether1" &&
             string.Equals(row.GetResponseField("mac-address"), mac, StringComparison.OrdinalIgnoreCase))) throw new InvalidOperationException();
     }
@@ -46,6 +50,6 @@ catch (Exception ex)
         if (current.Message.Contains("MAC-WinBox: bad challenge")) { category = "BadChallenge"; break; }
         if (current.Message.Contains("MAC-Winbox: no server confirmation", StringComparison.OrdinalIgnoreCase)) { category = "NoConfirmation"; break; }
     }
-    Console.WriteLine(JsonSerializer.Serialize(new {ok=false, category}));
+    Console.WriteLine(JsonSerializer.Serialize(new {ok=false, category, stage}));
     Environment.ExitCode = 1;
 }
