@@ -70,6 +70,7 @@ try:
                         '/interface list member add list=WAN interface=pppoe-out2',
                         '/interface wireguard add name=wg-lab listen-port=13231',
                         '/ip address add address=10.10.10.1/24 interface=wg-lab',
+                        '/interface wireguard peers add interface=wg-lab public-key="AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=" allowed-address=10.10.10.2/32',
                         '/system resource print']:
             vm.sendline(command)
             vm.expect(r'\[admin@[^\]]+\]\s*>')
@@ -122,6 +123,11 @@ sleep 8
 rm -f "$3/winbox.png"
 scrot "$3/winbox.png"
 scrot -q 45 "$3/wireguard.jpg"
+# Peers show only public keys; the test peer is not connected.
+xdotool mousemove --sync 490 228
+xdotool click 1
+sleep 8
+scrot -q 45 "$3/wgpeers.jpg"
 kill "$pid" 2>/dev/null || true
 '''
     env = os.environ.copy()

@@ -10,9 +10,9 @@ import pathlib
 import sys
 
 kind = sys.argv[2] if len(sys.argv) > 2 else 'ntp'
-if kind not in ('ntp','clock','applied','wireguard'):
+if kind not in ('ntp','clock','applied','wireguard','wgpeers'):
     raise SystemExit('Invalid capture kind')
-shot = pathlib.Path(os.environ['RUNNER_TEMP']) / 'routeros-capture/output' / ({'ntp':'winbox.jpg','clock':'clock.jpg','applied':'applied.jpg','wireguard':'wireguard.jpg'}[kind])
+shot = pathlib.Path(os.environ['RUNNER_TEMP']) / 'routeros-capture/output' / ({'ntp':'winbox.jpg','clock':'clock.jpg','applied':'applied.jpg','wireguard':'wireguard.jpg','wgpeers':'wgpeers.jpg'}[kind])
 if not shot.exists():
     print('No experimental image was created')
     raise SystemExit(0)

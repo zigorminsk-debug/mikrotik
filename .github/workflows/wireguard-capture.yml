@@ -63,6 +63,15 @@ jobs:
       - name: Export WireGuard screenshot 20–29
         if: always()
         run: /usr/bin/python3 tools/export-capture.py 20 wireguard
+      - name: Export peers screenshot 0–9
+        if: always()
+        run: /usr/bin/python3 tools/export-capture.py 0 wgpeers
+      - name: Export peers screenshot 10–19
+        if: always()
+        run: /usr/bin/python3 tools/export-capture.py 10 wgpeers
+      - name: Export peers screenshot 20–29
+        if: always()
+        run: /usr/bin/python3 tools/export-capture.py 20 wgpeers
       - name: Upload capture and diagnostic output
         if: always()
         uses: actions/upload-artifact@v4

@@ -67,7 +67,7 @@ def command(vm,line,timeout=45):
     if match:raise RuntimeError('RouterOS rejected test command')
 
 def get_public(vm):
-    token=secrets.token_hex(8);start='START'+token;end='END'+token
+    token=secrets.token_hex(3);start='WG'+token;end='END'+token
     settle(vm)
     vm.sendline(':put ("'+start[:8]+'" . "'+start[8:]+'" . [/interface wireguard get [find where name="wg-lab"] public-key] . "'+end[:8]+'" . "'+end[8:]+'")')
     vm.expect(re.escape(start)+r'([A-Za-z0-9+/]{43}=)'+re.escape(end),timeout=30)
@@ -83,16 +83,19 @@ def verify_ping(vm,address):
     except Exception: raise RuntimeError('Encrypted ping timed out') from None
     if match:raise RuntimeError('Encrypted ping did not succeed')
 
+stage='initialization'
 try:
     left,right=reserve_ports()
-    server=boot('server',left,right,1)
-    client=boot('client',right,left,0)
+    stage='server boot';server=boot('server',left,right,1)
+    stage='client boot';client=boot('client',right,left,0)
+    stage='server configuration'
     command(server,'/ip dhcp-client disable [find]')
     for group in fixture['groups']:
         for line in group['commands']:
             try:command(server,line)
             except Exception as exc: raise RuntimeError('Server configuration group '+group['id']+' failed') from exc
-    server_public=get_public(server)
+    stage='read generated server public key';server_public=get_public(server)
+    stage='client configuration'
     command(client,'/ip dhcp-client disable [find]')
     for line in [
         '/ip address add address=198.51.100.1/30 interface=ether1',
@@ -100,13 +103,13 @@ try:
         '/ip address add address=10.10.10.2/24 interface=wg-client',
         '/interface wireguard peers add interface=wg-client public-key="'+server_public+'" allowed-address=10.10.10.1/32,192.168.88.0/24 endpoint-address=198.51.100.2 endpoint-port=13231 persistent-keepalive=5s']:
         command(client,line)
-    verify_ping(client,'10.10.10.1')
-    verify_ping(client,'192.168.88.1')
+    stage='ping tunnel';verify_ping(client,'10.10.10.1')
+    stage='ping LAN gateway';verify_ping(client,'192.168.88.1')
     print('::notice title=Real WireGuard tunnel::Two disposable CHRs established a WireGuard tunnel over an isolated UDP link. The client reached the VPN address and server LAN gateway through the tunnel. No client LAN VM, external network or Windows GUI was tested.')
 except Exception as exc:
     # Never include raw console buffers, private keys or passwords in CI logs.
     msg=str(exc) if isinstance(exc,RuntimeError) else type(exc).__name__
-    print('::error title=WireGuard isolated test::'+msg.replace('\n',' ').replace('%',' '))
+    print('::error title=WireGuard isolated test::'+stage+': '+msg.replace('\n',' ').replace('%',' '))
     raise SystemExit(1) from None
 finally:
     for vm in procs:
