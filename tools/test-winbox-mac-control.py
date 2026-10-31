@@ -61,11 +61,11 @@ def probe(target,label):
     shutil.rmtree(home,ignore_errors=True)
     return state
 
-def probe_tik(label):
+def probe_tik(label,helper,wrong_password=False):
     before=snapshot()
-    payload=json.dumps({'mac':'02:11:22:33:44:55','password':password})+'\n'
+    payload=json.dumps({'mac':'02:11:22:33:44:55','password':('wrong_'+secrets.token_hex(8)) if wrong_password else password})+'\n'
     try:
-        result=subprocess.run([str(base/'helper'/'mac-readonly-ci')],input=payload,text=True,capture_output=True,timeout=95)
+        result=subprocess.run([str(base/helper/'mac-readonly-ci')],input=payload,text=True,capture_output=True,timeout=95)
         response=json.loads(result.stdout.strip().splitlines()[-1])
         category=response.get('category','Other')
         if category not in ('Other','NoUsableNic','ChallengeNone','BadChallenge','NoConfirmation'):category='Other'
@@ -133,13 +133,18 @@ try:
     thread=threading.Thread(target=capture_counts,daemon=True);thread.start()
     ip=probe('192.0.2.2','IP-control')
     mac=probe('02:11:22:33:44:55','MAC-with-IP')
-    tik_with_ip=probe_tik('with-IP')
+    tik_with_ip=probe_tik('original-with-IP','helper-original')
+    patched_with_ip=probe_tik('wildcard-with-IP','helper-wildcard')
     command('/ip address remove [find where address="192.0.2.2/24"]')
     mac_no_ip=probe('02:11:22:33:44:55','MAC-without-IP')
-    tik_no_ip=probe_tik('without-IP')
+    tik_no_ip=probe_tik('original-without-IP','helper-original')
+    patched_no_ip=probe_tik('wildcard-without-IP','helper-wildcard')
+    wrong=probe_tik('wildcard-wrong-password','helper-wildcard',wrong_password=True)
     if ip!='workspace':raise RuntimeError('IP control did not reach a verified workspace; MAC result inconclusive')
     if mac!='workspace' or mac_no_ip!='workspace':raise RuntimeError('An official MAC test did not reach a verified workspace; see packet counts')
-    print('::notice title=Control conclusion::Official WinBox authenticated via IP and via MAC with and without IPv4 on isolated CHR; third-party read states are separately reported. No physical device or Windows tested.')
+    if wrong=='read_ok':raise RuntimeError('Wrong-password test unexpectedly read the resource')
+    if patched_with_ip!='read_ok' or patched_no_ip!='read_ok':raise RuntimeError('Wildcard research client did not read CHR in both MAC-only conditions')
+    print('::notice title=Control conclusion::Official WinBox authenticated via MAC with and without IPv4; CI-only wildcard experiment read a resource in both cases and wrong credentials could not read it. This single-NIC Linux experiment is not a production fix or a physical/Windows test.')
 except Exception as exc:
     print('::error title=WinBox control::'+(str(exc) if isinstance(exc,RuntimeError) else type(exc).__name__),flush=True)
     raise SystemExit(1) from None

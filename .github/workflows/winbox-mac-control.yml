@@ -4,6 +4,7 @@ on:
     paths:
       - '.github/workflows/winbox-mac-control.yml'
       - 'tools/test-winbox-mac-control.py'
+      - 'tools/patch-tik4net-wildcard-ci.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -32,9 +33,14 @@ jobs:
           curl -fL --retry 2 -o "$RUNNER_TEMP/winbox-control/tik4net.tar.gz" https://codeload.github.com/danikf/tik4net/tar.gz/d4597fa04fcad3e96a9fcd51ddac499778344638
           echo '78ee97bbda547e835c329a66d9454417f696f356ba62b75e8f190deb077e896e  '"$RUNNER_TEMP/winbox-control/tik4net.tar.gz" | sha256sum -c -
           tar -xzf "$RUNNER_TEMP/winbox-control/tik4net.tar.gz" -C "$RUNNER_TEMP/winbox-control"
-      - name: Build third-party read-only client only for comparison
+      - name: Build original and patched clients for isolated comparison only
         run: |
-          dotnet publish tools/mac-readonly-ci/mac-readonly-ci.csproj -c Release -r linux-x64 --self-contained true -p:TikSource="$RUNNER_TEMP/winbox-control/tik4net-d4597fa04fcad3e96a9fcd51ddac499778344638" -o "$RUNNER_TEMP/winbox-control/helper"
+          set -euo pipefail
+          source="$RUNNER_TEMP/winbox-control/tik4net-d4597fa04fcad3e96a9fcd51ddac499778344638"
+          cp -a "$source" "$RUNNER_TEMP/winbox-control/wildcard-source"
+          python3 tools/patch-tik4net-wildcard-ci.py "$RUNNER_TEMP/winbox-control/wildcard-source"
+          dotnet publish tools/mac-readonly-ci/mac-readonly-ci.csproj -t:Rebuild -c Release -r linux-x64 --self-contained true -p:TikSource="$source" -o "$RUNNER_TEMP/winbox-control/helper-original"
+          dotnet publish tools/mac-readonly-ci/mac-readonly-ci.csproj -t:Rebuild -c Release -r linux-x64 --self-contained true -p:TikSource="$RUNNER_TEMP/winbox-control/wildcard-source" -o "$RUNNER_TEMP/winbox-control/helper-wildcard"
       - name: Compare official and research clients without saving packet contents
         run: |
           set -euo pipefail
