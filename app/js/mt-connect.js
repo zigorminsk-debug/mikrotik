@@ -41,6 +41,10 @@
   var virtRunning = false;
   var vr = new VirtualRouter();   // учебный симулятор RouterOS
 
+  /* ---------- история команд консоли ---------- */
+  var cmdHistory = [];
+  var histIndex = -1;
+
   function esc(s) {
     return String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -249,9 +253,58 @@
   /* ---------- консоль ---------- */
   mtConsoleSend.addEventListener('click', function () { sendCli(mtConsole.value); });
   mtConsole.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendCli(mtConsole.value); }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      var line = mtConsole.value;
+      if (line && line.trim()) {
+        cmdHistory.push(line);
+        histIndex = cmdHistory.length;
+      }
+      sendCli(line);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (cmdHistory.length === 0) return;
+      if (histIndex > 0) histIndex--;
+      mtConsole.value = cmdHistory[histIndex];
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (histIndex < cmdHistory.length - 1) {
+        histIndex++;
+        mtConsole.value = cmdHistory[histIndex];
+      } else {
+        histIndex = cmdHistory.length;
+        mtConsole.value = '';
+      }
+    }
   });
   mtConsoleClear.addEventListener('click', function () { mtConsoleOut.innerHTML = ''; });
+
+  /* ---------- preset-кнопки консоли ---------- */
+  var presetBox = document.createElement('div');
+  presetBox.style.cssText = 'margin-top:6px; display:flex; flex-wrap:wrap; gap:6px;';
+  var presets = [
+    { t: '/system identity print', label: 'Личность роутера' },
+    { t: '/ip address print', label: 'Адреса интерфейсов' },
+    { t: '/ip route print', label: 'Таблица маршрутов' },
+    { t: '/ip firewall filter print', label: 'Правила firewall' },
+    { t: '/ip firewall nat print', label: 'Правила NAT' },
+    { t: '/ping address=8.8.8.8', label: 'Пинг 8.8.8.8' },
+    { t: '/export', label: 'Экспорт конфигурации' },
+    { t: '/system resource print', label: 'Ресурсы системы' }
+  ];
+  presets.forEach(function (p) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = p.label;
+    btn.title = p.t;
+    btn.style.cssText = 'padding:2px 8px; font-size:11px;';
+    btn.addEventListener('click', function () {
+      mtConsole.value = p.t;
+      mtConsole.focus();
+    });
+    presetBox.appendChild(btn);
+  });
+  mtConsole.parentNode.insertBefore(presetBox, mtConsole.nextSibling);
 
   /* ---------- применить конфигурацию со стенда ---------- */
   var standGroups = null;
