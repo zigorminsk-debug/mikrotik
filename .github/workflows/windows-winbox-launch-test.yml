@@ -1,0 +1,40 @@
+name: Windows WinBox launcher test
+on:
+  push:
+    paths:
+      - '.github/workflows/windows-winbox-launch-test.yml'
+      - 'windows/physical/open-winbox.js'
+      - 'tools/test-open-winbox.js'
+      - 'tools/test-open-winbox-windows.js'
+      - 'tools/windows/winbox-launch-stub.c'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  launch:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Check cancellation and security boundaries
+        shell: pwsh
+        run: |
+          node tools/test-open-winbox.js
+          if ($LASTEXITCODE -ne 0) { throw 'Launcher unit test failed' }
+      - name: Build inert local executable for CI
+        shell: pwsh
+        run: |
+          $dir=Join-Path $env:RUNNER_TEMP 'winbox-stub'
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          cl /nologo /O2 /W3 tools/windows/winbox-launch-stub.c "/Fo$dir/stub.obj" /link "/OUT:$dir/WinBox.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Stub build failed' }
+      - name: Verify actual local Windows process start
+        shell: pwsh
+        run: |
+          $dir=Join-Path $env:RUNNER_TEMP 'winbox-stub'
+          node tools/test-open-winbox-windows.js (Join-Path $dir 'WinBox.exe') (Join-Path $dir 'marker.txt')
+          if ($LASTEXITCODE -ne 0) { throw 'Local stub did not start as expected' }

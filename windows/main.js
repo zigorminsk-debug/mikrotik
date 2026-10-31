@@ -11,6 +11,8 @@ const { networkWarning } = require('./chr/network-warning');
 const { ensureImage } = require('./chr/download');
 const { ChrSession } = require('./chr/session');
 const physicalDiscovery = require('./physical/mndp');
+const {openWinbox} = require('./physical/open-winbox');
+const {spawn} = require('child_process');
 
 let mainWindow = null, chrWindow = null, active = null, launching = false, quitting = false, cleanupFailed = false;
 const sessionsRoot = () => path.join(app.getPath('userData'), 'chr-sessions');
@@ -136,6 +138,16 @@ ipcMain.handle('physical:discover', async (event,name,address) => {
     return {ok:true,devices};
   } catch (_) { return {ok:false,message:'Не удалось выполнить поиск. Проверьте адаптер и доступность UDP/5678; возможно, порт занят или заблокирован Windows.'}; }
   finally { physicalScanning=false; }
+});
+// This starts a user-selected external application only; it cannot send
+// commands or credentials, or determine whether any router login succeeds.
+let openingWinbox=false;
+ipcMain.handle('physical:open-winbox', async event => {
+  if (!trustedMain(event)) return {ok:false,message:'Недопустимый источник запроса.'};
+  if (openingWinbox) return {ok:false,message:'Выбор WinBox уже выполняется.'};
+  openingWinbox=true;
+  try {return await openWinbox({dialog,owner:mainWindow,fs,spawn,isStopped:()=>quitting||!mainWindow||mainWindow.isDestroyed()});}
+  finally {openingWinbox=false;}
 });
 // Only the trusted main renderer can request a save; the user chooses the path.
 ipcMain.handle('diagram:save', async (event, format, bytes) => {

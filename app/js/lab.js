@@ -705,6 +705,7 @@ function openSettings(id) {
       '<p class="fs-hint">Экспериментальный поиск соседних устройств MNDP: настоящие физические MikroTik этой функцией ещё не проверялись. Подключение, сброс и отправка схемы на физический роутер ещё не реализованы. Ответы могут поступить через другие адаптеры. MAC и имя из сети не подтверждены: сравните MAC с наклейкой на устройстве.</p>' +
       '<label>Сетевой адаптер Windows<select id="lm_physical_if"><option value="">Загрузка…</option></select></label>' +
       '<button type="button" class="btn" id="lm_find_physical">Искать устройства по MAC</button><div id="lm_physical_result" class="fs-hint" style="white-space:pre-wrap;overflow-wrap:anywhere" aria-live="polite"></div>' +
+      '<button type="button" class="btn ghost" id="lm_open_winbox">Открыть WinBox отдельно</button><p class="fs-hint">Выберите установленный официальный WinBox и войдите в него вручную по MAC. Лаборатория не получает доступ к устройству и не отправляет настройки.</p><div id="lm_winbox_status" class="fs-hint" aria-live="polite"></div>' +
       '<button type="button" class="btn ghost" id="lm_preview_physical">Сохранить и оценить схему</button><p class="fs-hint">Черновая сводка по сохранённой схеме, без соединения и изменений роутера. Это не проверка совместимости и не окончательный план применения.</p>';
     html += sel('lm_router_role', 'Роль MikroTik (для общего LAN / VRRP)', [['primary', 'Основной'], ['backup', 'Резервный']], c.routerRole || 'primary') + '<p class="fs-hint">В двух независимых сетях эта роль не переключает интернет между роутерами.</p>';
     html += '<div class="lm-grid">' + f('lm_lan', 'Подсеть LAN (CIDR)', 'text', c.lan, 'spellcheck="false" list="dl-net"') +
@@ -871,6 +872,20 @@ function openSettings(id) {
         }).catch(function(){if(physicalResult === $('lm_physical_result'))physicalResult.textContent='Ошибка связи с Windows-компонентом.';}).finally(function(){if(physicalButton === $('lm_find_physical')) {physicalButton.disabled=false; physicalSelect.disabled=false;}});
       });
     }
+  }
+  var openWinboxButton = $('lm_open_winbox'), winboxStatus = $('lm_winbox_status');
+  if (openWinboxButton) {
+    if (!window.routerOS || typeof window.routerOS.openWinbox !== 'function') openWinboxButton.disabled=true;
+    else openWinboxButton.addEventListener('click',function(){
+      openWinboxButton.disabled=true; winboxStatus.textContent='Выберите файл WinBox…';
+      window.routerOS.openWinbox().then(function(result){
+        if (winboxStatus !== $('lm_winbox_status')) return;
+        if (result && result.ok) winboxStatus.textContent='WinBox запущен отдельно. Выберите MAC и войдите вручную; лаборатория не проверяет вход.';
+        else if (result && result.cancelled) winboxStatus.textContent='Запуск отменён.';
+        else winboxStatus.textContent=(result && result.message)||'Не удалось открыть WinBox.';
+      }).catch(function(){if(winboxStatus === $('lm_winbox_status'))winboxStatus.textContent='Не удалось открыть WinBox.';})
+        .finally(function(){if(openWinboxButton === $('lm_open_winbox'))openWinboxButton.disabled=false;});
+    });
   }
   var previewPhysical = $('lm_preview_physical');
   if (previewPhysical) previewPhysical.addEventListener('click', function() {

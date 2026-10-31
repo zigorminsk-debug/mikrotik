@@ -9,6 +9,7 @@ on:
       - 'app/js/lab.js'
       - 'tools/test-physical-mndp*.js'
       - 'tools/test-chr-main.js'
+      - 'tools/test-open-winbox.js'
   workflow_dispatch:
 permissions:
   contents: read
@@ -29,6 +30,8 @@ jobs:
           $code = $LASTEXITCODE
           foreach ($line in $output) { Write-Output "::notice title=MNDP parser::$($line.ToString().Replace('%',' '))" }
           if ($code -ne 0) { throw 'Parser test failed' }
+          node tools/test-open-winbox.js
+          if ($LASTEXITCODE -ne 0) { throw 'WinBox launcher test failed' }
           $output = node tools/test-chr-main.js 2>&1
           $code = $LASTEXITCODE
           foreach ($line in $output) { Write-Output "::notice title=IPC consent::$($line.ToString().Replace('%',' '))" }

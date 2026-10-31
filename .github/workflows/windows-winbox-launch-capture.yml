@@ -1,0 +1,51 @@
+name: Windows WinBox launcher screenshots
+on:
+  push:
+    paths:
+      - '.github/workflows/windows-winbox-launch-capture.yml'
+      - 'tools/capture-winbox-launch.js'
+      - 'tools/capture-winbox-warning.js'
+      - 'tools/capture-winbox-warning.ps1'
+      - 'tools/export-winbox-launch.py'
+      - 'windows/physical/open-winbox.js'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Electron and copy application
+        shell: pwsh
+        run: |
+          Push-Location windows
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed' }
+          npm run copy
+          if ($LASTEXITCODE -ne 0) { throw 'Copy failed' }
+          Pop-Location
+      - name: Capture button (no WinBox or router)
+        shell: pwsh
+        run: |
+          ./windows/node_modules/.bin/electron.cmd tools/capture-winbox-launch.js
+          if ($LASTEXITCODE -ne 0) { throw 'Electron screenshot failed' }
+      - name: Capture and cancel genuine warning (no executable launched)
+        shell: powershell
+        run: ./tools/capture-winbox-warning.ps1
+      - name: Export button 0–9
+        run: python tools/export-winbox-launch.py 0 button
+      - name: Export button 10–19
+        run: python tools/export-winbox-launch.py 10 button
+      - name: Export button 20–23
+        run: python tools/export-winbox-launch.py 20 button
+      - name: Export warning 0–9
+        run: python tools/export-winbox-launch.py 0 warning
+      - name: Export warning 10–19
+        run: python tools/export-winbox-launch.py 10 warning
+      - name: Export warning 20–23
+        run: python tools/export-winbox-launch.py 20 warning

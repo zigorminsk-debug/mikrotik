@@ -8,7 +8,9 @@ const source = fs.readFileSync(require('path').join(__dirname,'../windows/main.j
 const windows = [], handlers = {}, choices = [], downloads = [], opened = [], created = [], errors = [], writes = [], dialogs = [];
 let onlineValid = true, physicalCalls = 0;
 const physicalNic={name:'Test Ethernet',address:'192.168.88.5'};
-let saveChoice = {canceled:true};
+let saveChoice = {canceled:true}, openChoice = {canceled:true};
+const winboxRuns=[];
+const mockSpawn=(...args)=>{winboxRuns.push(args);const p=new EventEmitter();p.unref=()=>{};setImmediate(()=>p.emit('spawn'));return p;};
 let plan = {blockers:[],groups:[{id:'iface',commands:['/interface print']}],expected:{}};
 class Window extends EventEmitter {
   constructor(options) {
@@ -28,9 +30,9 @@ class Session {
 }
 const app=new EventEmitter();Object.assign(app,{isPackaged:true,getPath:()=>'/test-data',requestSingleInstanceLock:()=>true,whenReady:()=>Promise.resolve(),quit:()=>{}});
 const electron={app,BrowserWindow:Window,shell:{openExternal:async url=>opened.push(url)},
-  dialog:{showMessageBox:async(_win,options)=>{dialogs.push(options);return {response:choices.shift()};},showErrorBox:(_title,msg)=>errors.push(msg),showSaveDialog:async()=>saveChoice},
+  dialog:{showMessageBox:async(_win,options)=>{dialogs.push(options);return {response:choices.shift()};},showErrorBox:(_title,msg)=>errors.push(msg),showSaveDialog:async()=>saveChoice,showOpenDialog:async()=>openChoice},
   ipcMain:{handle:(name,fn)=>handlers[name]=fn},clipboard:{writeText(){},readText(){return '';},clear(){}}};
-const mockfs={promises:{readdir:async()=>{const e=new Error();e.code='ENOENT';throw e;},access:async()=>{},rm:async()=>{},writeFile:async(file,data)=>writes.push({file,data:Buffer.from(data)})}};
+const mockfs={promises:{realpath:async p=>p,stat:async()=>({isFile:()=>true}),readdir:async()=>{const e=new Error();e.code='ENOENT';throw e;},access:async()=>{},rm:async()=>{},writeFile:async(file,data)=>writes.push({file,data:Buffer.from(data)})}};
 const req=name=>{
   if(name==='electron')return electron;if(name==='fs')return mockfs;
   if(name==='./www/js/lab-sim')return {};
@@ -39,6 +41,8 @@ const req=name=>{
   if(name==='./chr/network-warning')return require('../windows/chr/network-warning');
   if(name==='./chr/download')return {ensureImage:async(root,consent)=>{downloads.push({root,consent});return '/image/chr-7.23.8.img';}};
   if(name==='./chr/session')return {ChrSession:Session};
+  if(name==='child_process')return {spawn:mockSpawn};
+  if(name==='./physical/open-winbox')return require('../windows/physical/open-winbox');
   if(name==='./physical/mndp')return {interfaces:()=>[physicalNic],discover:async()=>{physicalCalls++;return [{mac:'02:11:22:33:44:55'}];}};
   return require(name);
 };
@@ -56,6 +60,12 @@ vm.runInNewContext(source,{require:req,process:{platform:'win32',resourcesPath:'
   choices.push(0);assert((await findPhysical(good,physicalNic.name,physicalNic.address)).cancelled);assert.equal(physicalCalls,0);
   assert(dialogs.at(-1).defaultId===0 && dialogs.at(-1).detail.includes('не сбрасывает'));
   choices.push(1);assert((await findPhysical(good,physicalNic.name,physicalNic.address)).ok);assert.equal(physicalCalls,1);
+  const openWinbox=handlers['physical:open-winbox'];
+  assert(!(await openWinbox({sender:{},senderFrame:{}})).ok);assert.equal(winboxRuns.length,0);
+  assert((await openWinbox(good)).cancelled);assert.equal(winboxRuns.length,0);
+  openChoice={canceled:false,filePaths:['C:\\Official\\WinBox.exe']};
+  choices.push(0);assert((await openWinbox(good)).cancelled);assert.equal(winboxRuns.length,0);
+  choices.push(1);assert((await openWinbox(good)).ok);assert.equal(winboxRuns.length,1);assert.equal(winboxRuns[0][1].length,0);
   const save=handlers['diagram:save'], png=Uint8Array.from([137,80,78,71,13,10,26,10,1]);
   assert(!(await save({sender:{},senderFrame:{}},'png',png)).ok);
   assert(!(await save(good,'gif',png)).ok); assert(!(await save(good,'exe',png)).ok); assert.equal(writes.length,0);
