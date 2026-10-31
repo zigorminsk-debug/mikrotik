@@ -187,7 +187,7 @@ public class MainActivity extends Activity {
             if (ret != null) {
                 rep = sendAndRead(loginResponse(user, ret, pass));
                 if (!"done".equals(rep.optString("status")))
-                    throw new Exception(rep.optString("message", "ошибка логина (challenge)");
+                    throw new Exception(rep.optString("message", "ошибка логина (challenge)"));
             }
         }
 

@@ -59,7 +59,6 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.4'
-          wrapper: false
       - name: Сборка release APK
         run: gradle -p android assembleRelease --stacktrace
       - name: Проверка подписи APK
