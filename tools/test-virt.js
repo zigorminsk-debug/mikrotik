@@ -161,6 +161,76 @@ ok(attr(r.items[0].attrs, 'name') === 'MikroTik', 'после сброса им�
 r = cli(vr, '/ip address print');
 ok(r.items.length === 0, 'после сброса адресов нет');
 
+console.log('== Система: часы, NTP, облако ==');
+vr = new VirtualRouter();
+r = cli(vr, '/system clock print');
+ok(r.status === 'done' && attr(r.items[0].attrs, 'time-zone-name') === 'Europe/Minsk', 'clock print');
+r = cli(vr, '/system clock set time-zone-name=UTC');
+ok(r.status === 'done', 'clock set');
+r = cli(vr, '/system clock print');
+ok(attr(r.items[0].attrs, 'time-zone-name') === 'UTC', 'часовой пояс изменён');
+
+r = cli(vr, '/system ntp/client print');
+ok(r.status === 'done' && attr(r.items[0].attrs, 'enabled') === 'no', 'ntp print по умолчанию');
+r = cli(vr, '/system ntp/client set enabled=yes primary-ntp=77.88.8.8 secondary-ntp=8.8.4.4');
+ok(r.status === 'done', 'ntp set');
+r = cli(vr, '/system ntp/client print');
+ok(attr(r.items[0].attrs, 'enabled') === 'yes', 'ntp включён');
+
+r = cli(vr, '/ip/cloud print');
+ok(r.status === 'done' && attr(r.items[0].attrs, 'ddns-enabled') === 'no', 'cloud print по умолчанию');
+r = cli(vr, '/ip/cloud set ddns-enabled=yes');
+ok(r.status === 'done', 'cloud set');
+r = cli(vr, '/ip/cloud print');
+ok(attr(r.items[0].attrs, 'ddns-enabled') === 'yes', 'облачный доступ включён');
+
+console.log('== Система: службы IP Services ==');
+vr = new VirtualRouter();
+r = cli(vr, '/ip/service print');
+ok(r.status === 'done' && r.items.length >= 5, 'service print (' + r.items.length + ' служб)');
+r = cli(vr, '/ip/service enable name=api');
+ok(r.status === 'done', 'service enable api');
+r = cli(vr, '/ip/service disable name=telnet');
+ok(r.status === 'done', 'service disable telnet');
+r = cli(vr, '/ip/service print');
+var api = r.items.find(function (it) { return attr(it.attrs, 'name') === 'api'; });
+var telnet = r.items.find(function (it) { return attr(it.attrs, 'name') === 'telnet'; });
+ok(api && attr(api.attrs, 'disabled') === 'no', 'api включён');
+ok(telnet && attr(telnet.attrs, 'disabled') === 'yes', 'telnet отключён');
+
+console.log('== Система: пользователи ==');
+vr = new VirtualRouter();
+r = cli(vr, '/user print');
+ok(r.status === 'done' && r.items.length === 0, 'user print пуст по умолчанию');
+r = cli(vr, '/user add name=admin2 group=write password=пароль123');
+ok(r.status === 'done', 'user add');
+r = cli(vr, '/user print');
+ok(r.items.length === 1, 'пользователь добавлен');
+ok(attr(r.items[0].attrs, 'group') === 'write', 'группа пользователя');
+r = cli(vr, '/user set [ find name=admin2 ] password=новыйпароль');
+ok(r.status === 'done', 'user set password');
+r = cli(vr, '/user remove [ find name=admin2 ]');
+ok(r.status === 'done', 'user remove');
+r = cli(vr, '/user print');
+ok(r.items.length === 0, 'пользователь удалён');
+
+console.log('== Система: бэкап ==');
+vr = new VirtualRouter();
+r = cli(vr, '/system backup save name=mybackup');
+ok(r.status === 'done', 'backup save');
+r = cli(vr, '/system backup print');
+ok(r.status === 'done' && r.items.length === 1, 'backup print');
+ok(attr(r.items[0].attrs, 'name') === 'mybackup.backup', 'имя бэкапа');
+
+console.log('== Система: обновление ==');
+vr = new VirtualRouter();
+r = cli(vr, '/system package/update print');
+ok(r.status === 'done', 'package/update print');
+r = cli(vr, '/system package/update check-for-updates');
+ok(r.status === 'done', 'check-for-updates');
+r = cli(vr, '/system package/update install');
+ok(r.status === 'done', 'install');
+
 console.log('============================');
 console.log('Итого: ' + passed + ' ok, ' + failed + ' failed');
 process.exit(failed ? 1 : 0);

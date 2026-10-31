@@ -40,6 +40,11 @@
       addressLists: [],  // { list, address }
       pppSecrets: [],    // { name, password, profile, service }
       wireguard: [],     // { name, listenPort, comment }
+      ntp: { enabled: false, primary: '77.88.8.8', secondary: '8.8.4.4' },
+      cloud: { enabled: false },
+      services: { api: false, apiSsl: false, ssh: false, telnet: false, www: false, wwwSsl: false, ftp: false },
+      users: [],         // { name, group, password }
+      backups: [],       // { name, time }
       logs: []           // { time, topics, message }
     };
   }
@@ -637,6 +642,184 @@
     },
     export: function () {
       return this.exportText();
+    }
+  };
+
+  /* --- /system/clock --- */
+  HANDLERS['system/clock'] = {
+    print: function (s) {
+      return replyDone([itemOf({ 'time-zone-name': s.clock.timeZone })]);
+    },
+    set: function (s, attrs) {
+      var a = {};
+      attrs.forEach(function (w) { var eq = w.indexOf('=', 1); if (eq > 0) a[w.slice(1, eq)] = w.slice(eq + 1); });
+      if (a['time-zone-name']) s.clock.timeZone = a['time-zone-name'];
+      log(s, 'system', 'часовой пояс установлен: ' + escAttr(s.clock.timeZone));
+      return replyDone([]);
+    }
+  };
+
+  /* --- /system/ntp/client --- */
+  HANDLERS['system/ntp/client'] = {
+    print: function (s) {
+      return replyDone([itemOf({
+        enabled: s.ntp.enabled ? 'yes' : 'no',
+        'primary-ntp': s.ntp.primary || '',
+        'secondary-ntp': s.ntp.secondary || ''
+      })]);
+    },
+    set: function (s, attrs) {
+      var a = {};
+      attrs.forEach(function (w) { var eq = w.indexOf('=', 1); if (eq > 0) a[w.slice(1, eq)] = w.slice(eq + 1); });
+      if (a.enabled !== undefined) s.ntp.enabled = a.enabled === 'yes';
+      if (a['primary-ntp']) s.ntp.primary = a['primary-ntp'];
+      if (a['secondary-ntp']) s.ntp.secondary = a['secondary-ntp'];
+      log(s, 'system', 'NTP-клиент ' + (s.ntp.enabled ? 'включён' : 'выключен'));
+      return replyDone([]);
+    }
+  };
+
+  /* --- /ip/cloud --- */
+  HANDLERS['ip/cloud'] = {
+    print: function (s) {
+      return replyDone([itemOf({ 'ddns-enabled': s.cloud.enabled ? 'yes' : 'no' })]);
+    },
+    set: function (s, attrs) {
+      var a = {};
+      attrs.forEach(function (w) { var eq = w.indexOf('=', 1); if (eq > 0) a[w.slice(1, eq)] = w.slice(eq + 1); });
+      if (a['ddns-enabled'] !== undefined) s.cloud.enabled = a['ddns-enabled'] === 'yes';
+      log(s, 'system', 'облачный доступ ' + (s.cloud.enabled ? 'включён' : 'выключен'));
+      return replyDone([]);
+    }
+  };
+
+  /* --- /ip/service --- */
+  HANDLERS['ip/service'] = {
+    print: function (s) {
+      var services = [
+        { name: 'api', disabled: s.services.api || false },
+        { name: 'api-ssl', disabled: s.services.apiSsl || false },
+        { name: 'ssh', disabled: s.services.ssh || false },
+        { name: 'telnet', disabled: s.services.telnet || false },
+        { name: 'www', disabled: s.services.www || false },
+        { name: 'www-ssl', disabled: s.services.wwwSsl || false },
+        { name: 'ftp', disabled: s.services.ftp || false }
+      ];
+      var items = services.map(function (svc) {
+        return itemOf({ name: svc.name, disabled: svc.disabled ? 'yes' : 'no' });
+      });
+      return replyDone(items);
+    },
+    enable: function (s, attrs, conds, words) {
+      return setService(s, attrs, conds, words, false);
+    },
+    disable: function (s, attrs, conds, words) {
+      return setService(s, attrs, conds, words, true);
+    }
+  };
+
+  function setService(s, attrs, conds, words, disabled) {
+    var a = {};
+    attrs.forEach(function (w) { var eq = w.indexOf('=', 1); if (eq > 0) a[w.slice(1, eq)] = w.slice(eq + 1); });
+    var name = a.name;
+    if (!name) {
+      // try find conditions
+      if (conds && conds.length) {
+        for (var i = 0; i < conds.length; i++) {
+          if (conds[i].name === 'name') { name = conds[i].value; break; }
+        }
+      }
+    }
+    if (!name) return replyTrap('укажите name сервиса');
+    var key = name === 'api-ssl' ? 'apiSsl' : name;
+    s.services[key] = disabled;
+    log(s, 'system', 'сервис ' + escAttr(name) + ' ' + (disabled ? 'отключён' : 'включён'));
+    return replyDone([itemOf({ name: name, disabled: disabled ? 'yes' : 'no' })]);
+  }
+
+  /* --- /user --- */
+  HANDLERS['user'] = {
+    print: function (s) {
+      var items = s.users.map(function (u) {
+        return itemOf({ name: u.name, group: u.group || 'read', password: u.password || '' });
+      });
+      return replyDone(items);
+    },
+    add: function (s, attrs) {
+      var a = {};
+      attrs.forEach(function (w) { var eq = w.indexOf('=', 1); if (eq > 0) a[w.slice(1, eq)] = w.slice(eq + 1); });
+      if (!a.name) return replyTrap('укажите name');
+      s.users.push({ name: a.name, group: a.group || 'read', password: a.password || '' });
+      log(s, 'system', 'создан пользователь ' + escAttr(a.name));
+      return replyDone([itemOf({ name: a.name })]);
+    },
+    set: function (s, attrs, conds, words) {
+      var a = {};
+      attrs.forEach(function (w) { var eq = w.indexOf('=', 1); if (eq > 0) a[w.slice(1, eq)] = w.slice(eq + 1); });
+      var name = a.name;
+      if (!name && conds && conds.length) {
+        for (var i = 0; i < conds.length; i++) {
+          if (conds[i].name === 'name') { name = conds[i].value; break; }
+        }
+      }
+      if (!name) return replyTrap('укажите name пользователя');
+      var idx = s.users.findIndex(function (u) { return u.name === name; });
+      if (idx < 0) return replyTrap('пользователь не найден: ' + escAttr(name));
+      if (a.password) s.users[idx].password = a.password;
+      if (a.group) s.users[idx].group = a.group;
+      log(s, 'system', 'обновлён пользователь ' + escAttr(name));
+      return replyDone([itemOf({ name: s.users[idx].name, group: s.users[idx].group })]);
+    },
+    remove: function (s, attrs, conds, words) {
+      var name = null;
+      var a = {};
+      attrs.forEach(function (w) { var eq = w.indexOf('=', 1); if (eq > 0) a[w.slice(1, eq)] = w.slice(eq + 1); });
+      if (a.name) name = a.name;
+      if (!name && conds && conds.length) {
+        for (var i = 0; i < conds.length; i++) {
+          if (conds[i].name === 'name') { name = conds[i].value; break; }
+        }
+      }
+      if (!name) return replyTrap('укажите name пользователя');
+      var idx = s.users.findIndex(function (u) { return u.name === name; });
+      if (idx < 0) return replyTrap('пользователь не найден: ' + escAttr(name));
+      s.users.splice(idx, 1);
+      log(s, 'system', 'удалён пользователь ' + escAttr(name));
+      return replyDone([]);
+    }
+  };
+
+  /* --- /system/backup --- */
+  HANDLERS['system/backup'] = {
+    save: function (s, attrs) {
+      var a = {};
+      attrs.forEach(function (w) { var eq = w.indexOf('=', 1); if (eq > 0) a[w.slice(1, eq)] = w.slice(eq + 1); });
+      var name = a.name || 'backup';
+      s.backups = s.backups || [];
+      s.backups.push({ name: name + '.backup', time: new Date().toISOString() });
+      log(s, 'system', 'создан бэкап ' + escAttr(name + '.backup'));
+      return replyDone([itemOf({ name: name + '.backup' })]);
+    },
+    print: function (s) {
+      var items = (s.backups || []).map(function (b) {
+        return itemOf({ name: b.name, 'created-time': b.time });
+      });
+      return replyDone(items);
+    }
+  };
+
+  /* --- /system/package/update --- */
+  HANDLERS['system/package/update'] = {
+    print: function (s) {
+      return replyDone([itemOf({ version: '7.15', 'installed-version': '7.15' })]);
+    },
+    'check-for-updates': function (s) {
+      log(s, 'system', 'проверка обновлений RouterOS');
+      return replyDone([itemOf({ status: 'новая версия не найдена' })]);
+    },
+    install: function (s) {
+      log(s, 'system', 'установка обновлений RouterOS');
+      return replyDone([itemOf({ status: 'обновления не найдены' })]);
     }
   };
 
