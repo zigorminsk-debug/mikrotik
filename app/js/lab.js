@@ -702,7 +702,8 @@ function openSettings(id) {
     html += '<div class="lm-t">Физический MikroTik по MAC — подготовка</div>' +
       '<p class="fs-hint">Экспериментальный поиск соседних устройств MNDP: настоящие физические MikroTik этой функцией ещё не проверялись. Подключение, сброс и отправка схемы на физический роутер ещё не реализованы. Ответы могут поступить через другие адаптеры. MAC и имя из сети не подтверждены: сравните MAC с наклейкой на устройстве.</p>' +
       '<label>Сетевой адаптер Windows<select id="lm_physical_if"><option value="">Загрузка…</option></select></label>' +
-      '<button type="button" class="btn" id="lm_find_physical">Искать устройства по MAC</button><div id="lm_physical_result" class="fs-hint" style="white-space:pre-wrap;overflow-wrap:anywhere" aria-live="polite"></div>';
+      '<button type="button" class="btn" id="lm_find_physical">Искать устройства по MAC</button><div id="lm_physical_result" class="fs-hint" style="white-space:pre-wrap;overflow-wrap:anywhere" aria-live="polite"></div>' +
+      '<button type="button" class="btn ghost" id="lm_preview_physical">Сохранить и оценить схему</button><p class="fs-hint">Черновая сводка по сохранённой схеме, без соединения и изменений роутера. Это не проверка совместимости и не окончательный план применения.</p>';
     html += sel('lm_router_role', 'Роль MikroTik (для общего LAN / VRRP)', [['primary', 'Основной'], ['backup', 'Резервный']], c.routerRole || 'primary') + '<p class="fs-hint">В двух независимых сетях эта роль не переключает интернет между роутерами.</p>';
     html += '<div class="lm-grid">' + f('lm_lan', 'Подсеть LAN (CIDR)', 'text', c.lan, 'spellcheck="false" list="dl-net"') +
       f('lm_gw', 'IP роутера (шлюз)', 'text', c.gw, 'list="dl-ip" inputmode="decimal"') + '</div>';
@@ -869,6 +870,27 @@ function openSettings(id) {
       });
     }
   }
+  var previewPhysical = $('lm_preview_physical');
+  if (previewPhysical) previewPhysical.addEventListener('click', function() {
+    var routerId = editingId;
+    saveSettings(); // Use the same validation and exact saved form values as the diagram.
+    if (editingId !== null) return;
+    var preview = PhysicalPreview.build(LabEngine, state, routerId);
+    var html = '<div class="res-card" id="physical-preview"><div class="res-head">Черновая оценка схемы для физического MikroTik</div><div class="res-body">' +
+      '<div class="note">Ничего не отправлено и не изменено. Это не окончательный список изменений и не проверка физического устройства. Данные, которые будут удалены или заменены, неизвестны.</div>' +
+      '<p><strong>Применение недоступно:</strong> нужны проверенное MAC-подключение, идентификация и инвентаризация устройства, сопоставление портов и состояния. Сброс возможен только после отдельного явного подтверждения.</p>';
+    if (preview.errors.length) html += '<h3>Схема не прошла проверку</h3><ul>' + preview.errors.map(function(x){return '<li>' + esc(x) + '</li>';}).join('') + '</ul>';
+    else if (preview.lan) {
+      html += '<h3>Выбранный роутер и LAN</h3><p>' + esc(preview.lan.routerName) + ': ' + esc(preview.lan.network) + ', шлюз ' + esc(preview.lan.gateway) + '.</p>' +
+        '<h3>Предполагаемые порты схемы</h3><p class="fs-hint">Назначения учебные — реальные имена и наличие портов не проверены.</p><ul>' +
+        preview.ports.map(function(p){return '<li>' + esc(p.port) + ' → ' + esc(p.peer) + ' (' + esc(p.role) + ')</li>';}).join('') + '</ul>' +
+        '<h3>Разделы, выбранные в схеме</h3><ul>' + preview.sections.map(function(x){return '<li>' + esc(x) + '</li>';}).join('') + '</ul>';
+      if (preview.publications.length) html += '<h3>Публикации сервисов</h3><ul>' + preview.publications.map(function(p){return '<li>' + esc(p.protocol) + ' ' + esc(p.external) + ' → ' + esc(p.address) + ':' + esc(p.local) + '</li>';}).join('') + '</ul>';
+    }
+    if (preview.warnings.length) html += '<h3>Предупреждения модели</h3><ul>' + preview.warnings.map(function(x){return '<li>' + esc(x) + '</li>';}).join('') + '</ul>';
+    html += '<p class="fs-hint">Секреты и команды здесь не показаны. Адреса и названия могут быть конфиденциальными. После изменения схемы оценку нужно создать заново.</p></div></div>';
+    resultsEl.innerHTML=html; resultsEl.hidden=false; resultsEl.scrollIntoView({block:'start',behavior:'smooth'});
+  });
   var openChr = $('lm_open_chr');
   if (openChr) openChr.addEventListener('click', function() {
     if (!window.routerOS || typeof window.routerOS.launch !== 'function') return lmFail('Запуск настоящей RouterOS доступен только в Windows-установщике приложения. На Android и в браузере он пока не поддерживается.');

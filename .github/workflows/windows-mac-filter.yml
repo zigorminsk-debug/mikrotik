@@ -1,0 +1,63 @@
+name: Windows MAC packet filter research
+on:
+  push:
+    paths:
+      - '.github/workflows/windows-mac-filter.yml'
+      - 'tools/mac-filter-ci/**'
+      - 'tools/mac-readonly-ci/**'
+      - 'tools/patch-tik4net-wildcard-ci.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  loopback:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Get pinned third-party research source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $base = Join-Path $env:RUNNER_TEMP 'mac-filter'
+          New-Item -ItemType Directory -Force $base | Out-Null
+          $archive=Join-Path $base 'source.tar.gz'
+          curl.exe -fL --retry 2 -o $archive https://codeload.github.com/danikf/tik4net/tar.gz/d4597fa04fcad3e96a9fcd51ddac499778344638
+          if ($LASTEXITCODE -ne 0) { throw 'Source download failed' }
+          if ((Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant() -ne '78ee97bbda547e835c329a66d9454417f696f356ba62b75e8f190deb077e896e') { throw 'Source digest mismatch' }
+          tar -xzf $archive -C $base
+          if ($LASTEXITCODE -ne 0) { throw 'Source extraction failed' }
+          $src=Join-Path $base 'tik4net-d4597fa04fcad3e96a9fcd51ddac499778344638'
+          Copy-Item -Recurse $src (Join-Path $base 'wildcard-source')
+          Copy-Item -Recurse $src (Join-Path $base 'filtered-source')
+          python tools/patch-tik4net-wildcard-ci.py (Join-Path $base 'wildcard-source')
+          if ($LASTEXITCODE -ne 0) { throw 'Wildcard patch failed' }
+          python tools/patch-tik4net-wildcard-ci.py (Join-Path $base 'filtered-source') filter
+          if ($LASTEXITCODE -ne 0) { throw 'Filtered patch failed' }
+      - name: Build temporary research variants and test harness
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $base=Join-Path $env:RUNNER_TEMP 'mac-filter'
+          foreach ($kind in @('wildcard','filtered')) {
+            $src=Join-Path $base "$kind-source"
+            $out=Join-Path $base "helper-$kind"
+            dotnet publish tools/mac-readonly-ci/mac-readonly-ci.csproj -t:Rebuild -c Release -r win-x64 --self-contained true "-p:TikSource=$src" -o $out
+            if ($LASTEXITCODE -ne 0) { throw "Research client build failed: $kind" }
+          }
+          dotnet build tools/mac-filter-ci/mac-filter-ci.csproj -c Release -o (Join-Path $base 'test')
+          if ($LASTEXITCODE -ne 0) { throw 'Test harness build failed' }
+      - name: Verify synthetic MAC headers on loopback only
+        shell: pwsh
+        run: |
+          $base=Join-Path $env:RUNNER_TEMP 'mac-filter'
+          $test=Join-Path $base 'test/mac-filter-ci.dll'
+          foreach ($kind in @('wildcard','filtered')) {
+            $assembly=Join-Path $base "helper-$kind/tik4net.dll"
+            dotnet $test $assembly $kind
+            if ($LASTEXITCODE -ne 0) { throw "Loopback test failed: $kind" }
+          }
+          Write-Output '::notice title=Windows loopback MAC filter::Synthetic header filtering tested on 127.0.0.1 only. No CHR, physical MikroTik, real broadcast or multiple interfaces were tested.'

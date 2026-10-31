@@ -1,0 +1,21 @@
+#!/usr/bin/env node
+'use strict';
+const assert=require('assert');
+const E=require('../app/js/lab-sim');
+const P=require('../app/js/physical-preview');
+const {state:fixture}=require('./chr-ci-fixture');
+const copy=x=>JSON.parse(JSON.stringify(x));
+const state=copy(fixture),router=state.devices.find(x=>x.id==='r'),isp=state.devices.find(x=>x.id==='isp');
+router.cfg.wifiAp=true;router.cfg.wifiIf='wifi1';router.cfg.wifiCountry='belarus';router.cfg.wifiSsid='test';router.cfg.wifiPass='SECRET_WIFI_12345';
+router.cfg.vpnPass='SECRET_VPN_12345';isp.cfg.pass='SECRET_ISP_12345';
+const before=JSON.stringify(state), p=P.build(E,state,'r');
+assert.deepEqual(p.errors,[]);assert.equal(p.lan.network,'192.168.88.0/24');assert.equal(p.lan.gateway,'192.168.88.1');
+assert(p.sections.includes('Wi-Fi'));assert(p.sections.includes('Гостевой VLAN и DHCP'));assert(p.sections.includes('NAT и доступ извне'));
+assert(p.ports.some(x=>x.port==='ether1'&&x.role==='WAN static'));assert(p.publications.some(x=>String(x.external)==='8443'));
+assert(!JSON.stringify(p).includes('SECRET_'));assert(!JSON.stringify(p).includes('/ip '));assert.equal(JSON.stringify(state),before);
+let bad=copy(state);bad.devices.find(x=>x.id==='r').cfg.gw='bad';const err=P.build(E,bad,'r');assert(err.errors.length);assert.equal(err.lan,null);assert.equal(err.sections.length,0);
+bad=copy(state);bad.devices.push({id:'r2',type:'router',cfg:{}});const multi=P.build(E,bad,'r');assert(multi.errors.length);assert.equal(multi.sections.length,0);
+assert(P.build(E,state,'wrong').errors.length);assert(P.build(E,{devices:[],links:null},'r').errors.length);
+const unusual={run:()=>({errors:[],warnings:[],model:{router:{net:{first:'192.0.2.0'},gw:'192.0.2.1',name:'r',lanPorts:[]},isps:[],publications:[]},groups:[{id:'unknown',title:'SECRET_FAKE',code:'SECRET_COMMAND'}]})};
+const unknown=P.build(unusual,state,'r');assert(unknown.warnings.length);assert(!JSON.stringify(unknown).includes('SECRET'));
+console.log('Черновая оценка: модель и порты, ошибки, несколько роутеров, секреты и неизвестные группы проверены.');

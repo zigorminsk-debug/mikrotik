@@ -1,0 +1,41 @@
+name: Windows physical scheme preview screenshot
+on:
+  push:
+    paths:
+      - '.github/workflows/windows-physical-preview-capture.yml'
+      - 'tools/capture-physical-preview.js'
+      - 'tools/export-physical-preview.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Electron and copy application
+        shell: pwsh
+        run: |
+          Push-Location windows
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed' }
+          npm run copy
+          if ($LASTEXITCODE -ne 0) { throw 'Copy failed' }
+          Pop-Location
+      - name: Capture button and preview using synthetic scheme
+        shell: pwsh
+        run: |
+          ./windows/node_modules/.bin/electron.cmd tools/capture-physical-preview.js
+          if ($LASTEXITCODE -ne 0) { throw 'Electron screenshot failed' }
+      - name: Export button 0–9
+        run: python tools/export-physical-preview.py 0 button
+      - name: Export button 10–19
+        run: python tools/export-physical-preview.py 10 button
+      - name: Export preview 0–9
+        run: python tools/export-physical-preview.py 0 result
+      - name: Export preview 10–19
+        run: python tools/export-physical-preview.py 10 result
