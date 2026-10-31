@@ -27,6 +27,7 @@ function check(ok, description) { if (!ok) throw new Error('CHR не подтв�
 function list(rows) { if (!Array.isArray(rows)) throw new Error('Некорректный ответ CHR'); return rows; }
 function one(rows, predicate) { return list(rows).filter(predicate).length === 1; }
 function enabled(row) { return row.disabled === 'false' || row.disabled === false; }
+function notDisabled(row) { return row.disabled !== 'true' && row.disabled !== true; }
 // A single peer only. This verification is currently exercised by the isolated
 // Windows CI fixture; normal preflight still rejects every VPN configuration.
 // RouterOS may return the interface private key: never log the response.
@@ -97,9 +98,9 @@ async function verifyConfiguration(expected, get, diagnostic = () => {}) {
     check(list(table).some(x => x.bridge === 'bridge-lan' && String(x['vlan-ids']) === expected.guestId && (x.tagged || '').split(',').includes('bridge-lan') && expected.lanPorts.filter(p => p.segment === 'guest').every(p => (x.untagged || '').split(',').includes(p.name))), 'таблица VLAN');
   }
   const filter = list(await get('/rest/ip/firewall/filter'));
-  check(filter.length === expected.filterRules.length + 1 && filter[0].chain === 'input' && filter[0].action === 'accept' && filter[0]['in-interface'] === 'ether6', 'правила управления');
-  expected.filterRules.forEach((rule, n) => check(Object.keys(rule).every(k => String(filter[n+1][k]) === rule[k]), 'правила firewall'));
+  check(filter.length === expected.filterRules.length + 1 && filter[0].chain === 'input' && filter[0].action === 'accept' && filter[0]['in-interface'] === 'ether6' && notDisabled(filter[0]), 'правила управления');
+  expected.filterRules.forEach((rule, n) => check(notDisabled(filter[n+1]) && Object.keys(rule).every(k => String(filter[n+1][k]) === rule[k]), 'правила firewall'));
   const nat = list(await get('/rest/ip/firewall/nat'));
-  check(nat.length === expected.natRules.length && expected.natRules.every((rule, n) => Object.keys(rule).every(k => String(nat[n][k]) === rule[k])), 'правила NAT');
+  check(nat.length === expected.natRules.length && expected.natRules.every((rule, n) => notDisabled(nat[n]) && Object.keys(rule).every(k => String(nat[n][k]) === rule[k])), 'правила NAT');
 }
 module.exports = { makeReader, verifyConfiguration, verifyWireguard };

@@ -42,6 +42,7 @@ const get = async key => { assert(key in records, key); return records[key]; };
   records['/rest/ip/address'][0].address = '192.0.2.1/24';
   await assert.rejects(verifyConfiguration(e,get),/адреса/);
   records['/rest/ip/address'][0].address = e.lanAddress;
+  records['/rest/ip/firewall/filter'][1].disabled='true'; await assert.rejects(verifyConfiguration(e,get),/firewall/); delete records['/rest/ip/firewall/filter'][1].disabled;
   records['/rest/ip/firewall/filter'][1].action = 'drop';
   await assert.rejects(verifyConfiguration(e,get),/firewall/);
   records['/rest/ip/route'][1].disabled = 'true'; await assert.rejects(verifyConfiguration(e,get),/статический маршрут/); delete records['/rest/ip/route'][1].disabled;
@@ -49,6 +50,7 @@ const get = async key => { assert(key in records, key); return records[key]; };
   records['/rest/ip/dns/static'][0].address = '192.0.2.8'; await assert.rejects(verifyConfiguration(e,get),/DNS-запись/);
   records['/rest/ip/dns/static'][0].address = e.dnsStatic.address; records['/rest/ip/firewall/filter'][1].action = e.filterRules[0].action;
   const dstnat = records['/rest/ip/firewall/nat'].find(x => x.chain === 'dstnat'); dstnat['to-ports'] = '444'; await assert.rejects(verifyConfiguration(e,get),/правила NAT/);
+  dstnat['to-ports']='443';dstnat.disabled='true';await assert.rejects(verifyConfiguration(e,get),/правила NAT/);delete dstnat.disabled;dstnat['to-ports']='444';
   // Both WAN entries must be checked, including duplicate/incorrect settings.
   const dual = makePlan(E,require('./chr-ci-dual-wan-fixture').state,'r',{allowDualStaticWan:true}).expected;
   const second = dual.wans[1];

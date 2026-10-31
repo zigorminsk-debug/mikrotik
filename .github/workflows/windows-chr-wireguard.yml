@@ -69,6 +69,10 @@ jobs:
         run: |
           node tools/test-chr-plan.js
           if ($LASTEXITCODE -ne 0) { throw 'Production VPN blocker test failed' }
+          node tools/test-lab.js
+          if ($LASTEXITCODE -ne 0) { throw 'Model validation tests failed' }
+          node tools/test-chr-verify.js
+          if ($LASTEXITCODE -ne 0) { throw 'Firewall and NAT verification unit tests failed' }
           node tools/test-chr-wireguard-verify.js
           if ($LASTEXITCODE -ne 0) { throw 'WireGuard verification unit test failed' }
           $dir = Join-Path $env:RUNNER_TEMP 'qemu-candidate'

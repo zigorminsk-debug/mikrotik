@@ -40,6 +40,9 @@ var ENDPOINT = { pc: 1, server: 1, printer: 1 };
 function priority(d, index) { return d.cfg && d.cfg.priority ? d.cfg.priority : (index === 0 ? 'primary' : 'backup'); }
 function wanFailover(cfg) { return cfg.wanFailover !== false; } // Старые проекты сохраняют прежнее поведение.
 function validPort(s) { return /^\d{1,5}$/.test(String(s || '')) && +s >= 1 && +s <= 65535; }
+// 32-byte canonical Base64 with an explicit rejection of the all-zero key.
+// This is a format check, not proof that a peer can perform a handshake.
+function validWgPublicKey(s) { return typeof s === 'string' && /^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]=$/.test(s) && !/^A{43}=$/.test(s); }
 function publications(state) {
   var out = [];
   (state.devices || []).forEach(function(d) {
@@ -166,7 +169,7 @@ function analyze(state) {
       if (!vn || vn.prefix > 28 || vn.prefix < 8 || vn.ipInt !== vn.firstInt) errors.push('VPN: укажите адрес подсети с маской от /8 до /28, например 10.10.10.0/24.');
       else if (net && vn.overlaps(net)) errors.push('VPN: подсети VPN и LAN пересекаются.');
       if (vt === 'wireguard' && !validPort(vc.vpnPort)) errors.push('WireGuard: порт должен быть от 1 до 65535.');
-      if (vt === 'wireguard' && vc.vpnPeer && !/^[A-Za-z0-9+/]{43}=$/.test(vc.vpnPeer)) errors.push('WireGuard: неверный публичный ключ клиента.');
+      if (vt === 'wireguard' && vc.vpnPeer && !validWgPublicKey(vc.vpnPeer)) errors.push('WireGuard: нужен ненулевой публичный ключ клиента в каноническом Base64 (32 байта).');
       if (vt === 'wireguard' && !vc.vpnPeer) warnings.push('WireGuard: добавьте публичный ключ клиента в настройках или настройте peer вручную. Без него подключение не заработает.');
       if (vt === 'ikev2' && (!vc.vpnServerCert || !vc.vpnClientCert)) errors.push('IKEv2: укажите имена импортированных сертификатов сервера и клиента.');
       if (vt === 'l2tp-ipsec' && (!vc.vpnUser || !vc.vpnPass || vc.vpnPass.length < 8 || !vc.vpnPsk || vc.vpnPsk.length < 8)) errors.push('L2TP/IPsec: укажите пользователя, пароль и общий ключ (каждый секрет не короче 8 символов).');

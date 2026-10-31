@@ -57,10 +57,15 @@ s.devices[0].cfg.kind='lte'; fails(s,/только один LTE/);
 s=make(); s.devices[0].cfg.kind='static'; s.devices[0].cfg.gw='198.51.100.10'; fails(s,/WAN/);
 
 // Поддержка VPN: проверяем не только поля, но и порядок firewall до drop.
-s=make(); Object.assign(s.devices[1].cfg,{vpn:true,vpnType:'wireguard',vpnPort:'13231',vpnPool:'10.10.10.0/24',vpnPeer:'A'.repeat(43)+'='}); r=E.run(s);
+s=make(); Object.assign(s.devices[1].cfg,{vpn:true,vpnType:'wireguard',vpnPort:'13231',vpnPool:'10.10.10.0/24',vpnPeer:'AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA='}); r=E.run(s);
 assert.deepStrictEqual(r.errors,[]); assert(code(r).includes('allowed-address=10.10.10.2/32')); assert(code(r).includes('in-interface=wg-lab out-interface-list=LAN')); assert(code(r).indexOf('dst-port=13231 action=accept') < code(r).indexOf('chain=input action=drop\n'));
+s.devices[1].cfg.vpnPeer='A'.repeat(43)+'='; fails(s,/публичный ключ/);
+s.devices[1].cfg.vpnPeer='A'.repeat(42)+'B='; fails(s,/публичный ключ/);
+s.devices[1].cfg.vpnPeer='AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA=';
 s.devices[1].cfg.vpnPool='192.168.88.0/24'; fails(s,/пересекаются/);
 s.devices[1].cfg.vpnPool='10.10.10.0/24';s.devices[1].cfg.vpnPort='65536';fails(s,/порт/);
+s=make();Object.assign(s.devices[1].cfg,{vpn:true,vpnType:'wireguard',vpnPort:'13231',vpnPool:'10.10.10.0/24'});Object.assign(s.devices[0].cfg,{kind:'static',ip:'10.10.10.10/24',gw:'10.10.10.1'});fails(s,/VPN и WAN пересекаются/);
+s=make();Object.assign(s.devices[1].cfg,{vpn:true,vpnType:'wireguard',vpnPort:'13231',vpnPool:'10.10.10.0/24',vpnPeer:''});r=E.run(s);assert.deepStrictEqual(r.errors,[]);assert(r.warnings.some(x=>/Без него подключение не заработает/.test(x)));
 s=make(); Object.assign(s.devices[1].cfg,{vpn:true,vpnType:'ikev2',vpnPool:'10.10.10.0/24',vpnServerCert:'server1',vpnClientCert:'client1'});r=E.run(s);assert.deepStrictEqual(r.errors,[]);assert(code(r).includes('exchange-mode=ike2'));assert(code(r).includes('proposal=ike-lab'));assert(code(r).includes('pfs-group=none'));assert(code(r).includes('remote-certificate="client1"'));assert(code(r).includes('ipsec-policy=in,ipsec src-address=10.10.10.0/24'));
 s.devices[1].cfg.vpnClientCert='';fails(s,/сертификат/);
 s=make();Object.assign(s.devices[1].cfg,{vpn:true,vpnType:'l2tp-ipsec',vpnPool:'10.10.10.0/24',vpnUser:'vpn-user',vpnPass:'password123',vpnPsk:'longsecret'});r=E.run(s);assert.deepStrictEqual(r.errors,[]);assert(code(r).includes('use-ipsec=required ipsec-secret="longsecret"'));assert(code(r).includes('in-interface-list=VPN'));assert(code(r).includes('dst-port=1701 ipsec-policy=in,ipsec'));
