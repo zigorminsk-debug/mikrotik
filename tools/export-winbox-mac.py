@@ -2,7 +2,7 @@
 """Export one unchanged WinBox screenshot through Actions annotations."""
 import base64,os,pathlib,sys
 kind=sys.argv[2] if len(sys.argv)>2 else 'neighbors'
-if kind not in ('neighbors','selected'):raise SystemExit('Invalid screenshot')
+if kind not in ('neighbors','selected','workspace'):raise SystemExit('Invalid screenshot')
 file=pathlib.Path(os.environ['RUNNER_TEMP'])/'mac-capture'/'output'/('mac-'+kind+'.jpg')
 if not file.exists():raise SystemExit('No WinBox capture')
 text=base64.b64encode(file.read_bytes()).decode('ascii')

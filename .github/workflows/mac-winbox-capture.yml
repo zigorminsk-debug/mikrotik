@@ -40,21 +40,12 @@ jobs:
           # No physical or external network links in this namespace.
           sudo ip netns exec "$ns" /usr/bin/python3 tools/capture-winbox-mac.py "$RUNNER_TEMP/mac-capture"
           sudo chmod -R a+rX "$RUNNER_TEMP/mac-capture/output"
-      - name: Export screenshot parts 0–9
+      - name: Export workspace screenshot parts 0–9
         if: success()
-        run: python3 tools/export-winbox-mac.py 0
-      - name: Export screenshot parts 10–19
+        run: python3 tools/export-winbox-mac.py 0 workspace
+      - name: Export workspace screenshot parts 10–19
         if: success()
-        run: python3 tools/export-winbox-mac.py 10
-      - name: Export screenshot parts 20–29
+        run: python3 tools/export-winbox-mac.py 10 workspace
+      - name: Export workspace screenshot parts 20–29
         if: success()
-        run: python3 tools/export-winbox-mac.py 20
-      - name: Export selected MAC screenshot parts 0–9
-        if: success()
-        run: python3 tools/export-winbox-mac.py 0 selected
-      - name: Export selected MAC screenshot parts 10–19
-        if: success()
-        run: python3 tools/export-winbox-mac.py 10 selected
-      - name: Export selected MAC screenshot parts 20–29
-        if: success()
-        run: python3 tools/export-winbox-mac.py 20 selected
+        run: python3 tools/export-winbox-mac.py 20 workspace
