@@ -79,7 +79,6 @@ ipcMain.handle('chr:launch', async (event, routerId, state) => {
     if (plan.blockers.length) return {ok:false, message:plan.blockers.join('\n')};
     const online = Array.isArray(plan.expected.wans) && plan.expected.wans.length === 2;
     if (online) {
-      if (plan.expected.ntp) return {ok:false, message:'NTP в режиме двух виртуальных WAN ещё не проверен. Отключите NTP или используйте один изолированный WAN; синхронизация времени в изолированной CHR не работает.'};
       if (!validateDualInternet(plan.expected)) return {ok:false, message:'Этот интернет-режим пока поддерживает только два виртуальных статических WAN: ether1 — 10.0.2.20/24, шлюз 10.0.2.2; ether4 — 10.0.3.20/24, шлюз 10.0.3.2; DNS 10.0.2.3 и 10.0.3.3. Порты зависят от порядка подключения на схеме. Программа не заменяет выбранные адреса. Настоящие независимые провайдеры, DHCP и PPPoE пока не поддерживаются.'};
       const networkChoice = await dialog.showMessageBox(mainWindow, networkWarning());
       if (networkChoice.response !== 1 || quitting || !mainWindow || mainWindow.isDestroyed()) return {ok:false, cancelled:true};

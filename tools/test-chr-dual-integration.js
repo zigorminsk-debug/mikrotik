@@ -16,7 +16,7 @@ if (![qemu,image,work,supervisor].every(Boolean)) throw Error('Missing CI paths'
 const state=JSON.parse(JSON.stringify(require('./chr-ci-dual-wan-fixture').state));
 Object.assign(state.devices.find(d=>d.id==='isp').cfg,{ip:'10.0.2.20/24',gw:'10.0.2.2',dns:'10.0.2.3'});
 Object.assign(state.devices.find(d=>d.id==='isp2').cfg,{ip:'10.0.3.20/24',gw:'10.0.3.2',dns:'10.0.3.3'});
-Object.assign(state.devices.find(d=>d.id==='r').cfg,{customDns:true,dnsPrimary:'10.0.2.3',dnsSecondary:'10.0.3.3'});
+Object.assign(state.devices.find(d=>d.id==='r').cfg,{customDns:true,dnsPrimary:'10.0.2.3',dnsSecondary:'10.0.3.3',ntpClient:true,ntpServer:'10.0.2.2',timeZone:'Europe/Minsk'});
 const windows=[],handlers={},dialogs=[],choices=[1,1,1],events=[];let actual, info;
 class Window extends EventEmitter {
  constructor(options){super();this.options=options;this.dead=false;this.events=[];this.webContents=new EventEmitter();Object.assign(this.webContents,{mainFrame:{},isDestroyed:()=>this.dead,send:(...a)=>this.events.push(a),setWindowOpenHandler:()=>{},session:{setPermissionRequestHandler:()=>{},webRequest:{onBeforeRequest:()=>{}}}});windows.push(this);}
@@ -50,6 +50,9 @@ vm.runInNewContext(source,{require:req,process:{platform:'win32',resourcesPath:p
  assert(dialogs[2].title==='Виртуальная RouterOS готова');
  assert.equal(new URL(windows[1].url).hostname,'127.0.0.1');
  const get=makeReader(Number(new URL(info.url).port),info.user,info.password);
+ const ntp=await get('/rest/system/ntp/client'), servers=await get('/rest/system/ntp/client/servers'), clock=await get('/rest/system/clock');
+ assert.equal(ntp.enabled,'true');assert(servers.some(x=>x.address==='10.0.2.2'));assert.equal(clock['time-zone-name'],'Europe/Minsk');
+ assert(dialogs[2].detail.includes('синхронизация времени и доступность сервера не проверялись'));
  async function waitActive(gateway){for(let i=0;i<45;i++){const rs=await get('/rest/ip/route');if(rs.some(x=>x['dst-address']==='0.0.0.0/0'&&x.gateway===gateway&&(x.active===true||x.active==='true')))return;await new Promise(r=>setTimeout(r,1000));}throw Error('Route not active: '+gateway);}
  const fetch='/tool fetch url="https://api.github.com/zen" output=none check-certificate=no';
  await waitActive('10.0.2.2'); await actual.console.command(fetch);
@@ -57,5 +60,5 @@ vm.runInNewContext(source,{require:req,process:{platform:'win32',resourcesPath:p
  await actual.console.command('/interface ethernet enable [find where name=ether1]'); await waitActive('10.0.2.2'); await actual.console.command(fetch);
  // Close the WebFig window like a user: main clears active before stopping.
  const dir=actual.directory; windows[1].destroy(); await actual.stop(); assert(!fs.existsSync(dir));
- console.log('::notice title=Main handler dual WAN integration::Real main handler, generated plan, CHR session, selected routes and interface failover verified; Electron dialogs/windows and image download were mocked. Both WANs use one host; test fetch does not validate TLS.');
+ console.log('::notice title=Main handler dual WAN integration::Real main handler, generated plan, CHR session, selected routes, NTP settings and interface failover verified; NTP synchronization is not asserted by this test; Electron dialogs/windows and image download were mocked. Both WANs use one host; test fetch does not validate TLS.');
 })().catch(e=>{console.log('::error title=Dual WAN main integration::'+String(e.message).replace(/[\r\n%]/g,' '));console.log('::notice title=Integration diagnostics::'+JSON.stringify(events));process.exitCode=1;}).finally(async()=>{if(actual)await actual.stop().catch(e=>{console.log('::error title=Integration cleanup::'+String(e.message).replace(/[\r\n%]/g,' '));process.exitCode=1;});});

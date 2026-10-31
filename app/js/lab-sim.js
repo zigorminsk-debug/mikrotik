@@ -758,7 +758,7 @@ function chrPreflight(state, routerId) {
     if (c.vpn) blockers.push('Автоматическое применение VPN и проверка сертификатов для CHR ещё не реализованы.');
     if (c.secureManagement) blockers.push('Ограничение управления пока несовместимо со служебным каналом доступа к CHR.');
     if (c.cloudDdns || c.wanMonitor) blockers.push('IP Cloud и проверка WAN требуют доступа к внешним сервисам, который в изолированной VM не предусмотрен.');
-    if (c.ntpClient) notices.push('В изолированной CHR проверяются только параметры NTP и часового пояса; фактическая синхронизация и доступность сервера не проверяются. Режим двух виртуальных WAN с NTP пока недоступен.');
+    if (c.ntpClient) notices.push('В CHR проверяются параметры NTP и часового пояса, но не успешность синхронизации или доступность выбранного сервера. В изолированном режиме внешний сервер недоступен; интернет-режим требует отдельного согласия.');
     var conflicts = [c.lan, c.vlanGuest ? c.guestNet : null, c.staticRoute ? c.routeDst : null];
     devices.forEach(function(d){if (d.type === 'isp' && d.cfg && d.cfg.kind === 'static') conflicts.push(d.cfg.ip);});
     if (conflicts.some(function(text){var net = text && parseCidr(text); return net && net.overlaps(mgmt);})) blockers.push('Сеть пересекается с зарезервированной для управления CHR подсетью 172.31.254.0/24.');

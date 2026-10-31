@@ -67,12 +67,14 @@ vm.runInNewContext(source,{require:req,process:{platform:'win32',resourcesPath:'
   assert(!JSON.stringify(main.events).includes('TEMPORARY_TEST_PASSWORD'));
   guest.destroy();await new Promise(resolve=>setImmediate(resolve));assert(created[0].stopped);assert(!errors.length);
   plan={blockers:[],groups:[{id:'iface',commands:['/interface print']}],expected:{wans:[{},{}]}};
-  plan.expected.ntp={server:'192.0.2.123',zone:'Europe/Minsk'};let ntpOnline=await call(good,'r',{});assert(!ntpOnline.ok && /NTP/.test(ntpOnline.message));assert.strictEqual(created.length,1);delete plan.expected.ntp;
+  plan.expected.ntp={server:'192.0.2.123',zone:'Europe/Minsk'}; // Still subject to the same network guard and per-launch consent.
   onlineValid=false; let rejectedOnline=await call(good,'r',{}); assert(!rejectedOnline.ok && rejectedOnline.message.includes('10.0.2.20')); assert.strictEqual(created.length,1);
   onlineValid=true; choices.push(0); let denied=await call(good,'r',{}); assert(denied.cancelled); assert.strictEqual(created.length,1);
   assert(dialogs.at(-1).detail.includes('службам этого компьютера') && dialogs.at(-1).defaultId===0);
   choices.push(1,1,1);const allowed=await call(good,'r',{}); assert(allowed.ok); assert.strictEqual(created.length,2); assert.strictEqual(created[1].opts.internetConsent,true);
   assert(dialogs.some(d=>d.title==='Лицензия RouterOS CHR' && d.detail.includes('компьютеру и локальной сети')));
+  assert(dialogs.at(-1).detail.includes('синхронизация времени и доступность сервера не проверялись'));
+  assert.deepStrictEqual(created[1].plan.expected.ntp, plan.expected.ntp);
   windows[2].destroy(); await new Promise(resolve=>setImmediate(resolve)); assert(created[1].stopped);
   console.log('Windows мост: только главное окно, согласие, изоляция WebFig и остановка проверены.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
