@@ -38,6 +38,9 @@ const req=name=>{
   if(name==='./chr/network-warning')return require('../windows/chr/network-warning');
  if(name==='./chr/download')return {ensureImage:async(_root,consent)=>{assert(consent);return path.resolve(image);}};
  if(name==='./chr/session')return {ChrSession:ActualSession};
+ // main.js is evaluated from tools/, so resolve unmocked relative imports
+ // against the real Windows application directory, not this test directory.
+ if(name.startsWith('./'))return require(path.resolve(__dirname,'../windows',name));
  return require(name);
 };
 vm.runInNewContext(source,{require:req,process:{platform:'win32',resourcesPath:path.resolve(work)},__dirname:path.resolve(work),Buffer,URL,setTimeout,clearTimeout,console});
