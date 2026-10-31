@@ -4,6 +4,7 @@
 
 var contentEl = document.getElementById('content');
 var standView = document.getElementById('stand-view');
+var connectView = document.getElementById('connect-view');
 var navEl = document.getElementById('nav');
 var topTitle = document.getElementById('topbar-title');
 var sidebar = document.getElementById('sidebar');
@@ -139,6 +140,10 @@ function route() {
   if (sec && sec.type === 'stand') {
     standView.hidden = false;
     contentEl.hidden = true;
+  } else if (sec && sec.type === 'connect' && connectView) {
+    standView.hidden = true;
+    contentEl.hidden = true;
+    connectView.hidden = false;
   } else {
     standView.hidden = true;
     contentEl.hidden = false;
@@ -351,7 +356,11 @@ function planTable(plan, inp) {
       (inp.guest.on && inp.wifi.ssidGuest ? ' + «' + esc(inp.wifi.ssidGuest) + '»' : ''),
       'WPA2/WPA3', 'пароль задан в форме']);
   plan.isps.forEach(function (i, n) {
-    var role = plan.failover ? (i === plan.primary ? 'ОСНОВНОЙ' : (i === plan.backup ? 'РЕЗЕРВ' : 'доп.')) : 'WAN';
+    var role = plan.failover
+      ? (plan.isps.indexOf(plan.primary) === n ? 'ОСНОВНОЙ'
+        : plan.isps.indexOf(plan.backup) === n ? 'РЕЗЕРВ'
+        : 'доп.')
+      : 'WAN';
     rows.push(['WAN ' + (n + 1) + ': ' + i.name, i.type.toUpperCase(), i.iface, role]);
   });
   if (plan.failover)
@@ -447,6 +456,10 @@ document.getElementById('btn_run').addEventListener('click', function () {
   try {
     var res = StandEngine.run(collect());
     renderResults(res);
+    window.__lastStandGroups = !res.checks.errors.length ? res.groups : null;
+    if (typeof window.MtConnect !== 'undefined' && window.MtConnect.setStandGroups) {
+      window.MtConnect.setStandGroups(window.__lastStandGroups);
+    }
   } catch (e) {
     resultsEl.hidden = false;
     resultsEl.innerHTML = '<div class="res-card"><div class="res-head">Ошибка моделирования</div>' +

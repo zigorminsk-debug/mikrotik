@@ -384,12 +384,6 @@ function genCommands(plan) {
   }
 
   /* 7. Firewall: filter — строгий порядок! */
-  var g7 = ['/* === 7. Firewall: правила защиты (filter) === */',
-    '# Порядок правил КРИТИЧЕН — вставляйте строго сверху вниз.',
-    '# input (трафик К роутеру):', '',
-    'IPF01', 'IPF02', 'IPF03', 'IPF04', 'IPF05', 'IPF06', 'IPF07', 'IPF08', 'IPF09',
-    '', '# forward (транзит через роутер):', '',
-    'IPF10', 'IPF11'];
   var inputRules = [
     '/ip firewall filter add chain=input connection-state=established,related action=accept comment="1. Существующие соединения"',
     '/ip firewall filter add chain=input connection-state=invalid action=drop comment="2. Невалидные — запрет"',
