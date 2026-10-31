@@ -69,7 +69,7 @@ vm.runInNewContext(source,{require:req,process:{platform:'win32',resourcesPath:'
   plan={blockers:[],groups:[{id:'iface',commands:['/interface print']}],expected:{}};
   choices.push(2);const cancelled=await call(good,'r',{});assert(cancelled.cancelled && !downloads.length);
   choices.push(0,1,1);const result=await call(good,'r',{});assert(result.ok);assert(opened.includes('https://mikrotik.com/software/legal'));assert.strictEqual(downloads.length,1);assert.strictEqual(downloads[0].consent,true);
-  assert.strictEqual(created[0].opts.internetConsent,false);assert.strictEqual(created[0].plan,plan);assert.strictEqual(created[0].opts.qemu,'/resources/qemu/qemu-system-x86_64.exe');
+  assert.strictEqual(created[0].opts.internetConsent,false);assert.strictEqual(created[0].plan,plan);assert.strictEqual(created[0].opts.qemu,require('path').join('/resources','qemu','qemu-system-x86_64.exe'));
   const guest=windows[1];assert(guest.url==='http://127.0.0.1:18765/');assert(guest.options.webPreferences.sandbox && !guest.options.webPreferences.nodeIntegration);
   let outcome;guest.requests({url:'https://example.com/'},x=>outcome=x);assert(outcome.cancel);
   guest.requests({url:'http://127.0.0.1:18765/webfig'},x=>outcome=x);assert(!outcome.cancel);

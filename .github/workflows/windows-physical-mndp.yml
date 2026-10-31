@@ -24,10 +24,15 @@ jobs:
       - name: Test parser and permission boundary
         shell: pwsh
         run: |
-          node tools/test-physical-mndp.js
-          if ($LASTEXITCODE -ne 0) { throw 'Parser test failed' }
-          node tools/test-chr-main.js
-          if ($LASTEXITCODE -ne 0) { throw 'Consent and IPC test failed' }
+          $ErrorActionPreference = 'Continue'
+          $output = node tools/test-physical-mndp.js 2>&1
+          $code = $LASTEXITCODE
+          foreach ($line in $output) { Write-Output "::notice title=MNDP parser::$($line.ToString().Replace('%',' '))" }
+          if ($code -ne 0) { throw 'Parser test failed' }
+          $output = node tools/test-chr-main.js 2>&1
+          $code = $LASTEXITCODE
+          foreach ($line in $output) { Write-Output "::notice title=IPC consent::$($line.ToString().Replace('%',' '))" }
+          if ($code -ne 0) { throw 'Consent and IPC test failed' }
       - name: Test real loopback sockets with synthetic response
         shell: pwsh
         run: |
