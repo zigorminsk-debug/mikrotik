@@ -3,7 +3,7 @@
 Only fixed result flags and packet *counts* are emitted. Never persist or print
 packets, raw WinBox logs, serial output, credentials or the disposable disk.
 """
-import collections, json, os, pathlib, secrets, shutil, socket, struct, subprocess, sys, threading, time
+import collections, errno, json, os, pathlib, secrets, shutil, socket, struct, subprocess, sys, threading, time
 import pexpect
 
 base=None;disk=None;winbox=None;password=None
@@ -167,6 +167,11 @@ try:
     command('/ip address add address=192.0.2.2/24 interface=ether1')
     command('/ip service enable winbox')
     thread=threading.Thread(target=capture_counts,daemon=True);thread.start()
+    command('/tool mac-server mac-winbox set allowed-interface-list=none')
+    test_valid=probe_forged('filtered-valid-control','helper-filtered','valid')
+    test_original=probe_forged('wildcard-wrong-session','helper-wildcard','session')
+    negatives={kind:probe_forged('filtered-wrong-'+kind,'helper-filtered',kind) for kind in ('router','destination','session','client_type','version')}
+    command('/tool mac-server mac-winbox set allowed-interface-list=all')
     ip=probe('192.0.2.2','IP-control')
     mac=probe('02:11:22:33:44:55','MAC-with-IP')
     tik_with_ip=probe_tik('original-with-IP','helper-original')
@@ -177,10 +182,6 @@ try:
     patched_no_ip=probe_tik('wildcard-without-IP','helper-wildcard')
     wrong=probe_tik('wildcard-wrong-password','helper-wildcard',wrong_password=True)
     filtered=probe_tik('filtered-without-IP','helper-filtered')
-    command('/tool mac-server mac-winbox set allowed-interface-list=none')
-    test_valid=probe_forged('filtered-valid-control','helper-filtered','valid')
-    test_original=probe_forged('wildcard-wrong-session','helper-wildcard','session')
-    negatives={kind:probe_forged('filtered-wrong-'+kind,'helper-filtered',kind) for kind in ('router','destination','session','client_type','version')}
     if ip!='workspace':raise RuntimeError('IP control did not reach a verified workspace; MAC result inconclusive')
     if mac!='workspace' or mac_no_ip!='workspace':raise RuntimeError('An official MAC test did not reach a verified workspace; see packet counts')
     if test_valid!='early_data' or test_original!='early_data':raise RuntimeError('Forged ACK test controls did not trigger the expected early DATA')
@@ -190,7 +191,8 @@ try:
     if patched_with_ip!='read_ok' or patched_no_ip!='read_ok':raise RuntimeError('Wildcard research client did not read CHR in both MAC-only conditions')
     print('::notice title=Control conclusion::Official WinBox authenticated via MAC with and without IPv4; CI-only filtered experiment also read a resource and rejected selected forged ACK headers. These single-NIC Linux experiments are not production fixes or physical/Windows tests.')
 except Exception as exc:
-    print('::error title=WinBox control::'+(str(exc) if isinstance(exc,RuntimeError) else type(exc).__name__),flush=True)
+    reason=(str(exc) if isinstance(exc,RuntimeError) else ('OS error '+errno.errorcode.get(exc.errno,'unknown') if isinstance(exc,OSError) else type(exc).__name__))
+    print('::error title=WinBox control::'+reason,flush=True)
     raise SystemExit(1) from None
 finally:
     stop.set()
