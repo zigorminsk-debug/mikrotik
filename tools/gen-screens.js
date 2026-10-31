@@ -628,6 +628,100 @@ scenes['ipsec-peer.svg'] = {
   }
 };
 
+/* 20. Очереди (QoS) */
+scenes['qos-queues.svg'] = {
+  menu: ['Queues', 'Simple Queues', 'Queue Types', 'PCQ'],
+  active: 1,
+  toolbar: ['＋', '✕', '↑', '↓', '▶'],
+  build() {
+    let b = txt(170, 24, 'Queues → Simple Queues', { size: 12, bold: true });
+    const t = table(162, 34, 570,
+      ['#', 'Name', 'Target', 'Max Limit', 'Priority', 'Disabled', 'Comment'],
+      [
+        ['0', { t: 'guest-limit', fill: '#0b4f8a', bold: true }, '192.168.99.0/24', '20M/20M', '8', '', 'Гости: лимит 20 Мбит/с'],
+        ['1', 'lan-pcq', '192.168.88.0/24', '100M/100M', '8', '', 'LAN: честное деление (PCQ)'],
+        ['2', 'voip-priority', '192.168.88.0/24', '10M/10M', '1', '', 'VoIP: высокий приоритет'],
+      ],
+      { cols: [30, 130, 160, 110, 60, 60, 80], monoCols: [1, 2], selected: 0 });
+    b += t.s;
+    b += caption(170, t.bottom + 16, 'Очереди обращаются по порядку — выше приоритет обслуживается раньше.');
+    b += caption(170, t.bottom + 36, '/queue simple add name=guest-limit target=192.168.99.0/24 max-limit=20M/20M');
+    return win('Queues', 748, t.bottom + 76, b, { menu: this.menu, active: this.active, toolbar: this.toolbar });
+  }
+};
+
+/* 21. Torch (мониторинг трафика) */
+scenes['monitor-torch.svg'] = {
+  menu: ['Tools', 'Torch', 'Graphing', 'Profile'],
+  active: 1,
+  toolbar: ['＋', '✕', '▶', '⏹'],
+  build() {
+    let b = txt(170, 24, 'Tools → Torch', { size: 12, bold: true });
+    b += field(180, 56, 'Interface:', 'pppoe-out1', { select: true, lw: 130, vw: 200 });
+    b += field(180, 86, 'Protocol:', 'all', { select: true, lw: 130, vw: 200 });
+    b += field(180, 116, 'Src. Address:', '0.0.0.0/0', { lw: 130, vw: 200 });
+    b += field(180, 146, 'Dst. Address:', '0.0.0.0/0', { lw: 130, vw: 200 });
+    b += buttons(180, 190, [{ t: 'Start', primary: true, w: 80 }, { t: 'Stop', w: 80 }, { t: 'Apply', w: 80 }]);
+    const t = table(162, 240, 570,
+      ['#', 'Src. Address', 'Dst. Address', 'Protocol', 'Tx', 'Rx', 'Total'],
+      [
+        ['0', '192.168.88.10', '142.250.1.1', 'tcp', '1.2 Mbps', '45 kbps', '1.2 Mbps'],
+        ['1', '192.168.88.20', '93.186.123.4', 'udp', '812 kbps', '34 kbps', '812 kbps'],
+        ['2', '192.168.99.15', '1.1.1.1', 'udp', '60 kbps', '150 kbps', '210 kbps'],
+      ],
+      { cols: [30, 140, 140, 80, 90, 90, 90], monoCols: [1, 2, 3], selected: 0 });
+    b += t.s;
+    b += caption(170, t.bottom + 16, 'Torch показывает текущий трафик по интерфейсу в реальном времени.');
+    b += caption(170, t.bottom + 36, '/tool torch interface=pppoe-out1  (останавливает роутер при длительной работе)');
+    return win('Torch', 748, t.bottom + 76, b, { menu: this.menu, active: this.active, toolbar: this.toolbar });
+  }
+};
+
+/* 22. Пользователи системы */
+scenes['system-users.svg'] = {
+  menu: ['System', 'Users', 'Groups', 'SSH Keys', 'Cloud'],
+  active: 1,
+  toolbar: ['＋', '✕', '⚙'],
+  build() {
+    let b = txt(170, 24, 'System → Users', { size: 12, bold: true });
+    const t = table(162, 34, 570,
+      ['#', 'Name', 'Group', 'Disabled', 'Comment'],
+      [
+        ['0', { t: 'admin', fill: '#0b4f8a', bold: true }, 'full', '', 'Администратор'],
+        ['1', 'observer', 'read', '', 'Только чтение'],
+        ['2', 'support', 'read,write', 'true', 'Заблокирован'],
+      ],
+      { cols: [30, 140, 120, 80, 200], monoCols: [1, 2], selected: 0 });
+    b += t.s;
+    b += caption(170, t.bottom + 16, 'Смените пароль admin сразу после первого входа.');
+    b += caption(170, t.bottom + 36, '/user set [ find name=admin ] password=\"НовыйСильныйПароль1!\"');
+    return win('System', 748, t.bottom + 76, b, { menu: this.menu, active: this.active, toolbar: this.toolbar });
+  }
+};
+
+/* 23. Файлы и бэкап */
+scenes['system-backup.svg'] = {
+  menu: ['File', 'Packages', 'License'],
+  active: 0,
+  toolbar: ['＋', '✕', '⏬', '⏫'],
+  build() {
+    let b = txt(170, 24, 'File → файлы роутера', { size: 12, bold: true });
+    const t = table(162, 34, 570,
+      ['#', 'Name', 'Type', 'Size', 'Created'],
+      [
+        ['0', { t: 'myconfig.backup', fill: '#0b4f8a', bold: true }, 'backup', '12 KiB', 'jan/02/2026 10:15:00'],
+        ['1', 'myconfig.rsc', 'script', '4 KiB', 'jan/02/2026 10:18:00'],
+        ['2', 'routeros-7.15.npk', 'package', '34 MiB', 'dec/15/2025 14:00:00'],
+      ],
+      { cols: [30, 200, 90, 80, 170], monoCols: [1, 4], selected: 0 });
+    b += t.s;
+    b += rect(170, t.bottom + 14, 540, 54, '#f0fdf4', { rx: 6, stroke: '#86efac' });
+    b += txt(184, t.bottom + 38, 'Бэкап сохраняет всю конфигурацию; экспорт (.rsc) — текстовый скрипт для переноса.', { size: 11.5, fill: '#14532d' });
+    b += caption(170, t.bottom + 74, '/system backup save name=myconfig password=\"Пароль\"');
+    return win('File', 748, t.bottom + 114, b, { menu: this.menu, active: this.active, toolbar: this.toolbar });
+  }
+};
+
 /* ---------- запись ---------- */
 let count = 0;
 for (const [name, spec] of Object.entries(scenes)) {

@@ -36,6 +36,8 @@ jobs:
           }
       - name: Модульные тесты
         run: node tools/test-stand.js
+      - name: Тесты протокола RouterOS API
+        run: node tools/test-mt.js
       - name: DOM-тест (интерактивный стенд, шрифт, автодополнение)
         run: |
           npm install --prefix tools --no-audit --no-fund
