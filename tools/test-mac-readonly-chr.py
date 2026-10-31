@@ -31,7 +31,9 @@ def probe(test_password):
     # No raw console, response, exception message or credentials in logs.
     try: response=json.loads(result.stdout.strip().splitlines()[-1])
     except Exception: raise RuntimeError('MAC client produced no valid result') from None
-    return result.returncode==0 and response.get('ok') is True
+    category=response.get('category','unknown')
+    if not isinstance(category,str) or not category.isidentifier() or len(category)>80: category='unknown'
+    return result.returncode==0 and response.get('ok') is True,category
 
 try:
     vm=pexpect.spawn('qemu-system-x86_64',['-machine','pc,accel=tcg','-m','256','-smp','1','-nographic','-no-reboot','-drive',f'file={disk},format=raw,if=ide','-netdev','tap,id=n0,ifname=tap0,script=no,downscript=no','-device',f'e1000,netdev=n0,mac={mac}'],encoding='utf-8',timeout=180,echo=False)
@@ -52,10 +54,12 @@ try:
     js="const d=require('./windows/physical/mndp');d.discover('tap0','192.0.2.1',{timeout:6000}).then(x=>process.exit(x.some(y=>y.mac==='02:11:22:33:44:55')?0:1)).catch(()=>process.exit(1));"
     result=subprocess.run(['node','-e',js],capture_output=True,timeout=20)
     if result.returncode:raise RuntimeError('No matching MNDP response on isolated TAP')
-    stage='wrong password';
-    if probe('wrong_'+secrets.token_hex(8)):raise RuntimeError('Wrong password was accepted')
     stage='authenticated MAC read';
-    if not probe(password):raise RuntimeError('MAC read-only probe failed')
+    success,category=probe(password)
+    if not success:raise RuntimeError('MAC read-only probe failed ('+category+')')
+    stage='wrong password';
+    success,_=probe('wrong_'+secrets.token_hex(8))
+    if success:raise RuntimeError('Wrong password was accepted')
     print('::notice title=Isolated MAC research::Windows application MNDP parser discovered one disposable CHR and a third-party research client authenticated via MAC WinBox and read RouterOS version. An attempt with a wrong password could not read the version. No physical device, Windows client, reset or configuration transfer was tested.')
 except Exception as exc:
     print('::error title=MAC research::'+stage+': '+(str(exc) if isinstance(exc,RuntimeError) else type(exc).__name__).replace('\n',' ').replace('%',' '))
