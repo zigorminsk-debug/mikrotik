@@ -48,6 +48,8 @@ jobs:
           node tools/test-chr-session-unit.js
           node tools/test-chr-online.js
           node tools/test-chr-main.js
+          node tools/test-chr-wireguard-verify.js
+          node tools/test-physical-mndp.js
       - name: DOM-тест (интерактивный стенд, шрифт, автодополнение)
         run: |
           npm install --prefix tools --no-audit --no-fund
@@ -55,6 +57,7 @@ jobs:
           node tools/test-dom.js
           node tools/test-lab-dom.js
           node tools/test-chr-dual-wan-dom.js
+          node tools/test-physical-dom.js
 
   android:
     name: Android APK (подписанный)
