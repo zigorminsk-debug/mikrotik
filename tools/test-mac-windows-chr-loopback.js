@@ -13,13 +13,14 @@ const target='02:11:22:33:44:55',password='TemporaryCI_'+randomBytes(16).toStrin
 let vm,conn,dir,serial,eth,proxy,exitPromise;const clients=new Set();let sent=0,received=0,stage='initialization';
 const listen=(s,port)=>new Promise((resolve,reject)=>{s.once('error',reject);s.bind(port,'127.0.0.1',()=>{s.removeListener('error',reject);resolve();});});
 async function unusedPort(){const s=dgram.createSocket('udp4');await listen(s,0);const p=s.address().port;await new Promise(r=>s.close(r));return p;}
-async function readOnly(pass,mac=target){
+async function readOnly(pass,mac=target,expectedIdentity='ci-mac-readonly'){
  const proc=spawn(helper,[],{stdio:['pipe','pipe','ignore'],windowsHide:true});
  let stdout='';proc.stdout.setEncoding('utf8');proc.stdout.on('data',x=>{stdout+=x;if(stdout.length>8192)proc.kill();});proc.stdin.on('error',()=>{});
  const result=new Promise(resolve=>{proc.once('error',()=>resolve({code:-1}));proc.once('exit',code=>resolve({code}));});
- proc.stdin.end(JSON.stringify({mac,password:pass})+'\n');
+ proc.stdin.end(JSON.stringify({mac,password:pass,inventory:true,expectedIdentity})+'\n');
  let timer;const out=await Promise.race([result,new Promise(resolve=>{timer=setTimeout(()=>{proc.kill();resolve({code:-2});},100000);})]);clearTimeout(timer);
- try{const x=JSON.parse(stdout.trim().split('\n').at(-1));return out.code===0&&x.ok===true;}catch(_){return false;}
+ if(out.code===-2){await result;throw Error('MAC helper timed out');}
+ try{const x=JSON.parse(stdout.trim().split('\n').at(-1));if(typeof x.ok!=='boolean')throw Error();return out.code===0&&x.ok===true;}catch(_){throw Error('MAC helper did not return a valid result');}
 }
 (async()=>{
  stage='loopback shim';eth=dgram.createSocket('udp4');proxy=dgram.createSocket('udp4');
@@ -50,10 +51,13 @@ async function readOnly(pass,mac=target){
  serial.close();conn=new ChrConsole(socket);await conn.initialize(password);
  await conn.command('/ip dhcp-client disable [find]');
  await conn.command('/tool mac-server mac-winbox set allowed-interface-list=all');
+ await conn.command('/system identity set name=ci-mac-readonly');
+ stage='MAC-only authenticated inventory';if(!await readOnly(password))throw Error('MAC-only inventory did not match the fixture');
+ stage='wrong-identity negative';if(await readOnly(password,target,'ci-incorrect-identity'))throw Error('Wrong expected identity matched');
  stage='wrong-password negative';if(await readOnly('wrong_'+randomBytes(16).toString('hex')))throw Error('Wrong password read a result');
- stage='MAC-only authenticated read';if(!await readOnly(password))throw Error('MAC-only read did not succeed');
+ stage='wrong-MAC negative';if(await readOnly(password,'02:11:22:33:44:66'))throw Error('Wrong MAC read a result');
  if(!sent||!received)throw Error('No QEMU Ethernet exchange');
- console.log('::notice title=Windows CHR MAC loopback::CI-only patched client read the version of a disposable CHR by MAC via a localhost Ethernet shim; a wrong password could not read it. No physical NIC, real network, device identity or Windows broadcast tested.');
+ console.log('::notice title=Windows CHR MAC loopback::CI-only patched client read and checked version, test identity and ether1 MAC on a disposable CHR via a localhost Ethernet shim; wrong expected identity, password and target MAC did not pass. No physical NIC, real network, device identity or Windows broadcast tested.');
 })().catch(err=>{console.log('::error title=Windows MAC CHR research::'+stage+': '+String(err.message).replace(/[\r\n%]/g,' ')+' (frames sent='+sent+', received='+received+')');process.exitCode=1;}).finally(async()=>{
  if(conn)conn.close();if(serial&&serial.listening)serial.close();
  if(vm&&vm.exitCode===null&&vm.signalCode===null)vm.stdin.end();

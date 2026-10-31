@@ -45,3 +45,27 @@ foreach (var (label,offset) in variants) {
     if (accepted!=expected) throw new Exception("Unexpected result: "+label);
 }
 Console.WriteLine(args[1]+": correct ACK accepted; short packet rejected; altered fields "+(args[1]=="filtered"?"rejected":"accepted")+" on Windows loopback. No RouterOS or physical network tested.");
+
+// The parallel candidate-probe ACK path is a separate receive implementation.
+// This is a synthetic loopback demonstration, not a production security fix.
+var probeType=baseType.GetNestedType("CandidateProbe",BindingFlags.NonPublic) ?? throw new Exception("Candidate probe unavailable");
+var probe=Activator.CreateInstance(probeType,true) ?? throw new Exception("Cannot create probe");
+var probeFields=BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.Public;
+void SetProbe(string name,object? value) => (probeType.GetField(name,probeFields) ?? throw new Exception("Probe field unavailable")).SetValue(probe,value);
+using var probeSocket=new UdpClient(new IPEndPoint(IPAddress.Loopback,0));
+SetProbe("Udp",probeSocket);SetProbe("LocalMac",local);SetProbe("SessionKey",(ushort)0x1234);
+var probeMethod=probeType.GetMethod("TryReadAck",probeFields) ?? throw new Exception("Probe receive unavailable");
+bool Probe(byte[] data) {
+    var ep=(IPEndPoint)probeSocket.Client.LocalEndPoint!;
+    send.Send(data,data.Length,ep);
+    if(!SpinWait.SpinUntil(()=>probeSocket.Available>0,2000))throw new Exception("Probe loopback timeout");
+    var parameters=new object[]{router,(uint)0};
+    return (bool)probeMethod.Invoke(probe,parameters)!;
+}
+if(!Probe(Good()))throw new Exception("Probe valid ACK rejected");
+if(Probe(new byte[2]))throw new Exception("Probe short ACK accepted");
+foreach(var (label,offset,accepted) in new[]{("version",0,true),("router",2,false),("destination",8,true),("client-type",14,true),("session",16,false),("type",1,false)}) {
+    var p=Good();p[offset]^=1;
+    if(Probe(p)!=accepted)throw new Exception("Probe unexpected result: "+label);
+}
+Console.WriteLine("::notice title=Windows candidate ACK research::Both temporary variants accepted synthetic candidate ACKs with modified version, destination or client type, but rejected wrong session, router and packet type on loopback. This is not a complete security analysis or a physical-network test.");
