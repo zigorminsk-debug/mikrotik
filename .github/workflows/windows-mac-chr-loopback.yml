@@ -1,0 +1,97 @@
+# Research only: this does not bundle the candidate into the application.
+name: Windows isolated CHR MAC research
+on:
+  push:
+    paths:
+      - '.github/workflows/windows-mac-chr-loopback.yml'
+      - 'tools/test-mac-windows-chr-loopback.js'
+      - 'tools/mac-loopback-frame.js'
+      - 'tools/test-mac-loopback-frame.js'
+      - 'tools/patch-tik4net-loopback-ci.py'
+      - 'tools/patch-tik4net-wildcard-ci.py'
+      - 'tools/mac-readonly-ci/**'
+      - 'windows/chr/console.js'
+      - 'tools/windows/chr-supervisor.c'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  evaluate:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Test isolated Ethernet frame codec
+        shell: pwsh
+        run: |
+          node tools/test-mac-loopback-frame.js
+          if ($LASTEXITCODE -ne 0) { throw 'Frame codec test failed' }
+      - name: Fetch and build CI-only read-only MAC client
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $base=Join-Path $env:RUNNER_TEMP 'mac-chr'
+          New-Item -ItemType Directory -Force $base | Out-Null
+          $archive=Join-Path $base 'source.tar.gz'
+          curl.exe -fL --retry 2 -o $archive https://codeload.github.com/danikf/tik4net/tar.gz/d4597fa04fcad3e96a9fcd51ddac499778344638
+          if ($LASTEXITCODE -ne 0) { throw 'Source download failed' }
+          if ((Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant() -ne '78ee97bbda547e835c329a66d9454417f696f356ba62b75e8f190deb077e896e') { throw 'Source digest mismatch' }
+          tar -xzf $archive -C $base
+          if ($LASTEXITCODE -ne 0) { throw 'Source extraction failed' }
+          $src=Join-Path $base 'tik4net-d4597fa04fcad3e96a9fcd51ddac499778344638'
+          python tools/patch-tik4net-wildcard-ci.py $src filter
+          if ($LASTEXITCODE -ne 0) { throw 'Filter patch failed' }
+          python tools/patch-tik4net-loopback-ci.py $src
+          if ($LASTEXITCODE -ne 0) { throw 'Loopback patch failed' }
+          dotnet publish tools/mac-readonly-ci/mac-readonly-ci.csproj -t:Rebuild -c Release -r win-x64 --self-contained true "-p:TikSource=$src" -o (Join-Path $base 'helper')
+          if ($LASTEXITCODE -ne 0) { throw 'Research helper build failed' }
+      - name: Fetch pinned QEMU installer, verify and extract without installing
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dir = Join-Path $env:RUNNER_TEMP 'qemu-candidate'
+          New-Item -ItemType Directory -Path $dir -Force | Out-Null
+          $package = Join-Path $dir 'qemu-setup.exe'
+          Invoke-WebRequest -Uri 'https://github.com/dextoros/qemu-runtime/releases/download/qemu-11.1.0-20260811/qemu-w64-setup-20260811.exe' -OutFile $package
+          $sha = (Get-FileHash -Algorithm SHA512 $package).Hash.ToLowerInvariant()
+          if ($sha -ne '5bcf9eed634e8575a37b74f445af41a2fe4106da512d0c30c368301d4c105037fdfab40a5287367a28a957624cddebbc8c07e16c88ab6634f554cdf3d16bf543') { throw 'QEMU installer SHA-512 mismatch' }
+          $dest = Join-Path $dir 'qemu'
+          7z x -y "-o$dest" $package
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to extract QEMU installer' }
+          $exe = @(Get-ChildItem -Recurse -File -Path $dest -Filter qemu-system-x86_64.exe)
+          if ($exe.Count -ne 1) { throw 'Expected one QEMU executable' }
+          & $exe[0].FullName --version
+          if ($LASTEXITCODE -ne 0) { throw 'QEMU failed to start' }
+          "QEMU_EXE=$($exe[0].FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $licenses = @(Get-ChildItem -Recurse -File -Path $dest | Where-Object { $_.Name -match '^(COPYING|LICENSE)' } | Select-Object -ExpandProperty FullName)
+          Write-Output "::notice title=Extracted QEMU license files::$($licenses.Count)"
+      - name: Obtain official CHR for isolated CI only
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'qemu-candidate'
+          $zip = Join-Path $dir 'chr.zip'
+          Invoke-WebRequest -Uri 'https://download.mikrotik.com/routeros/7.23.8/chr-7.23.8.img.zip' -OutFile $zip
+          if ((Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant() -ne 'ac01ec7c092f4cab8136212e8ebfd613e0a37844c406317fa228d1ad446ce62c') { throw 'CHR ZIP hash mismatch' }
+          Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $dir 'chr')
+          $img = @(Get-ChildItem -Recurse -File -Path (Join-Path $dir 'chr') -Filter '*.img')
+          if ($img.Count -ne 1) { throw 'Expected one CHR image' }
+          "CHR_IMAGE=$($img[0].FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Build Windows QEMU supervisor
+        shell: pwsh
+        run: |
+          cl /nologo /O2 /W3 tools/windows/chr-supervisor.c "/Fo$env:RUNNER_TEMP/chr-supervisor.obj" /link "/OUT:$env:RUNNER_TEMP/chr-supervisor.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Supervisor compilation failed' }
+      - name: Test a Windows MAC client against isolated CHR via localhost shim
+        shell: pwsh
+        run: |
+          $dir=Join-Path $env:RUNNER_TEMP 'qemu-candidate'
+          $helper=Join-Path $env:RUNNER_TEMP 'mac-chr/helper/mac-readonly-ci.exe'
+          node tools/test-mac-windows-chr-loopback.js "$env:QEMU_EXE" "$env:CHR_IMAGE" (Join-Path $dir 'mac-sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe') $helper
+          if ($LASTEXITCODE -ne 0) { throw 'Windows CHR MAC test failed' }
