@@ -2,6 +2,10 @@ name: Android selected-version replacement check
 on:
   push:
     tags: ['v1.19.2']
+    branches: ['arena/**']
+    paths:
+      - '.github/workflows/android-replacement-1201.yml'
+      - 'tools/test-android-replacement.sh'
 permissions:
   contents: read
 jobs:

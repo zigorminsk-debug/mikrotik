@@ -6,7 +6,7 @@ AAPT="$ANDROID_HOME/build-tools/34.0.0/aapt"
 SIGN="$ANDROID_HOME/build-tools/34.0.0/apksigner"
 old_badging=$($AAPT dump badging "$OLD_APK"); old_info=${old_badging%%$'\n'*}
 new_badging=$($AAPT dump badging "$NEW_APK"); new_info=${new_badging%%$'\n'*}
-field() { sed -n "s/.*$1='\([^']*\)'.*/\1/p" <<<"$2"; }
+field() { sed -n "s/.*[[:space:]]$1='\([^']*\)'.*/\1/p" <<<"$2"; }
 old_pkg=$(field name "$old_info");new_pkg=$(field name "$new_info")
 old_code=$(field versionCode "$old_info");new_code=$(field versionCode "$new_info")
 old_sign=$($SIGN verify --print-certs "$OLD_APK")
@@ -14,6 +14,7 @@ new_sign=$($SIGN verify --print-certs "$NEW_APK")
 [[ "$old_sign" != *"Signer #2"* && "$new_sign" != *"Signer #2"* ]] || { echo '::error::Multiple APK signers are not supported by this test'; exit 1; }
 old_sig=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' <<<"$old_sign" | tr '[:upper:]' '[:lower:]')
 new_sig=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' <<<"$new_sign" | tr '[:upper:]' '[:lower:]')
+echo "Package IDs: old=$old_pkg, new=$new_pkg"
 [[ "$old_pkg" == 'by.mikrotik.tutor' && "$new_pkg" == "$old_pkg" ]] || { echo '::error::Package IDs differ'; exit 1; }
 [[ "$old_code" =~ ^[0-9]+$ && "$new_code" =~ ^[0-9]+$ && "$new_code" -gt "$old_code" ]] || { echo '::error::Android versionCode does not permit an update'; exit 1; }
 [[ "$old_sig" =~ ^[0-9a-f]{64}$ && "$old_sig" == "$new_sig" ]] || { echo '::error::APK signing certificates differ'; exit 1; }
