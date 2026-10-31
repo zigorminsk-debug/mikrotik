@@ -6,7 +6,8 @@ const vm = require('vm');
 const {EventEmitter} = require('events');
 const source = fs.readFileSync(require('path').join(__dirname,'../windows/main.js'),'utf8');
 const windows = [], handlers = {}, choices = [], downloads = [], opened = [], created = [], errors = [], writes = [], dialogs = [];
-let onlineValid = true;
+let onlineValid = true, physicalCalls = 0;
+const physicalNic={name:'Test Ethernet',address:'192.168.88.5'};
 let saveChoice = {canceled:true};
 let plan = {blockers:[],groups:[{id:'iface',commands:['/interface print']}],expected:{}};
 class Window extends EventEmitter {
@@ -38,6 +39,7 @@ const req=name=>{
   if(name==='./chr/network-warning')return require('../windows/chr/network-warning');
   if(name==='./chr/download')return {ensureImage:async(root,consent)=>{downloads.push({root,consent});return '/image/chr-7.23.8.img';}};
   if(name==='./chr/session')return {ChrSession:Session};
+  if(name==='./physical/mndp')return {interfaces:()=>[physicalNic],discover:async()=>{physicalCalls++;return [{mac:'02:11:22:33:44:55'}];}};
   return require(name);
 };
 vm.runInNewContext(source,{require:req,process:{platform:'win32',resourcesPath:'/resources'},__dirname:'/app',Buffer,URL,setTimeout,clearTimeout,console});
@@ -46,6 +48,14 @@ vm.runInNewContext(source,{require:req,process:{platform:'win32',resourcesPath:'
   const main=windows[0], call=handlers['chr:launch'];assert(main && call);
   const good={sender:main.webContents,senderFrame:main.webContents.mainFrame};
   const bad=await call({sender:{},senderFrame:{}},'r',{});assert(!bad.ok && !downloads.length);
+  const listPhysical=handlers['physical:interfaces'], findPhysical=handlers['physical:discover'];
+  assert(!(await listPhysical({sender:{},senderFrame:{}})).ok);
+  assert((await listPhysical(good)).ok);
+  assert(!(await findPhysical({sender:{},senderFrame:{}},physicalNic.name,physicalNic.address)).ok);
+  assert(!(await findPhysical(good,'unlisted','1.2.3.4')).ok);assert.equal(physicalCalls,0);
+  choices.push(0);assert((await findPhysical(good,physicalNic.name,physicalNic.address)).cancelled);assert.equal(physicalCalls,0);
+  assert(dialogs.at(-1).defaultId===0 && dialogs.at(-1).detail.includes('не сбрасывает'));
+  choices.push(1);assert((await findPhysical(good,physicalNic.name,physicalNic.address)).ok);assert.equal(physicalCalls,1);
   const save=handlers['diagram:save'], png=Uint8Array.from([137,80,78,71,13,10,26,10,1]);
   assert(!(await save({sender:{},senderFrame:{}},'png',png)).ok);
   assert(!(await save(good,'gif',png)).ok); assert(!(await save(good,'exe',png)).ok); assert.equal(writes.length,0);

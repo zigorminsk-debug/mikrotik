@@ -33,6 +33,7 @@ const req=name=>{
  if(name==='fs')return {promises:{...fs.promises,access:async()=>{}}};
  if(name==='./www/js/lab-sim')return require('../app/js/lab-sim');
  if(name==='./chr/plan')return require('../windows/chr/plan');
+ if(name==='./physical/mndp')return require('../windows/physical/mndp');
  if(name==='./chr/online')return require('../windows/chr/online');
   if(name==='./chr/network-warning')return require('../windows/chr/network-warning');
  if(name==='./chr/download')return {ensureImage:async(_root,consent)=>{assert(consent);return path.resolve(image);}};

@@ -1,0 +1,35 @@
+name: Windows physical MikroTik discovery research
+on:
+  push:
+    paths:
+      - '.github/workflows/windows-physical-mndp.yml'
+      - 'windows/physical/**'
+      - 'windows/main.js'
+      - 'windows/preload.js'
+      - 'app/js/lab.js'
+      - 'tools/test-physical-mndp*.js'
+      - 'tools/test-chr-main.js'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  discovery:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Test parser and permission boundary
+        shell: pwsh
+        run: |
+          node tools/test-physical-mndp.js
+          if ($LASTEXITCODE -ne 0) { throw 'Parser test failed' }
+          node tools/test-chr-main.js
+          if ($LASTEXITCODE -ne 0) { throw 'Consent and IPC test failed' }
+      - name: Test real loopback sockets with synthetic response
+        shell: pwsh
+        run: |
+          node tools/test-physical-mndp-network.js
+          if ($LASTEXITCODE -ne 0) { throw 'UDP loopback test failed' }

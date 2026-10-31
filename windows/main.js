@@ -10,6 +10,7 @@ const { validateDualInternet } = require('./chr/online');
 const { networkWarning } = require('./chr/network-warning');
 const { ensureImage } = require('./chr/download');
 const { ChrSession } = require('./chr/session');
+const physicalDiscovery = require('./physical/mndp');
 
 let mainWindow = null, chrWindow = null, active = null, launching = false, quitting = false, cleanupFailed = false;
 const sessionsRoot = () => path.join(app.getPath('userData'), 'chr-sessions');
@@ -114,6 +115,27 @@ ipcMain.handle('chr:launch', async (event, routerId, state) => {
     try { await closeChr(); } catch (_) { return {ok:false, message:'Ошибка CHR; не удалось очистить временные данные. Закройте приложение и удалите папку chr-sessions из его данных.'}; }
     return {ok:false, message:'Не удалось открыть виртуальную RouterOS: ' + (error && error.message ? error.message : 'неизвестная ошибка')};
   } finally { launching = false; if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setProgressBar(-1); }
+});
+// Local read-only MNDP discovery. MAC and identity advertisements are unauthenticated.
+let physicalScanning = false;
+function trustedMain(event) { return process.platform === 'win32' && mainWindow && event.sender === mainWindow.webContents && event.senderFrame === mainWindow.webContents.mainFrame; }
+ipcMain.handle('physical:interfaces', async event => {
+  if (!trustedMain(event)) return {ok:false,message:'Поиск доступен только в окне приложения Windows.'};
+  try { return {ok:true,interfaces:physicalDiscovery.interfaces()}; }
+  catch (_) { return {ok:false,message:'Не удалось получить список сетевых адаптеров.'}; }
+});
+ipcMain.handle('physical:discover', async (event,name,address) => {
+  if (!trustedMain(event)) return {ok:false,message:'Недопустимый источник запроса.'};
+  if (physicalScanning) return {ok:false,message:'Поиск уже выполняется.'};
+  if (typeof name !== 'string' || name.length > 200 || typeof address !== 'string' || address.length > 15 || !physicalDiscovery.interfaces().some(x=>x.name===name && x.address===address)) return {ok:false,message:'Выберите доступный сетевой адаптер.'};
+  physicalScanning = true;
+  try {
+    const choice=await dialog.showMessageBox(mainWindow,{type:'warning',title:'Поиск физических MikroTik',message:'Отправить запрос обнаружения в выбранную локальную сеть?',detail:'Адаптер: '+name+' ('+address+'). Будет отправлен локальный широковещательный UDP-запрос MNDP на порт 5678. Это только поиск: приложение не подключается, не сбрасывает и не меняет роутер. Устройства могут сообщать недостоверные MAC и названия; сверьте MAC на корпусе. Ответы могут поступить и через другие адаптеры.',buttons:['Отмена','Искать'],defaultId:0,cancelId:0,noLink:true});
+    if(choice.response!==1 || quitting || !mainWindow || mainWindow.isDestroyed())return {ok:false,cancelled:true};
+    const devices=await physicalDiscovery.discover(name,address);
+    return {ok:true,devices};
+  } catch (_) { return {ok:false,message:'Не удалось выполнить поиск. Проверьте адаптер и доступность UDP/5678; возможно, порт занят или заблокирован Windows.'}; }
+  finally { physicalScanning=false; }
 });
 // Only the trusted main renderer can request a save; the user chooses the path.
 ipcMain.handle('diagram:save', async (event, format, bytes) => {

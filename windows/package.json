@@ -27,6 +27,7 @@
       "main.js",
       "preload.js",
       "chr/**/*",
+      "physical/**/*",
       "package.json",
       "www/**/*"
     ],
