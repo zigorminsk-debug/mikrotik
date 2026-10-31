@@ -1,0 +1,40 @@
+name: Isolated WireGuard CHR tunnel research
+on:
+  push:
+    paths:
+      - '.github/workflows/wireguard-chr-research.yml'
+      - 'tools/chr-wireguard-fixture.js'
+      - 'tools/test-chr-wireguard.py'
+      - 'app/js/lab-sim.js'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tunnel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install isolated VM tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 python3-pexpect unzip
+      - name: Fetch official disposable CHR
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/wg-chr"
+          curl -fL --retry 2 -o "$RUNNER_TEMP/wg-chr/chr.zip" https://download.mikrotik.com/routeros/7.23.8/chr-7.23.8.img.zip
+          echo 'ac01ec7c092f4cab8136212e8ebfd613e0a37844c406317fa228d1ad446ce62c  '"$RUNNER_TEMP/wg-chr/chr.zip" | sha256sum -c -
+          unzip -o "$RUNNER_TEMP/wg-chr/chr.zip" -d "$RUNNER_TEMP/wg-chr"
+          node tools/chr-wireguard-fixture.js > "$RUNNER_TEMP/wg-fixture.json"
+          chmod 600 "$RUNNER_TEMP/wg-fixture.json"
+      - name: Verify generated configuration with two genuine CHRs
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 tools/test-chr-wireguard.py "$RUNNER_TEMP/wg-sessions" "$RUNNER_TEMP/wg-chr/chr-7.23.8.img" "$RUNNER_TEMP/wg-fixture.json"
+      - name: Remove temporary keys and disks
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/wg-sessions" "$RUNNER_TEMP/wg-fixture.json" "$RUNNER_TEMP/wg-chr"
