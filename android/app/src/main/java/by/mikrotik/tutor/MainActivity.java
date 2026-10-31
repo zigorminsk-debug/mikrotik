@@ -301,8 +301,11 @@ public class MainActivity extends Activity {
 
         private JSONObject reply(String status, String message, List<List<String>> items) {
             JSONObject o = new JSONObject();
-            o.put("status", status);
-            o.put("message", message == null ? "" : message);
+            try {
+                o.put("status", status);
+                o.put("message", message == null ? "" : message);
+            } catch (Exception ignored) {
+            }
             JSONArray jItems = new JSONArray();
             if (items != null) {
                 for (List<String> it : items) {
@@ -313,17 +316,26 @@ public class MainActivity extends Activity {
                             int eq = w.indexOf('=');
                             if (eq > 0) {
                                 JSONObject a = new JSONObject();
-                                a.put("name", w.substring(1, eq));
-                                a.put("value", w.substring(eq + 1));
+                                try {
+                                    a.put("name", w.substring(1, eq));
+                                    a.put("value", w.substring(eq + 1));
+                                } catch (Exception ignored) {
+                                }
                                 attrs.put(a);
                             }
                         }
                     }
-                    item.put("attrs", attrs);
+                    try {
+                        item.put("attrs", attrs);
+                    } catch (Exception ignored) {
+                    }
                     jItems.put(item);
                 }
             }
-            o.put("items", jItems);
+            try {
+                o.put("items", jItems);
+            } catch (Exception ignored) {
+            }
             return o;
         }
     }
@@ -332,10 +344,14 @@ public class MainActivity extends Activity {
     public static class MikrotikBridge {
         @JavascriptInterface
         public int mtOpen(String host, int port, boolean ssl, String user, String pass) {
-            RouterSession session = new RouterSession(host, port, ssl, user, pass);
-            int id = NEXT_ID.getAndIncrement();
-            SESSIONS.put(id, session);
-            return id;
+            try {
+                RouterSession session = new RouterSession(host, port, ssl, user, pass);
+                int id = NEXT_ID.getAndIncrement();
+                SESSIONS.put(id, session);
+                return id;
+            } catch (Exception e) {
+                return -1;
+            }
         }
 
         @JavascriptInterface
@@ -348,7 +364,11 @@ public class MainActivity extends Activity {
                 for (int i = 0; i < arr.length(); i++) words.add(arr.getString(i));
                 return session.sendAndRead(words).toString();
             } catch (Exception e) {
-                return reply("error", e.getMessage(), null).toString();
+                try {
+                    return reply("error", e.getMessage(), null).toString();
+                } catch (Exception ignored) {
+                    return "{\"status\":\"error\",\"message\":\"unknown error\"}";
+                }
             }
         }
 
@@ -360,8 +380,11 @@ public class MainActivity extends Activity {
 
         private JSONObject reply(String status, String message, List<List<String>> items) {
             JSONObject o = new JSONObject();
-            o.put("status", status);
-            o.put("message", message == null ? "" : message);
+            try {
+                o.put("status", status);
+                o.put("message", message == null ? "" : message);
+            } catch (Exception ignored) {
+            }
             JSONArray jItems = new JSONArray();
             if (items != null) {
                 for (List<String> it : items) {
@@ -372,17 +395,26 @@ public class MainActivity extends Activity {
                             int eq = w.indexOf('=');
                             if (eq > 0) {
                                 JSONObject a = new JSONObject();
-                                a.put("name", w.substring(1, eq));
-                                a.put("value", w.substring(eq + 1));
+                                try {
+                                    a.put("name", w.substring(1, eq));
+                                    a.put("value", w.substring(eq + 1));
+                                } catch (Exception ignored) {
+                                }
                                 attrs.put(a);
                             }
                         }
                     }
-                    item.put("attrs", attrs);
+                    try {
+                        item.put("attrs", attrs);
+                    } catch (Exception ignored) {
+                    }
                     jItems.put(item);
                 }
             }
-            o.put("items", jItems);
+            try {
+                o.put("items", jItems);
+            } catch (Exception ignored) {
+            }
             return o;
         }
     }
