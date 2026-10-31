@@ -3,7 +3,7 @@
 Only fixed result flags and packet *counts* are emitted. Never persist or print
 packets, raw WinBox logs, serial output, credentials or the disposable disk.
 """
-import collections, os, pathlib, secrets, shutil, socket, struct, subprocess, sys, threading, time
+import collections, json, os, pathlib, secrets, shutil, socket, struct, subprocess, sys, threading, time
 import pexpect
 
 base=None;disk=None;winbox=None;password=None
@@ -25,7 +25,9 @@ def capture_counts():
             key=None
             if proto==17 and 20561 in (src,dst):
                 typ=p[off+9] if len(p)>off+9 and p[off+8]==1 else 254
-                key=side+'_mac_'+({0:'start',1:'data',2:'ack',4:'ping',5:'pong',255:'end'}.get(typ,'other'))
+                dst_ip=p[30:34]
+                dest={b'\xff\xff\xff\xff':'limited_broadcast',b'\xc0\x00\x02\xff':'subnet_broadcast',b'\xc0\x00\x02\x01':'host_unicast',b'\xc0\x00\x02\x02':'router_unicast',b'\x00\x00\x00\x00':'zero'}.get(dst_ip,'other')
+                key=side+'_mac_'+({0:'start',1:'data',2:'ack',4:'ping',5:'pong',255:'end'}.get(typ,'other'))+'_to_'+dest
             elif proto==6 and 8291 in (src,dst):key=side+'_tcp_winbox'
             if key:
                 with lock:counts[key]+=1
@@ -57,6 +59,20 @@ def probe(target,label):
     if state not in ('workspace','auth_only','no_auth','gui_error'):state='gui_error'
     print('::notice title=WinBox '+label+'::state='+state+'; packet counts='+','.join(k+':'+str(delta[k]) for k in sorted(delta)),flush=True)
     shutil.rmtree(home,ignore_errors=True)
+    return state
+
+def probe_tik(label):
+    before=snapshot()
+    payload=json.dumps({'mac':'02:11:22:33:44:55','password':password})+'\n'
+    try:
+        result=subprocess.run([str(base/'helper'/'mac-readonly-ci')],input=payload,text=True,capture_output=True,timeout=95)
+        response=json.loads(result.stdout.strip().splitlines()[-1])
+        category=response.get('category','Other')
+        if category not in ('Other','NoUsableNic','ChallengeNone','BadChallenge','NoConfirmation'):category='Other'
+        state='read_ok' if result.returncode==0 and response.get('ok') is True else category
+    except Exception:state='client_error'
+    delta=snapshot()-before
+    print('::notice title=Third-party '+label+'::state='+state+'; packet counts='+','.join(k+':'+str(delta[k]) for k in sorted(delta)),flush=True)
     return state
 
 def gui():
@@ -116,10 +132,14 @@ try:
     command('/ip service enable winbox')
     thread=threading.Thread(target=capture_counts,daemon=True);thread.start()
     ip=probe('192.0.2.2','IP-control')
-    mac=probe('02:11:22:33:44:55','MAC-test')
+    mac=probe('02:11:22:33:44:55','MAC-with-IP')
+    tik_with_ip=probe_tik('with-IP')
+    command('/ip address remove [find where address="192.0.2.2/24"]')
+    mac_no_ip=probe('02:11:22:33:44:55','MAC-without-IP')
+    tik_no_ip=probe_tik('without-IP')
     if ip!='workspace':raise RuntimeError('IP control did not reach a verified workspace; MAC result inconclusive')
-    if mac!='workspace':raise RuntimeError('MAC test did not reach a verified workspace; see packet counts')
-    print('::notice title=Control conclusion::Both official IP and MAC sessions reached authenticated workspace on isolated virtual CHR. Physical devices and Windows were not tested.')
+    if mac!='workspace' or mac_no_ip!='workspace':raise RuntimeError('An official MAC test did not reach a verified workspace; see packet counts')
+    print('::notice title=Control conclusion::Official WinBox authenticated via IP and via MAC with and without IPv4 on isolated CHR; third-party read states are separately reported. No physical device or Windows tested.')
 except Exception as exc:
     print('::error title=WinBox control::'+(str(exc) if isinstance(exc,RuntimeError) else type(exc).__name__),flush=True)
     raise SystemExit(1) from None
@@ -128,4 +148,4 @@ finally:
     if vm:vm.close(force=True)
     disk.unlink(missing_ok=True)
     (base/'winbox-private.log').unlink(missing_ok=True)
-    for name in ('home-IP-control','home-MAC-test'):shutil.rmtree(base/name,ignore_errors=True)
+    for name in ('home-IP-control','home-MAC-with-IP','home-MAC-without-IP'):shutil.rmtree(base/name,ignore_errors=True)
