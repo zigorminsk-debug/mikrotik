@@ -57,11 +57,18 @@ try:
     print('::notice title=Real CHR MNDP::Application discovery received the expected MAC from one disposable RouterOS CHR over an isolated TAP network. No physical device or Windows broadcast was tested.', flush=True)
     stage='authenticated MAC read';
     success,category=probe(password)
-    if not success:raise RuntimeError('MAC read-only probe failed ('+category+')')
+    if not success:
+        print('::notice title=MAC-only no-IP::Connection did not complete ('+category+')',flush=True)
+        # Compare the exact same MAC-only request after adding a documentation
+        # address to the disposable CHR; do not imply that IP is the target.
+        stage='MAC-only comparison with CHR IP';command('/ip address add address=192.0.2.2/24 interface=ether1')
+        success,category=probe(password)
+        if not success:raise RuntimeError('MAC-only probe also failed after adding IP ('+category+')')
+        print('::notice title=MAC with CHR IP::MAC-only read succeeded when the disposable CHR also had an IP; no-IP connection remains unverified.',flush=True)
     stage='wrong password';
     success,_=probe('wrong_'+secrets.token_hex(8))
     if success:raise RuntimeError('Wrong password was accepted')
-    print('::notice title=Isolated MAC research::Windows application MNDP parser discovered one disposable CHR and a third-party research client authenticated via MAC WinBox and read RouterOS version. An attempt with a wrong password could not read the version. No physical device, Windows client, reset or configuration transfer was tested.')
+    print('::notice title=Isolated MAC research::The application MNDP parser discovered one disposable CHR and a third-party research client read the version by MAC WinBox in this specific test. An attempt with a wrong password could not read the version. No physical device, Windows client, reset or configuration transfer was tested.')
 except Exception as exc:
     print('::error title=MAC research::'+stage+': '+(str(exc) if isinstance(exc,RuntimeError) else type(exc).__name__).replace('\n',' ').replace('%',' '))
     raise SystemExit(1) from None
