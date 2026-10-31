@@ -202,7 +202,22 @@
             <button type="button" class="btn ghost" id="mt_virt_reset" hidden>Сбросить конфигурацию</button>
             <button type="button" class="btn ghost" id="mt_virt_export">Экспорт конфигурации</button>
           </div>
-          <p class="fs-hint">Симулятор ведёт модель конфигурации RouterOS в памяти браузера. Подходит для отработки команд и проверки конфигурации со стенда без реального роутера.</p>
+
+          <!-- Интерактивная карта сети -->
+          <div class="net-map-wrap">
+            <div class="net-map-header">
+              <span class="net-map-title">🗺️ Карта сети — интерактивная схема</span>
+              <span class="net-map-status" id="net_map_status">устройства не выбраны</span>
+            </div>
+            <div id="net-map"></div>
+            <div class="net-map-actions">
+              <button type="button" class="btn primary" id="net_apply_map">▶ Применить карту на роутер</button>
+              <button type="button" class="btn ghost" id="net_map_clear">Очистить выбор</button>
+            </div>
+            <div id="net_map_out" class="mt-log"></div>
+          </div>
+
+          <p class="fs-hint">Симулятор ведёт модель конфигурации RouterOS в памяти браузера. Карта сети показывает топологию: кликните на устройство для выбора, затем примените конфигурацию на роутер.</p>
         </fieldset>
 
         <fieldset class="fs">
@@ -367,6 +382,7 @@
 <script src="js/mt-api.js"></script>
 <script src="js/mt-transport.js"></script>
 <script src="js/mt-virt.js"></script>
+<script src="js/net-map.js"></script>
 <script src="js/mt-connect.js"></script>
 </body>
 </html>

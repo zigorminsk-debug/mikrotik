@@ -29,6 +29,15 @@
   var mtVirtReset = $('mt_virt_reset');
   var mtVirtExport = $('mt_virt_export');
 
+  /* ---------- карта сети ---------- */
+  var netMapStatus = $('net_map_status');
+  var netMapOut = $('net_map_out');
+  var netApplyMap = $('net_apply_map');
+  var netMapClear = $('net_map_clear');
+  var selectedDeviceId = null;
+  var selectedDeviceKind = null;
+  var selectedDeviceName = null;
+
   var mtConsole = $('mt_console');
   var mtConsoleSend = $('mt_console_send');
   var mtConsoleClear = $('mt_console_clear');
@@ -232,12 +241,33 @@
     setVirtStatus('Симулятор запущен (заводская конфигурация)', 'ok');
     log(mtConsoleOut, 'виртуальный роутер запущен', 'ok');
     setTargetUI();
+
+    // инициализируем интерактивную картe сети
+    if (NetMap && netMapStatus) {
+      NetMap.init('net-map', function (id, kind, name) {
+        selectedDeviceId = id;
+        selectedDeviceKind = kind;
+        selectedDeviceName = name;
+        netMapStatus.textContent = 'выбрано: ' + name + ' (' + kind + ')';
+        netMapStatus.className = 'net-map-status mt-status-ok';
+        log(mtConsoleOut, 'карта: выбрано устройство "' + name + '" (' + kind + ')', 'ok');
+      });
+      log(mtConsoleOut, 'карта сети инициализирована — кликните на устройство', 'info');
+    }
   });
 
   mtVirtReset.addEventListener('click', function () {
     vr.reset();
     setVirtStatus('Конфигурация сброшена', 'info');
     log(mtConsoleOut, 'виртуальный роутер сброшен к заводским настройкам', 'info');
+    if (netMapStatus) {
+      netMapStatus.textContent = 'устройства не выбраны';
+      netMapStatus.className = 'net-map-status mt-status-off';
+    }
+    selectedDeviceId = null;
+    selectedDeviceKind = null;
+    selectedDeviceName = null;
+    netMapOut.innerHTML = '';
   });
 
   mtVirtExport.addEventListener('click', function () {
@@ -248,6 +278,43 @@
     var rep = vr.execute(['/export']);
     renderReply(mtApplyOut, null, rep);
     if (rep.text) log(mtConsoleOut, 'Экспорт виртуального роутера:\n' + rep.text, 'cmd');
+  });
+
+  /* ---------- применить конфигурацию с карты сети на виртуальный роутер ---------- */
+  netApplyMap.addEventListener('click', function () {
+    if (!virtRunning) {
+      log(netMapOut, 'запустите виртуальный роутер', 'warn');
+      return;
+    }
+    if (!NetMap || !NetMap.applyMapConfig) {
+      log(netMapOut, 'модуль карты сети недоступен', 'err');
+      return;
+    }
+    log(netMapOut, 'применение конфигурации из карты сети на виртуальный роутер…', 'info');
+    NetMap.applyMapConfig(vr).then(function (results) {
+      var ok = 0, fail = 0;
+      results.forEach(function (r) {
+        if (r.status === 'done') ok++;
+        else fail++;
+        log(netMapOut, (r.status === 'done' ? '✓' : '✗') + ' ' + r.cmd + ' → ' + r.status, r.status === 'done' ? 'ok' : 'err');
+      });
+      log(netMapOut, 'завершено: ' + ok + ' выполнено, ' + fail + ' ошибок', ok === results.length ? 'ok' : 'err');
+      log(mtConsoleOut, 'карта: применена конфигурация сети (' + ok + '/' + results.length + ')', 'ok');
+    }).catch(function (e) {
+      log(netMapOut, 'ошибка применения карты: ' + (e && e.message ? e.message : String(e)), 'err');
+    });
+  });
+
+  netMapClear.addEventListener('click', function () {
+    selectedDeviceId = null;
+    selectedDeviceKind = null;
+    selectedDeviceName = null;
+    if (netMapStatus) {
+      netMapStatus.textContent = 'устройства не выбраны';
+      netMapStatus.className = 'net-map-status mt-status-off';
+    }
+    netMapOut.innerHTML = '';
+    log(mtConsoleOut, 'карта: выбор очищен', 'info');
   });
 
   /* ---------- консоль ---------- */
