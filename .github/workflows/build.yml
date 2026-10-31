@@ -99,6 +99,7 @@ jobs:
         with:
           name: MikroTik-Guide-Android
           path: android/app/build/outputs/apk/release/*.apk
+          compression: none
 
   windows:
     name: Windows-установщик
