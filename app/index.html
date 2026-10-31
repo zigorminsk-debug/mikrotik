@@ -220,6 +220,23 @@
           <p class="fs-hint">Симулятор ведёт модель конфигурации RouterOS в памяти браузера. Карта сети показывает топологию: кликните на устройство для выбора, затем примените конфигурацию на роутер.</p>
         </fieldset>
 
+        <!-- QEMU CHR виртуальная машина (только Windows) -->
+        <fieldset class="fs" id="mt_session_qemu" hidden>
+          <legend>🖥️ QEMU CHR — виртуальная машина RouterOS</legend>
+          <div class="grid4">
+            <span id="qemu_status" class="mt-status mt-status-off">Остановлена</span>
+            <button type="button" class="btn primary" id="qemu_start">Запустить CHR</button>
+            <button type="button" class="btn ghost" id="qemu_stop" hidden>Остановить</button>
+            <button type="button" class="btn ghost" id="qemu_refresh">Обновить</button>
+          </div>
+          <div class="grid3">
+            <label>Ядра<input id="qemu_smp" type="text" value="1"></label>
+            <label>Память МБ<input id="qemu_memory" type="text" value="256"></label>
+            <label>API порт<input id="qemu_api_port" type="text" value="8728"></label>
+          </div>
+          <p class="fs-hint">Запускает полноценный RouterOS CHR в QEMU. Для работы нужен образ chr-xxx.qcow2 в каталоге данных приложения.</p>
+        </fieldset>
+
         <fieldset class="fs">
           <legend>⌨️ Консоль команд</legend>
           <div class="mt-console-wrap">

@@ -1,24 +1,24 @@
 /* =====================================================================
    Интерактивная карта сети (сеть Микротик + оборудование).
    Рендерит SVG-схему: роутер, коммутатор, ПК, сервер, принтер, линии связи.
-   Клик на устройство — открывает его конфигурацию в виртуальном роутере.
+   Клик на устройство — выбирает его для конфигурирования.
    =================================================================== */
 (function (global) {
   'use strict';
 
-  var MAP_ID = 'net-map';
   var mapEl = null;
   var svgEl = null;
-  var onDeviceSelect = null; // callback(id, kind, name)
+  var onDeviceSelect = null;
+  var selectedDeviceId = null;
 
   /* ---------- устройства сети ---------- */
   var DEVICES = [
-    { id: 'router', kind: 'router', name: 'MikroTik RouterOS', x: 500, y: 140, icon: '🖥️', color: '#0ea5e9' },
-    { id: 'switch', kind: 'switch', name: 'Коммутатор', x: 200, y: 140, icon: '🔌', color: '#6366f1' },
-    { id: 'pc1', kind: 'pc', name: 'ПК 1', x: 100, y: 280, icon: '💻', color: '#84cc16' },
-    { id: 'pc2', kind: 'pc', name: 'ПК 2', x: 300, y: 280, icon: '💻', color: '#84cc16' },
-    { id: 'server', kind: 'server', name: 'Сервер', x: 500, y: 280, icon: '⚙️', color: '#a855f7' },
-    { id: 'printer', kind: 'printer', name: 'Принтер', x: 700, y: 280, icon: '🖨️', color: '#f59e0b' }
+    { id: 'router', kind: 'router', name: 'MikroTik RouterOS', x: 450, y: 90, icon: 'R', color: '#0ea5e9', label: 'Роутер MikroTik' },
+    { id: 'switch', kind: 'switch', name: 'Коммутатор', x: 150, y: 90, icon: 'S', color: '#6366f1', label: 'Коммутатор' },
+    { id: 'pc1', kind: 'pc', name: 'ПК 1', x: 100, y: 260, icon: 'C', color: '#84cc16', label: 'Компьютер 1' },
+    { id: 'pc2', kind: 'pc', name: 'ПК 2', x: 300, y: 260, icon: 'C', color: '#84cc16', label: 'Компьютер 2' },
+    { id: 'server', kind: 'server', name: 'Сервер', x: 450, y: 260, icon: 'S', color: '#a855f7', label: 'Сервер' },
+    { id: 'printer', kind: 'printer', name: 'Принтер', x: 650, y: 260, icon: 'P', color: '#f59e0b', label: 'Принтер' }
   ];
 
   var LINKS = [
@@ -32,19 +32,27 @@
   /* ---------- инициализация ---------- */
   function init(containerId, cb) {
     mapEl = document.getElementById(containerId);
-    if (!mapEl) return false;
+    if (!mapEl) { console.error('NetMap: контейнер #' + containerId + ' не найден'); return false; }
     onDeviceSelect = cb || null;
+    selectedDeviceId = null;
 
     mapEl.innerHTML = '';
     svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svgEl.setAttribute('width', '100%');
-    svgEl.setAttribute('height', '420');
-    svgEl.setAttribute('viewBox', '0 0 900 420');
+    svgEl.setAttribute('height', '360');
+    svgEl.setAttribute('viewBox', '0 0 800 360');
     svgEl.setAttribute('class', 'net-map-svg');
+    svgEl.style.display = 'block';
     mapEl.appendChild(svgEl);
 
-    drawLinks();
-    drawDevices();
+    try {
+      drawLinks();
+      drawDevices();
+      console.log('NetMap: инициализировано, устройств:', DEVICES.length);
+    } catch (e) {
+      console.error('NetMap: ошибка отрисовки', e);
+      mapEl.innerHTML = '<div style="padding:20px;color:#dc2626">Ошибка отрисовки карты: ' + e.message + '</div>';
+    }
     return true;
   }
 
@@ -55,13 +63,14 @@
       var b = findDev(l.to);
       if (!a || !b) return;
       var line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      line.setAttribute('x1', a.x + 40);
-      line.setAttribute('y1', a.y + 40);
-      line.setAttribute('x2', b.x + 40);
-      line.setAttribute('y2', b.y + 40);
-      line.setAttribute('stroke', '#64748b');
-      line.setAttribute('stroke-width', '3');
-      line.setAttribute('stroke-dasharray', '6 4');
+      line.setAttribute('x1', String(a.x + 30));
+      line.setAttribute('y1', String(a.y + 30));
+      line.setAttribute('x2', String(b.x + 30));
+      line.setAttribute('y2', String(b.y + 30));
+      line.setAttribute('stroke', '#94a3b8');
+      line.setAttribute('stroke-width', '4');
+      line.setAttribute('stroke-dasharray', '8 6');
+      line.setAttribute('stroke-linecap', 'round');
       svgEl.appendChild(line);
     });
   }
@@ -76,46 +85,45 @@
       g.setAttribute('transform', 'translate(' + d.x + ',' + d.y + ')');
       g.style.cursor = 'pointer';
 
+      // тень
+      var shadow = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      shadow.setAttribute('x', '4'); shadow.setAttribute('y', '4');
+      shadow.setAttribute('width', '60'); shadow.setAttribute('height', '60');
+      shadow.setAttribute('rx', '10'); shadow.setAttribute('fill', '#000000');
+      shadow.setAttribute('opacity', '0.15');
+      g.appendChild(shadow);
+
       // фон устройства
       var rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      rect.setAttribute('x', '0');
-      rect.setAttribute('y', '0');
-      rect.setAttribute('width', '80');
-      rect.setAttribute('height', '80');
-      rect.setAttribute('rx', '12');
-      rect.setAttribute('fill', '#ffffff');
-      rect.setAttribute('stroke', d.color);
-      rect.setAttribute('stroke-width', '3');
+      rect.setAttribute('x', '0'); rect.setAttribute('y', '0');
+      rect.setAttribute('width', '60'); rect.setAttribute('height', '60');
+      rect.setAttribute('rx', '10'); rect.setAttribute('fill', '#ffffff');
+      rect.setAttribute('stroke', d.color); rect.setAttribute('stroke-width', '3');
       g.appendChild(rect);
 
-      // иконка
+      // иконка (буква)
       var icon = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      icon.setAttribute('x', '40');
-      icon.setAttribute('y', '42');
+      icon.setAttribute('x', '30'); icon.setAttribute('y', '34');
       icon.setAttribute('text-anchor', 'middle');
-      icon.setAttribute('font-size', '32');
+      icon.setAttribute('font-size', '22'); icon.setAttribute('font-weight', 'bold');
+      icon.setAttribute('fill', d.color); icon.setAttribute('font-family', 'Arial, sans-serif');
       icon.textContent = d.icon;
       g.appendChild(icon);
 
       // имя
       var name = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      name.setAttribute('x', '40');
-      name.setAttribute('y', '72');
+      name.setAttribute('x', '30'); name.setAttribute('y', '58');
       name.setAttribute('text-anchor', 'middle');
-      name.setAttribute('font-size', '11');
-      name.setAttribute('fill', '#33415a');
-      name.setAttribute('font-weight', '600');
+      name.setAttribute('font-size', '10'); name.setAttribute('fill', '#33415a');
+      name.setAttribute('font-weight', '600'); name.setAttribute('font-family', 'Arial, sans-serif');
       name.textContent = d.name;
       g.appendChild(name);
 
-      // статус (подготовлено к подсветке)
+      // статус
       var status = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-      status.setAttribute('cx', '70');
-      status.setAttribute('cy', '12');
-      status.setAttribute('r', '8');
-      status.setAttribute('fill', '#22c55e');
-      status.setAttribute('stroke', '#ffffff');
-      status.setAttribute('stroke-width', '2');
+      status.setAttribute('cx', '52'); status.setAttribute('cy', '8');
+      status.setAttribute('r', '7'); status.setAttribute('fill', '#22c55e');
+      status.setAttribute('stroke', '#ffffff'); status.setAttribute('stroke-width', '2');
       g.appendChild(status);
 
       g.addEventListener('click', function (e) {
@@ -135,12 +143,12 @@
 
   /* ---------- выбор устройства ---------- */
   function selectDevice(id, kind, name) {
-    // подсветка
+    selectedDeviceId = id;
     var groups = svgEl.querySelectorAll('.net-device');
     groups.forEach(function (g) {
       var rect = g.querySelector('rect');
       if (g.getAttribute('data-id') === id) {
-        rect.setAttribute('stroke-width', '5');
+        rect.setAttribute('stroke-width', '6');
         rect.setAttribute('stroke', '#f59e0b');
       } else {
         rect.setAttribute('stroke-width', '3');

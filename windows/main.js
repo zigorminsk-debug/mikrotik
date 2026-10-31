@@ -8,6 +8,7 @@ const fs = require('fs');
 const net = require('net');
 const tls = require('tls');
 const path = require('path');
+const { spawn } = require('child_process');
 
 const MtApi = require(mtApiPath());
 
@@ -22,6 +23,15 @@ let mainWindow = null;
 // Сессии прямого подключения к роутерам: id → RouterSession
 const sessions = new Map();
 let nextSessionId = 1;
+
+// Процессы QEMU CHR: id → {process, config}
+const qemuProcesses = new Map();
+let nextQemuId = 1;
+
+const QEMU_CONFIG_DIR = path.join(app.getPath('userData'), 'qemu');
+const QEMU_BIN = process.resourcesPath ? path.join(process.resourcesPath, 'qemu-system-x86_64.exe') : 'qemu-system-x86_64.exe';
+
+try { fs.mkdirSync(QEMU_CONFIG_DIR, { recursive: true }); } catch (e) { /* ignore */ }
 
 const CONNECT_TIMEOUT = 15000;
 const SOCKET_TIMEOUT = 60000;
@@ -189,6 +199,69 @@ ipcMain.handle('mt:close', async (event, id) => {
     session.close();
     sessions.delete(id);
   }
+});
+
+/* ---------- QEMU CHR виртуальная машина ---------- */
+ipcMain.handle('qemu:list', async () => {
+  const list = [];
+  for (const [id, q] of qemuProcesses) {
+    list.push({ id, running: !q.process.killed, config: q.config });
+  }
+  return list;
+});
+
+ipcMain.handle('qemu:start', async (event, config) => {
+  const id = nextQemuId++;
+  const qemuDir = path.join(QEMU_CONFIG_DIR, 'qemu-' + id);
+  try { fs.mkdirSync(qemuDir, { recursive: true }); } catch (e) { /* ignore */ }
+
+  const diskPath = path.join(qemuDir, 'chr.qcow2');
+  const configPath = path.join(qemuDir, 'config.json');
+
+  // Сохраняем конфигурацию
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+
+  // Аргументы QEMU для RouterOS CHR
+  const args = [
+    '-machine', 'pc',
+    '-cpu', 'host',
+    '-smp', String(config.smp || 1),
+    '-m', String(config.memory || 256),
+    '-drive', 'file=' + diskPath + ',format=qcow2,if=virtio',
+    '-netdev', 'user,id=net0,hostfwd=tcp::' + (config.apiPort || 8728) + '-:8728',
+    '-device', 'virtio-net,netdev=net0',
+    '-vga', 'none',
+    '-nographic',
+    '-daemonize'
+  ];
+
+  const proc = spawn(QEMU_BIN, args, { cwd: qemuDir, stdio: ['ignore', 'ignore', 'ignore'] });
+  proc.unref();
+
+  qemuProcesses.set(id, { process: proc, config: config, dir: qemuDir });
+
+  proc.on('error', (err) => {
+    console.error('QEMU ' + id + ' error:', err);
+  });
+  proc.on('exit', (code) => {
+    console.log('QEMU ' + id + ' exited with code', code);
+  });
+
+  return { id, running: true, config: config };
+});
+
+ipcMain.handle('qemu:stop', async (event, id) => {
+  const q = qemuProcesses.get(id);
+  if (!q) return { success: false, error: 'не найден' };
+  try { q.process.kill('SIGTERM'); } catch (e) { /* ignore */ }
+  qemuProcesses.delete(id);
+  return { success: true };
+});
+
+ipcMain.handle('qemu:status', async (event, id) => {
+  const q = qemuProcesses.get(id);
+  if (!q) return { running: false };
+  return { running: !q.process.killed, id: id, config: q.config };
 });
 
 function createWindow() {

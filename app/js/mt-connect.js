@@ -38,6 +38,22 @@
   var selectedDeviceKind = null;
   var selectedDeviceName = null;
 
+  /* ---------- QEMU CHR ---------- */
+  var qemuPanel = $('mt_session_qemu');
+  var qemuStatus = $('qemu_status');
+  var qemuStart = $('qemu_start');
+  var qemuStop = $('qemu_stop');
+  var qemuRefresh = $('qemu_refresh');
+  var qemuSmp = $('qemu_smp');
+  var qemuMemory = $('qemu_memory');
+  var qemuApiPort = $('qemu_api_port');
+  var qemuProcessId = null;
+
+  // Показываем QEMU только на Windows
+  if (qemuPanel && window.navigator && /win32/i.test(window.navigator.platform)) {
+    qemuPanel.hidden = false;
+  }
+
   var mtConsole = $('mt_console');
   var mtConsoleSend = $('mt_console_send');
   var mtConsoleClear = $('mt_console_clear');
@@ -316,6 +332,68 @@
     netMapOut.innerHTML = '';
     log(mtConsoleOut, 'карта: выбор очищен', 'info');
   });
+
+  /* ---------- QEMU CHR ---------- */
+  function qemuUpdateStatus(running) {
+    if (!qemuStatus) return;
+    if (running) {
+      qemuStatus.textContent = 'Запущена';
+      qemuStatus.className = 'mt-status mt-status-ok';
+      if (qemuStart) qemuStart.hidden = true;
+      if (qemuStop) qemuStop.hidden = false;
+    } else {
+      qemuStatus.textContent = 'Остановлена';
+      qemuStatus.className = 'mt-status mt-status-off';
+      if (qemuStart) qemuStart.hidden = false;
+      if (qemuStop) qemuStop.hidden = true;
+      qemuProcessId = null;
+    }
+  }
+
+  async function qemuRefreshStatus() {
+    if (!window.mikrotik || !window.mikrotik.qemuStatus) return;
+    try {
+      var st = await window.mikrotik.qemuStatus(qemuProcessId || 0);
+      qemuUpdateStatus(st.running);
+      if (st.running && st.id) qemuProcessId = st.id;
+    } catch (e) {
+      qemuUpdateStatus(false);
+    }
+  }
+
+  qemuStart.addEventListener('click', async function () {
+    if (!window.mikrotik || !window.mikrotik.qemuStart) {
+      log(mtConsoleOut, 'QEMU API недоступен в этой сборке', 'err');
+      return;
+    }
+    var config = {
+      smp: parseInt(qemuSmp.value) || 1,
+      memory: parseInt(qemuMemory.value) || 256,
+      apiPort: parseInt(qemuApiPort.value) || 8728
+    };
+    try {
+      var res = await window.mikrotik.qemuStart(config);
+      qemuProcessId = res.id;
+      qemuUpdateStatus(true);
+      log(mtConsoleOut, 'QEMU CHR запущен (ID=' + res.id + ')', 'ok');
+      setTimeout(qemuRefreshStatus, 2000);
+    } catch (e) {
+      log(mtConsoleOut, 'ошибка запуска QEMU: ' + (e && e.message ? e.message : String(e)), 'err');
+    }
+  });
+
+  qemuStop.addEventListener('click', async function () {
+    if (!window.mikrotik || !window.mikrotik.qemuStop) return;
+    try {
+      await window.mikrotik.qemuStop(qemuProcessId || 0);
+      qemuUpdateStatus(false);
+      log(mtConsoleOut, 'QEMU CHR остановлена', 'ok');
+    } catch (e) {
+      log(mtConsoleOut, 'ошибка остановки QEMU: ' + (e && e.message ? e.message : String(e)), 'err');
+    }
+  });
+
+  qemuRefresh.addEventListener('click', qemuRefreshStatus);
 
   /* ---------- консоль ---------- */
   mtConsoleSend.addEventListener('click', function () { sendCli(mtConsole.value); });
