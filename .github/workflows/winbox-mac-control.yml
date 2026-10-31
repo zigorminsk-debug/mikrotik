@@ -1,0 +1,40 @@
+name: Isolated official WinBox MAC control
+on:
+  push:
+    paths:
+      - '.github/workflows/winbox-mac-control.yml'
+      - 'tools/test-winbox-mac-control.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  control:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install disposable VM and GUI tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 xvfb xdotool python3-pexpect iproute2 unzip libxkbcommon-x11-0 libxcb-cursor0 libxcb-shape0 libxcb-xfixes0 libxcb-randr0 libxcb-render0 libxcb-shm0 libxcb1 libx11-xcb1 libxrender1 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-xinerama0 libxcb-xkb1 libxcb-xinput0 libxcb-util1 libgl1 libegl1 libopengl0 libfontconfig1
+      - name: Fetch official CHR and WinBox
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/winbox-control/winbox"
+          curl -fL --retry 2 -o "$RUNNER_TEMP/winbox-control/chr.zip" https://download.mikrotik.com/routeros/7.23.8/chr-7.23.8.img.zip
+          echo 'ac01ec7c092f4cab8136212e8ebfd613e0a37844c406317fa228d1ad446ce62c  '"$RUNNER_TEMP/winbox-control/chr.zip" | sha256sum -c -
+          unzip -o "$RUNNER_TEMP/winbox-control/chr.zip" -d "$RUNNER_TEMP/winbox-control"
+          curl -fL --retry 2 -o "$RUNNER_TEMP/winbox-control/winbox.zip" https://download.mikrotik.com/routeros/winbox/4.4/WinBox_Linux.zip
+          unzip -o "$RUNNER_TEMP/winbox-control/winbox.zip" -d "$RUNNER_TEMP/winbox-control/winbox"
+      - name: Compare official IP and MAC logins without saving packet contents
+        run: |
+          set -euo pipefail
+          ns='wb-control-ci'
+          trap 'sudo ip netns del "$ns" || true; sudo rm -rf "$RUNNER_TEMP/winbox-control"' EXIT
+          sudo ip netns add "$ns"
+          sudo ip netns exec "$ns" ip link set lo up
+          sudo ip netns exec "$ns" ip tuntap add dev tap0 mode tap
+          sudo ip netns exec "$ns" ip addr add 192.0.2.1/24 dev tap0
+          sudo ip netns exec "$ns" ip link set tap0 up
+          # No veth, bridge or route to physical/external network.
+          sudo ip netns exec "$ns" /usr/bin/python3 tools/test-winbox-mac-control.py "$RUNNER_TEMP/winbox-control"
