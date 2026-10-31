@@ -860,7 +860,7 @@ function openSettings(id) {
     function field(x, fallback) {return typeof x==='string' && x ? x.slice(0,128) : fallback;}
     candidates.forEach(function(d){
       var mac=d.mac.toUpperCase();var info=field(d.identity,'без имени')+'; '+field(d.hardware||d.platform,'модель неизвестна')+'; RouterOS '+field(d.version,'неизвестна')+'; источник '+field(d.sourceAddress,'неизвестен');
-      var btn=document.createElement('button');btn.type='button';btn.className='btn ghost';btn.style.display='block';btn.style.marginTop='6px';btn.style.textAlign='left';btn.setAttribute('aria-pressed','false');btn.textContent='Выбрать '+mac+' — '+info;group.appendChild(btn);
+      var btn=document.createElement('button');btn.type='button';btn.className='btn ghost physical-candidate';btn.style.display='block';btn.style.marginTop='6px';btn.style.textAlign='left';btn.setAttribute('aria-pressed','false');btn.textContent='Выбрать '+mac+' — '+info;group.appendChild(btn);
       btn.addEventListener('click',function(){
         Array.prototype.forEach.call(group.querySelectorAll('button'),function(other){other.setAttribute('aria-pressed',other===btn?'true':'false');});
         selected.replaceChildren();

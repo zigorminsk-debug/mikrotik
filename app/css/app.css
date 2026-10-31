@@ -124,6 +124,7 @@ h2.sec-sub{font-size:18px;margin:26px 0 8px;padding-left:12px;border-left:4px so
 .btn.primary:hover{background:var(--accent2)}
 .btn.ghost{background:#eef2f7;color:#334155;border:1px solid #cbd5e1}
 .btn.ghost:hover{background:#e2e8f0}
+.btn.physical-candidate[aria-pressed="true"]{background:#dbeafe;border-color:#0284c7;box-shadow:inset 4px 0 #0284c7}
 .btn.danger-ghost{background:#fff;color:#dc2626;border:1px solid #fecaca;padding:7px 11px}
 .btn.danger-ghost:hover{background:#fef2f2}
 .stand-actions{display:flex;gap:12px;flex-wrap:wrap}
