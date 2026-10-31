@@ -94,6 +94,11 @@ jobs:
             echo "push не удался, повтор $i..."
             sleep 5
           done
+      - name: Загрузить APK как артефакт Actions (для GitHub Release)
+        uses: actions/upload-artifact@v4
+        with:
+          name: MikroTik-Guide-Android
+          path: android/app/build/outputs/apk/release/*.apk
 
   windows:
     name: Windows-установщик
