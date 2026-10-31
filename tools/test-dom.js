@@ -52,7 +52,7 @@ async function main() {
   console.log('== Загрузка приложения ==');
   ok(scriptErrors.length === 0, 'нет ошибок исполнения скриптов' + (scriptErrors.length ? ': ' + scriptErrors.join(' | ') : ''));
   ok(typeof win.StandEngine === 'object', 'StandEngine загружен');
-  ok(doc.getElementById('nav').children.length === 10, 'разделов в меню: ' + doc.getElementById('nav').children.length);
+  ok(doc.getElementById('nav').children.length === 14, 'разделов в меню: ' + doc.getElementById('nav').children.length);
   ok(doc.getElementById('content').children.length > 0, 'первый раздел отрендерен');
   ok(!!doc.getElementById('dl-net') && !!doc.getElementById('dl-ip') && !!doc.getElementById('dl-port'), 'datalist автодополнения на месте');
   ok($('lan_cidr').getAttribute('list') === 'dl-net', 'поле подсети подключено к автодополнению');
@@ -192,6 +192,18 @@ async function main() {
     'заголовок топбара соответствует разделу: ' + $('topbar-title').textContent);
   ok(navItems[1].classList.contains('active'), 'раздел активен в меню');
   ok(doc.getElementById('content').children.length > 0, 'раздел отрендерен после перехода');
+
+  // Новые разделы учебника отрендерены и содержат оригинальные SVG-скриншоты
+  const newSections = ['qos', 'monitoring', 'system', 'virtual'];
+  for (var i = 0; i < newSections.length; i++) {
+    var id = newSections[i];
+    win.location.hash = '#' + id;
+    win.dispatchEvent(new win.Event('hashchange'));
+    await delay(80);
+    ok(doc.getElementById('content').children.length > 0, 'раздел #' + id + ' отрендерен');
+    var imgs = doc.querySelectorAll('#content img');
+    ok(imgs.length > 0, 'раздел #' + id + ' содержит картинки (' + imgs.length + ')');
+  }
 
   ok(scriptErrors.length === 0, 'итог: ошибок скриптов нет' + (scriptErrors.length ? ': ' + scriptErrors.join(' | ') : ''));
 

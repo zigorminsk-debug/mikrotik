@@ -15,6 +15,10 @@
 | 🔁 Резервный канал | Авто-переключение при падении основного провайдера и обратно при восстановлении (distance + check-gateway + метки + netwatch) |
 | 🧭 Маршрутизация | Статические маршруты, VLAN-сегменты, таблицы и policy routing RouterOS v7 |
 | 🔐 VPN | **Все типы MikroTik**: WireGuard, IPsec IKEv2, L2TP/IPsec, site-to-site, PPTP, L2TP, SSTP, OVPN |
+| ⚖️ QoS | Simple Queues и PCQ: ограничение скорости клиентов, приоритизация важного трафика (VoIP, видеоконференции) |
+| 📊 Мониторинг и диагностика | Netwatch, Torch, системный журнал, графики нагрузки Graphing |
+| 🛡️ Система и безопасность | Пользователи и пароли, службы IP Services, обновление RouterOS, бэкап/экспорт, NTP, ip cloud |
+| 🖥️ Виртуальная лаборатория | Учебный симулятор RouterOS в браузере: применение конфигурации со стенда на виртуальный роутер без реального железа |
 | 🛠 Стенд | Ввод задачи → план адресации → проверка модели → конфигурация RouterOS → инструкция реализации |
 | ⌨️ Шпаргалка | Частые команды CLI и приёмы WinBox |
 
@@ -32,7 +36,7 @@ app/                     # общее веб-ядро (общее для Android
   js/stand.js            # движок моделирования (без DOM, тестируется в Node)
   js/sec-*.js            # контент разделов учебника
   css/app.css            # стили
-  assets/img/*.svg       # 19 скриншотов WinBox (генерируются tools/gen-screens.js)
+  assets/img/*.svg       # 23 скриншота WinBox (генерируются tools/gen-screens.js)
 android/                 # проект Android (WebView-обёртка, подписанный APK)
 windows/                 # проект Windows (Electron, установщик NSIS)
 tools/                   # генератор скриншотов и модульные тесты
@@ -43,7 +47,7 @@ tools/                   # генератор скриншотов и модул
 
 Воркфлоу `.github/workflows/build.yml` запускается на **каждый push**:
 
-1. **test** — `node --check` всего JS, регенерация и сверка SVG, `node tools/test-stand.js` (75 проверок);
+1. **test** — `node --check` всего JS, регенерация и сверка SVG, `node tools/test-stand.js` (83 проверки), `test-mt` (16), `test-virt` (49), `test-dom` (60);
 2. **android** — Gradle 8.4 + JDK 17 → `assembleRelease` → **подписанный APK** → артефакт `MikroTik-Guide-APK`;
 3. **windows** — `npm install` + `electron-builder --win` → установщик `MikroTik-Guide-Setup-x.y.z.exe` → артефакт `MikroTik-Guide-Windows`;
 4. **release** — при пуше тега `vX.Y.Z` создаётся GitHub Release с обоими файлами.

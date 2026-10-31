@@ -1,6 +1,6 @@
 /* =====================================================================
-   UI: прямая работа с физическим MikroTik через RouterOS API.
-   Подключение, консоль команд, применение конфигурации со стенда.
+   UI: прямая работа с MikroTik — реальный роутер (RouterOS API)
+   или встроенный учебный симулятор (виртуальный роутер).
    ===================================================================== */
 (function () {
   'use strict';
@@ -10,6 +10,11 @@
 
   var $ = function (id) { return document.getElementById(id); };
 
+  /* ---------- элементы управления ---------- */
+  var mtTargetRadios = document.querySelectorAll('input[name=mt_target]');
+  var mtSessionReal = $('mt_session_real');
+  var mtSessionVirtual = $('mt_session_virtual');
+
   var mtHost = $('mt_host');
   var mtPort = $('mt_port');
   var mtSsl = $('mt_ssl');
@@ -18,6 +23,12 @@
   var mtConnectBtn = $('mt_connect');
   var mtDisconnectBtn = $('mt_disconnect');
   var mtStatus = $('mt_status');
+
+  var mtVirtStatus = $('mt_virt_status');
+  var mtVirtStart = $('mt_virt_start');
+  var mtVirtReset = $('mt_virt_reset');
+  var mtVirtExport = $('mt_virt_export');
+
   var mtConsole = $('mt_console');
   var mtConsoleSend = $('mt_console_send');
   var mtConsoleClear = $('mt_console_clear');
@@ -27,6 +38,8 @@
 
   var sessionId = null;
   var connected = false;
+  var virtRunning = false;
+  var vr = new VirtualRouter();   // учебный симулятор RouterOS
 
   function esc(s) {
     return String(s == null ? '' : s)
@@ -34,10 +47,48 @@
       .replace(/\"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
+  function isVirtual() {
+    for (var i = 0; i < mtTargetRadios.length; i++) {
+      if (mtTargetRadios[i].checked) return mtTargetRadios[i].value === 'virtual';
+    }
+    return false;
+  }
+
+  function setTargetUI() {
+    if (isVirtual()) {
+      mtSessionReal.hidden = true;
+      mtSessionVirtual.hidden = false;
+      mtConnectBtn.hidden = true;
+      mtDisconnectBtn.hidden = true;
+      if (mtApplyBtn) mtApplyBtn.hidden = !standGroupsOrEmpty();
+    } else {
+      mtSessionReal.hidden = false;
+      mtSessionVirtual.hidden = true;
+      mtConnectBtn.hidden = false;
+      mtDisconnectBtn.hidden = connected ? false : true;
+      if (mtApplyBtn) mtApplyBtn.hidden = !standGroupsOrEmpty() || !connected;
+    }
+  }
+
+  function standGroupsOrEmpty() {
+    return !!(window.__lastStandGroups && window.__lastStandGroups.length);
+  }
+
+  Array.prototype.forEach.call(mtTargetRadios, function (radio) {
+    radio.addEventListener('change', function () {
+      setTargetUI();
+    });
+  });
+
   function setStatus(text, kind) {
     if (!mtStatus) return;
     mtStatus.textContent = text;
     mtStatus.className = 'mt-status mt-status-' + (kind || 'off');
+  }
+  function setVirtStatus(text, kind) {
+    if (!mtVirtStatus) return;
+    mtVirtStatus.textContent = text;
+    mtVirtStatus.className = 'mt-status mt-status-' + (kind || 'off');
   }
   function transportUnavailable() {
     return !MtTransport || !MtTransport.available();
@@ -53,7 +104,8 @@
   }
 
   function renderReply(el, label, rep) {
-    log(el, label || (rep.status === 'done' ? '✓ OK' : '✗ Ошибка API'), rep.status === 'done' ? 'ok' : 'err');
+    log(el, label || (rep.status === 'done' ? '✓ OK' : '✗ Ошибка'), rep.status === 'done' ? 'ok' : 'err');
+    if (rep.text) log(el, rep.text, 'cmd');
     if (rep.items && rep.items.length) {
       rep.items.forEach(function (it) {
         var line = '';
@@ -67,27 +119,49 @@
     if (rep.message) log(el, 'сообщение: ' + esc(rep.message), 'err');
   }
 
+  /* ---------- отправка одной команды (реальный или виртуальный роутер) ---------- */
   function sendCli(line) {
     if (!line) return Promise.resolve();
-    if (!connected || sessionId == null) {
-      log(mtConsoleOut, 'нет подключения к роутеру', 'err');
-      return Promise.reject(new Error('не подключено'));
+    var target = isVirtual();
+    if (!target) {
+      if (!connected || sessionId == null) {
+        log(mtConsoleOut, 'нет подключения к роутеру', 'err');
+        return Promise.reject(new Error('не подключено'));
+      }
+      log(mtConsoleOut, '> ' + esc(line) + '   [реальный роутер]', 'cmd');
+      var words = MtApi.cliToWords(line);
+      if (!words) return Promise.resolve();
+      return MtTransport.send(sessionId, words).then(function (rep) {
+        renderReply(mtConsoleOut, null, rep);
+        if (rep.status !== 'done') return Promise.reject(new Error(rep.message || rep.status));
+        return rep;
+      }).catch(function (e) {
+        log(mtConsoleOut, 'ошибка выполнения: ' + esc(e && e.message ? e.message : String(e)), 'err');
+        throw e;
+      });
+    } else {
+      if (!virtRunning) {
+        log(mtConsoleOut, 'запустите виртуальный роутер', 'warn');
+        return Promise.reject(new Error('симулятор остановлен'));
+      }
+      log(mtConsoleOut, '> ' + esc(line) + '   [виртуальный роутер]', 'cmd');
+      var words = MtApi.cliToWords(line);
+      if (!words) return Promise.resolve();
+      try {
+        var rep = vr.execute(words);
+        renderReply(mtConsoleOut, null, rep);
+        if (rep.status !== 'done') return Promise.reject(new Error(rep.message || rep.status));
+        return Promise.resolve(rep);
+      } catch (e) {
+        log(mtConsoleOut, 'ошибка выполнения: ' + esc(e && e.message ? e.message : String(e)), 'err');
+        return Promise.reject(e);
+      }
     }
-    log(mtConsoleOut, '> ' + esc(line), 'cmd');
-    var words = MtApi.cliToWords(line);
-    if (!words) return Promise.resolve();
-    return MtTransport.send(sessionId, words).then(function (rep) {
-      renderReply(mtConsoleOut, null, rep);
-      if (rep.status !== 'done') return Promise.reject(new Error(rep.message || rep.status));
-      return rep;
-    }).catch(function (e) {
-      log(mtConsoleOut, 'ошибка выполнения: ' + esc(e && e.message ? e.message : String(e)), 'err');
-      throw e;
-    });
   }
 
-  /* ---------- подключение / отключение ---------- */
+  /* ---------- подключение к реальному роутеру ---------- */
   mtConnectBtn.addEventListener('click', function () {
+    if (isVirtual()) return; // виртуальный роутер — своя кнопка
     if (transportUnavailable()) {
       setStatus('Прямое подключение недоступно в этой сборке (нет нативного транспорта)', 'err');
       log(mtConsoleOut, 'требуется сборка с поддержкой RouterOS API (Android WebView-мост или Electron IPC)', 'warn');
@@ -99,37 +173,37 @@
     }
     setStatus('Подключение к ' + mtHost.value.trim() + ':' + (mtPort.value || '8728') + '…', 'info');
     mtConnectBtn.disabled = true;
-    // нативный мост блокирует поток WebView — откладываем на тик, чтобы статус отрисовался
     setTimeout(function () {
       MtTransport.open({
-      host: mtHost.value.trim(),
-      port: Number(mtPort.value) || 8728,
-      ssl: mtSsl.checked,
-      user: mtUser.value.trim(),
-      pass: mtPass.value
-    }).then(function (id) {
-      sessionId = id;
-      connected = true;
-      setStatus('Подключено к ' + mtHost.value.trim() + ':' + mtPort.value, 'ok');
-      mtConnectBtn.hidden = true;
-      mtDisconnectBtn.hidden = false;
-      if (mtApplyBtn) mtApplyBtn.hidden = false;
-      return MtTransport.send(sessionId, MtApi.cliToWords('/system identity print'));
-    }).then(function (rep) {
-      var name = '';
-      if (rep.items && rep.items[0] && rep.items[0].attrs) {
-        rep.items[0].attrs.forEach(function (a) { if (a.name === 'name') name = a.value; });
-      }
-      log(mtConsoleOut, 'роутер: ' + (name || 'неизвестно'), 'ok');
-    }).catch(function (e) {
-      connected = false;
-      sessionId = null;
-      setStatus('ошибка подключения: ' + esc(e && e.message ? e.message : String(e)), 'err');
-      log(mtConsoleOut, 'не удалось подключиться: ' + esc(e && e.message ? e.message : String(e)), 'err');
-    }).finally(function () {
-      mtConnectBtn.disabled = false;
+        host: mtHost.value.trim(),
+        port: Number(mtPort.value) || 8728,
+        ssl: mtSsl.checked,
+        user: mtUser.value.trim(),
+        pass: mtPass.value
+      }).then(function (id) {
+        sessionId = id;
+        connected = true;
+        setStatus('Подключено к ' + mtHost.value.trim() + ':' + mtPort.value, 'ok');
+        mtConnectBtn.hidden = true;
+        mtDisconnectBtn.hidden = false;
+        setTargetUI();
+        return MtTransport.send(sessionId, MtApi.cliToWords('/system identity print'));
+      }).then(function (rep) {
+        var name = '';
+        if (rep.items && rep.items[0] && rep.items[0].attrs) {
+          rep.items[0].attrs.forEach(function (a) { if (a.name === 'name') name = a.value; });
+        }
+        log(mtConsoleOut, 'роутер: ' + (name || 'неизвестно'), 'ok');
+      }).catch(function (e) {
+        connected = false;
+        sessionId = null;
+        setStatus('ошибка подключения: ' + esc(e && e.message ? e.message : String(e)), 'err');
+        log(mtConsoleOut, 'не удалось подключиться: ' + esc(e && e.message ? e.message : String(e)), 'err');
+        setTargetUI();
+      }).finally(function () {
+        mtConnectBtn.disabled = false;
+      });
     });
-  });
   });
 
   mtDisconnectBtn.addEventListener('click', function () {
@@ -141,6 +215,35 @@
     setStatus('Не подключено', 'off');
     mtConnectBtn.hidden = false;
     mtDisconnectBtn.hidden = true;
+    setTargetUI();
+  });
+
+  /* ---------- виртуальный роутер ---------- */
+  mtVirtStart.addEventListener('click', function () {
+    if (virtRunning) return;
+    vr.reset();
+    virtRunning = true;
+    mtVirtStart.hidden = true;
+    mtVirtReset.hidden = false;
+    setVirtStatus('Симулятор запущен (заводская конфигурация)', 'ok');
+    log(mtConsoleOut, 'виртуальный роутер запущен', 'ok');
+    setTargetUI();
+  });
+
+  mtVirtReset.addEventListener('click', function () {
+    vr.reset();
+    setVirtStatus('Конфигурация сброшена', 'info');
+    log(mtConsoleOut, 'виртуальный роутер сброшен к заводским настройкам', 'info');
+  });
+
+  mtVirtExport.addEventListener('click', function () {
+    if (!virtRunning) {
+      log(mtConsoleOut, 'запустите виртуальный роутер', 'warn');
+      return;
+    }
+    var rep = vr.execute(['/export']);
+    renderReply(mtApplyOut, null, rep);
+    if (rep.text) log(mtConsoleOut, 'Экспорт виртуального роутера:\n' + rep.text, 'cmd');
   });
 
   /* ---------- консоль ---------- */
@@ -155,13 +258,20 @@
   window.MtConnect = window.MtConnect || {};
   window.MtConnect.setStandGroups = function (groups) {
     standGroups = groups || null;
-    if (mtApplyBtn) mtApplyBtn.hidden = !standGroups || standGroups.length === 0;
+    setTargetUI();
   };
 
   mtApplyBtn.addEventListener('click', function () {
-    if (!connected || sessionId == null) {
-      log(mtApplyOut, 'сначала подключитесь к роутеру', 'warn');
-      return;
+    if (isVirtual()) {
+      if (!virtRunning) {
+        log(mtApplyOut, 'запустите виртуальный роутер', 'warn');
+        return;
+      }
+    } else {
+      if (!connected || sessionId == null) {
+        log(mtApplyOut, 'сначала подключитесь к роутеру', 'warn');
+        return;
+      }
     }
     if (!standGroups || standGroups.length === 0) {
       log(mtApplyOut, 'нет сгенерированной конфигурации — смоделируйте задачу на стенде', 'warn');
@@ -178,10 +288,9 @@
         total++;
       });
     });
-    log(mtApplyOut, 'отправка ' + total + ' команд на роутер…', 'info');
+    log(mtApplyOut, 'отправка ' + total + ' команд на ' + (isVirtual() ? 'виртуальный роутер' : 'реальный роутер') + '…', 'info');
 
     (function runNext(groupIdx, lineIdx) {
-      // найти следующую выполняемую строку
       while (groupIdx < standGroups.length) {
         var lines = (standGroups[groupIdx].code || '').split('\n');
         while (lineIdx < lines.length) {
@@ -191,7 +300,6 @@
           if (line.charAt(0) === '#') continue;
           if (line.indexOf('/*') >= 0 || line.indexOf('---') >= 0) continue;
           if (line.indexOf('IPF') >= 0 && line.indexOf('/') < 0) continue;
-          // заголовки групп вроде «=== N. Имя ===» пропускаем
           if (/^=\s*=/.test(line)) continue;
           sendCli(line).then(function () { ok++; }).catch(function () { fail++; });
           return runNextDelayed(groupIdx, lineIdx);
@@ -205,4 +313,7 @@
       setTimeout(function () { runNext(g, i); }, 50);
     }
   });
+
+  /* ---------- инициализация ---------- */
+  setTargetUI();
 })();

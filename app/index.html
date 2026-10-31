@@ -169,7 +169,16 @@
 
       <form id="mt-form" class="mt-form" autocomplete="off">
         <fieldset class="fs">
-          <legend>🔌 Сессия</legend>
+          <legend>🎯 Цель подключения</legend>
+          <div class="grid2">
+            <label class="row-check"><input type="radio" name="mt_target" value="real" checked> Реальный роутер (RouterOS API 8728/8729)</label>
+            <label class="row-check"><input type="radio" name="mt_target" value="virtual"> Виртуальный роутер (учебный симулятор)</label>
+          </div>
+          <p class="fs-hint">Выберите, куда отправлять команды: на настоящий MikroTik по API или на встроенный симулятор RouterOS (не требует сети и оборудования).</p>
+        </fieldset>
+
+        <fieldset class="fs" id="mt_session_real">
+          <legend>🔌 Сессия (реальный роутер)</legend>
           <div class="grid4">
             <label>Хост / IP роутера<input id="mt_host" type="text" value="192.168.88.1"></label>
             <label>Порт<input id="mt_port" type="text" value="8728" inputmode="numeric"></label>
@@ -183,6 +192,17 @@
             <span id="mt_status" class="mt-status mt-status-off">Не подключено</span>
           </div>
           <p class="fs-hint">API роутера должен быть включён (/ip service enable api, для SSL — api-ssl). Пароль передаётся только указанному роутеру и никуда больше.</p>
+        </fieldset>
+
+        <fieldset class="fs" id="mt_session_virtual" hidden>
+          <legend>🖥️ Сессия (виртуальный роутер)</legend>
+          <div class="grid4">
+            <span id="mt_virt_status" class="mt-status mt-status-off">Симулятор остановлен</span>
+            <button type="button" class="btn primary" id="mt_virt_start">Запустить симулятор</button>
+            <button type="button" class="btn ghost" id="mt_virt_reset" hidden>Сбросить конфигурацию</button>
+            <button type="button" class="btn ghost" id="mt_virt_export">Экспорт конфигурации</button>
+          </div>
+          <p class="fs-hint">Симулятор ведёт модель конфигурации RouterOS в памяти браузера. Подходит для отработки команд и проверки конфигурации со стенда без реального роутера.</p>
         </fieldset>
 
         <fieldset class="fs">
@@ -336,12 +356,17 @@
 <script src="js/sec-failover.js"></script>
 <script src="js/sec-routing.js"></script>
 <script src="js/sec-vpn.js"></script>
+<script src="js/sec-qos.js"></script>
+<script src="js/sec-monitoring.js"></script>
+<script src="js/sec-system.js"></script>
+<script src="js/sec-virtual.js"></script>
 <script src="js/sec-stand.js"></script>
 <script src="js/sec-connect.js"></script>
 <script src="js/stand.js"></script>
 <script src="js/app.js"></script>
 <script src="js/mt-api.js"></script>
 <script src="js/mt-transport.js"></script>
+<script src="js/mt-virt.js"></script>
 <script src="js/mt-connect.js"></script>
 </body>
 </html>
