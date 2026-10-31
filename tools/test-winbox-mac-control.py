@@ -100,7 +100,7 @@ def probe_forged(label,helper,variant):
                 elif variant=='session':ack[16]^=1
                 elif variant=='client_type':ack[14]^=1
                 elif variant=='version':ack[0]=2
-                udp.sendto(ack,('255.255.255.255',addr[1]));injected=True
+                udp.sendto(ack,('192.0.2.255',addr[1]));injected=True
             elif packet[1]==1 and injected:early_data=True;break
         state='early_data' if early_data else ('no_data' if injected else 'not_injected')
         print('::notice title=Forged '+label+'::state='+state,flush=True)
