@@ -23,3 +23,5 @@
 `ntp-applied-winbox4.jpg` — оригинальный снимок WinBox 4.4 после нажатия Apply автоматикой в настоящем окне NTP Client на одноразовой CHR 7.23.8 ([GitHub Actions 41172898008](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41172898008)). Адрес 192.0.2.123 предназначен для примеров, не является реальным сервером. Status waiting и пустой Synced Server не доказывают синхронизацию. Файл проверен визуально.
 
 `wireguard-list-winbox4.jpg` — необрезанный оригинальный снимок списка WireGuard в WinBox 4.4 на одноразовой CHR 7.23.8 ([GitHub Actions 41175251145](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41175251145)). Интерфейс wg-lab создан на временной VM через serial. Закрытый ключ на снимке скрыт, показанный открытый ключ принадлежит одноразовой VM; наличие интерфейса не доказывает handshake. Снимок проверен визуально.
+
+`wireguard-peers-winbox4.jpg` — оригинальный снимок WinBox 4.4, вкладка Peers на одноразовой CHR 7.23.8 ([GitHub Actions 41175498963](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41175498963)). Peer задан для съёмки через serial с примерным публичным ключом; соединение на снимке отсутствует. Проверен визуально.

@@ -74,14 +74,14 @@ def get_public(vm):
     key=vm.match.group(1);assert len(base64.b64decode(key))==32
     return key
 
-def verify_ping(vm,address):
+def verify_ping(vm,address,expect_success=True):
     token=secrets.token_hex(16);yes='PINGOK'+token;no='PINGFAIL'+token
     def literal(value): return '"'+value[:16]+'" . "'+value[16:]+'"'
     settle(vm)
     vm.sendline(':do { :local n [/ping '+address+' count=5 interval=1s]; :if ($n > 0) do={:put ('+literal(yes)+')} else={:put ('+literal(no)+')} } on-error={:put ('+literal(no)+')}')
     try: match=vm.expect([re.escape(yes),re.escape(no)],timeout=60)
     except Exception: raise RuntimeError('Encrypted ping timed out') from None
-    if match:raise RuntimeError('Encrypted ping did not succeed')
+    if (match == 0) != expect_success:raise RuntimeError('Encrypted ping result differed from expectation')
 
 stage='initialization'
 try:
@@ -101,11 +101,14 @@ try:
         '/ip address add address=198.51.100.1/30 interface=ether1',
         '/interface wireguard add name=wg-client listen-port=13232 private-key="'+fixture['clientPrivate']+'"',
         '/ip address add address=10.10.10.2/24 interface=wg-client',
+        '/ip route add dst-address=192.168.88.0/24 gateway=wg-client',
         '/interface wireguard peers add interface=wg-client public-key="'+server_public+'" allowed-address=10.10.10.1/32,192.168.88.0/24 endpoint-address=198.51.100.2 endpoint-port=13231 persistent-keepalive=5s']:
         command(client,line)
     stage='ping tunnel';verify_ping(client,'10.10.10.1')
     stage='ping LAN gateway';verify_ping(client,'192.168.88.1')
-    print('::notice title=Real WireGuard tunnel::Two disposable CHRs established a WireGuard tunnel over an isolated UDP link. The client reached the VPN address and server LAN gateway through the tunnel. No client LAN VM, external network or Windows GUI was tested.')
+    stage='disabled peer negative test';command(server,'/interface wireguard peers disable [find]');verify_ping(client,'10.10.10.1',expect_success=False)
+    stage='re-enabled peer test';command(server,'/interface wireguard peers enable [find]');verify_ping(client,'10.10.10.1')
+    print('::notice title=Real WireGuard tunnel::Two disposable CHRs established a WireGuard tunnel over an isolated UDP link. The client reached the VPN address and server LAN gateway through the tunnel. Disabling the server peer blocked traffic; re-enabling restored it. No client LAN VM, external network or Windows GUI was tested.')
 except Exception as exc:
     # Never include raw console buffers, private keys or passwords in CI logs.
     msg=str(exc) if isinstance(exc,RuntimeError) else type(exc).__name__
