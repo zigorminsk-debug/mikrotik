@@ -61,11 +61,25 @@ jobs:
           gradle-version: '8.4'
       - name: Сборка release APK
         run: gradle -p android assembleRelease --stacktrace
+      - name: Подписать APK постоянным ключом (гарантия подписи)
+        run: |
+          APK=$(ls android/app/build/outputs/apk/release/*.apk | head -1)
+          echo "APK: $APK"
+          # Читаем параметры подписи из keystore.properties
+          source <(grep -E '^(storePassword|keyAlias|keyPassword)=' android/keystore/keystore.properties | sed 's/^/export /')
+          $ANDROID_HOME/build-tools/34.0.0/apksigner sign \
+            --ks android/keystore/release.p12 \
+            --ks-key-alias "$keyAlias" \
+            --ks-pass pass:"$storePassword" \
+            --key-pass pass:"$keyPassword" \
+            --out "$APK.signed" "$APK"
+          mv "$APK.signed" "$APK"
       - name: Проверка подписи APK
         run: |
           APK=$(ls android/app/build/outputs/apk/release/*.apk | head -1)
           echo "APK: $APK"
           $ANDROID_HOME/build-tools/34.0.0/apksigner verify --print-certs "$APK" | head -20
+          $ANDROID_HOME/build-tools/34.0.0/apksigner verify --verbose "$APK"
       # APK в артефакты НЕ выкладываем: GitHub всегда упаковывает артефакты в zip,
       # а пользователю нужен чистый .apk. Он доступен напрямую:
       #  - в релизе: releases/download/<тег>/MikroTik-Guide-<тег>.apk
