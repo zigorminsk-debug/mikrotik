@@ -1,0 +1,46 @@
+name: Windows physical device selection screenshots
+on:
+  push:
+    paths:
+      - '.github/workflows/windows-physical-selection-capture.yml'
+      - 'tools/capture-physical-selection.js'
+      - 'tools/export-physical-selection.py'
+      - 'app/js/lab.js'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Electron and copy application
+        shell: pwsh
+        run: |
+          Push-Location windows
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed' }
+          npm run copy
+          if ($LASTEXITCODE -ne 0) { throw 'Copy failed' }
+          Pop-Location
+      - name: Capture results and selection with mock responses
+        shell: pwsh
+        run: |
+          ./windows/node_modules/.bin/electron.cmd tools/capture-physical-selection.js
+          if ($LASTEXITCODE -ne 0) { throw 'Electron screenshot failed' }
+      - name: Export list 0–9
+        run: python tools/export-physical-selection.py 0 list
+      - name: Export list 10–19
+        run: python tools/export-physical-selection.py 10 list
+      - name: Export list 20–23
+        run: python tools/export-physical-selection.py 20 list
+      - name: Export selected 0–9
+        run: python tools/export-physical-selection.py 0 selected
+      - name: Export selected 10–19
+        run: python tools/export-physical-selection.py 10 selected
+      - name: Export selected 20–23
+        run: python tools/export-physical-selection.py 20 selected

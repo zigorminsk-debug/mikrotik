@@ -848,6 +848,28 @@ function openSettings(id) {
   if (d.type === 'router') publicationTargets(d.id).forEach(function(_target, index) { var on = $('lm_pub_' + index + '_on'); if (on) on.addEventListener('change', applyVis); });
   if ($('lm_ext_count')) $('lm_ext_count').addEventListener('change', applyVis);
   if (d.type === 'router') publicationTargets(d.id).forEach(function(_target, index) { var count = $('lm_pub_' + index + '_count'); if (count) count.addEventListener('change', applyVis); });
+  function showPhysicalCandidates(container, devices) {
+    // MNDP replies are untrusted and can arrive through another adapter. This
+    // is a transient choice for a human, not authentication or a connection.
+    var candidates=(Array.isArray(devices)?devices:[]).filter(function(d){return d && typeof d.mac==='string' && /^(?:[0-9a-f]{2}:){5}[0-9a-f]{2}$/i.test(d.mac) && !(parseInt(d.mac.slice(0,2),16)&1) && d.mac.toLowerCase()!=='00:00:00:00:00:00';}).slice(0,128);
+    container.replaceChildren();
+    if (!candidates.length) {container.textContent='Устройства с корректным MAC не обнаружены. Проверьте подключение, настройки обнаружения RouterOS и firewall Windows.';return;}
+    var heading=document.createElement('div');heading.textContent='Найдено (данные не аутентифицированы, ответ мог прийти через другой адаптер). Выберите строку и сверьте MAC на корпусе. Подключение и применение пока недоступны.';container.appendChild(heading);
+    var group=document.createElement('div');group.setAttribute('aria-label','Найденные устройства (данные не аутентифицированы)');container.appendChild(group);
+    var selected=document.createElement('div');selected.id='lm_physical_selected';container.appendChild(selected);
+    function field(x, fallback) {return typeof x==='string' && x ? x.slice(0,128) : fallback;}
+    candidates.forEach(function(d){
+      var mac=d.mac.toUpperCase();var info=field(d.identity,'без имени')+'; '+field(d.hardware||d.platform,'модель неизвестна')+'; RouterOS '+field(d.version,'неизвестна')+'; источник '+field(d.sourceAddress,'неизвестен');
+      var btn=document.createElement('button');btn.type='button';btn.className='btn ghost';btn.style.display='block';btn.style.marginTop='6px';btn.style.textAlign='left';btn.setAttribute('aria-pressed','false');btn.textContent='Выбрать '+mac+' — '+info;group.appendChild(btn);
+      btn.addEventListener('click',function(){
+        Array.prototype.forEach.call(group.querySelectorAll('button'),function(other){other.setAttribute('aria-pressed',other===btn?'true':'false');});
+        selected.replaceChildren();
+        var label=document.createElement('label');label.textContent='Выбранный MAC (не подтверждён): ';
+        var input=document.createElement('input');input.id='lm_selected_mac';input.type='text';input.readOnly=true;input.value=mac;input.setAttribute('aria-label','Выбранный не подтверждённый MAC');label.appendChild(input);selected.appendChild(label);
+        var tip=document.createElement('div');tip.textContent='Сверьте MAC с наклейкой устройства. Чтобы перенести его в отдельный WinBox, выделите текст, скопируйте Ctrl+C и вставьте в Connect To. Лаборатория не проверяет вход.';selected.appendChild(tip);
+      });
+    });
+  }
   var physicalSelect = $('lm_physical_if'), physicalResult = $('lm_physical_result'), physicalButton = $('lm_find_physical');
   if (physicalSelect && physicalButton) {
     if (!window.routerOS || typeof window.routerOS.physicalInterfaces !== 'function') {
@@ -867,8 +889,7 @@ function openSettings(id) {
           if(physicalResult !== $('lm_physical_result')) return;
           if(result && result.cancelled) physicalResult.textContent='Поиск отменён.';
           else if(!result || !result.ok) physicalResult.textContent=(result && result.message)||'Поиск не выполнен.';
-          else if(!result.devices.length) physicalResult.textContent='Устройства не обнаружены. Проверьте подключение, настройки обнаружения RouterOS и firewall Windows.';
-          else physicalResult.textContent='Найдено (данные не аутентифицированы):\n'+result.devices.map(function(x){return x.mac+' — '+(x.identity||'без имени')+'; '+(x.hardware||x.platform||'модель неизвестна')+'; RouterOS '+(x.version||'неизвестна')+'; источник '+x.sourceAddress;}).join('\n')+'\nСверьте MAC на корпусе. Подключение и применение пока недоступны.';
+          else showPhysicalCandidates(physicalResult,result.devices);
         }).catch(function(){if(physicalResult === $('lm_physical_result'))physicalResult.textContent='Ошибка связи с Windows-компонентом.';}).finally(function(){if(physicalButton === $('lm_find_physical')) {physicalButton.disabled=false; physicalSelect.disabled=false;}});
       });
     }
