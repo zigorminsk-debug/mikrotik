@@ -37,3 +37,5 @@
 `winbox-launch-button-windows.jpg` — оригинальный снимок окна Windows Electron, [GitHub Actions 41218642065](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41218642065). Адаптер учебный, поиск не запускался и WinBox не открывался.
 
 `winbox-launch-warning-windows.jpg` — оригинальный снимок настоящего системного предупреждения Windows, вызванного в Electron с теми же параметрами, что и в приложении, в [том же запуске](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41218642065). Путь учебный, автоматикой выбрана отмена; никакая программа не запускалась. Оба снимка проверены визуально.
+
+`physical-choice-list-windows.jpg` и `physical-choice-selected-windows.jpg` — оригинальные снимки Windows Electron, [GitHub Actions 41229297861](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41229297861). Список устройств, MAC и адаптер подставлены тестом; ни поиск реальных устройств, ни вход, ни запуск WinBox не выполнялись. На втором снимке выбран учебный MAC; оба снимка проверены визуально.
