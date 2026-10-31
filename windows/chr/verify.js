@@ -27,6 +27,17 @@ function check(ok, description) { if (!ok) throw new Error('CHR не подтв�
 function list(rows) { if (!Array.isArray(rows)) throw new Error('Некорректный ответ CHR'); return rows; }
 function one(rows, predicate) { return list(rows).filter(predicate).length === 1; }
 function enabled(row) { return row.disabled === 'false' || row.disabled === false; }
+// A single peer only. This verification is currently exercised by the isolated
+// Windows CI fixture; normal preflight still rejects every VPN configuration.
+// RouterOS may return the interface private key: never log the response.
+async function verifyWireguard(expected, get, existingAddresses) {
+  const interfaces = list(await get('/rest/interface/wireguard'));
+  check(interfaces.length === 1 && one(interfaces, x => x.name === 'wg-lab' && enabled(x) && String(x['listen-port']) === String(expected.port) && /^[A-Za-z0-9+/]{43}=$/.test(x['public-key'] || '')), 'интерфейс WireGuard');
+  const addresses = list(existingAddresses || await get('/rest/ip/address')).filter(x => x.interface === 'wg-lab');
+  check(addresses.length === 1 && one(addresses, x => x.address === expected.address && enabled(x)), 'адрес WireGuard');
+  const peers = list(await get('/rest/interface/wireguard/peers'));
+  check(peers.length === 1 && one(peers, x => x.interface === 'wg-lab' && enabled(x) && x['public-key'] === expected.peerPublicKey && x['allowed-address'] === expected.allowedAddress), 'peer WireGuard');
+}
 async function verifyConfiguration(expected, get, diagnostic = () => {}) {
   if (!expected || typeof get !== 'function') throw new Error('Нет параметров проверки CHR');
   const resource = await get('/rest/system/resource');
@@ -48,6 +59,7 @@ async function verifyConfiguration(expected, get, diagnostic = () => {}) {
   check(one(addresses, x => x.address === expected.lanAddress && x.interface === 'bridge-lan') && wans.every(w => one(addresses, x => x.address === w.address && x.interface === w.port)), 'адреса LAN и WAN');
   check(wans.every(w => list(addresses).filter(x => x.interface === w.port && x.disabled !== 'true' && x.disabled !== true).length === 1), 'лишние адреса WAN');
   if (expected.vlan) check(one(addresses, x => x.address === expected.guestAddress && x.interface === 'vlan-guest'), 'адрес гостевого VLAN');
+  if (expected.wireguard) await verifyWireguard(expected.wireguard, get, addresses);
   const routes = await get('/rest/ip/route');
   check(wans.every(w => one(routes, x => x['dst-address'] === '0.0.0.0/0' && x.gateway === w.gateway && String(x.distance) === w.distance && x['check-gateway'] === 'ping' && x.disabled !== 'true' && x.disabled !== true)), 'маршруты WAN');
   if (expected.staticRoute) {
@@ -90,4 +102,4 @@ async function verifyConfiguration(expected, get, diagnostic = () => {}) {
   const nat = list(await get('/rest/ip/firewall/nat'));
   check(nat.length === expected.natRules.length && expected.natRules.every((rule, n) => Object.keys(rule).every(k => String(nat[n][k]) === rule[k])), 'правила NAT');
 }
-module.exports = { makeReader, verifyConfiguration };
+module.exports = { makeReader, verifyConfiguration, verifyWireguard };

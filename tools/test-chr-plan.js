@@ -49,6 +49,8 @@ const notStatic=JSON.parse(JSON.stringify(dualState));notStatic.devices.find(x=>
 const routers=JSON.parse(JSON.stringify(dualState));routers.devices.find(x=>x.id==='r').cfg.routerFailover=true;assert(makePlan(engine,routers,'r',{allowDualStaticWan:true}).blockers.length);
 s = sample(); s.devices[2].cfg.nics = [{id:'nic2'}]; assert(makePlan(engine,s,'r').blockers.length);
 s = sample(); s.devices[1].cfg.lan = '172.31.254.0/24'; assert(makePlan(engine,s,'r').blockers.length);
+s = sample(); Object.assign(s.devices[1].cfg,{vpn:true,vpnType:'wireguard',vpnPool:'172.31.254.0/24',vpnPort:'13231'}); assert(engine.chrPreflight(s,'r').blockers.some(x=>/управления CHR подсетью/.test(x))); assert(makePlan(engine,s,'r').blockers.length);
+for (const type of ['wireguard','ikev2','l2tp-ipsec']) { s=sample(); Object.assign(s.devices[1].cfg,{vpn:true,vpnType:type,vpnPool:'10.10.10.0/24',vpnPort:'13231',vpnServerCert:'server',vpnClientCert:'client',vpnUser:'test',vpnPass:'test-password',vpnPsk:'test-secret'}); assert(makePlan(engine,s,'r').blockers.length, type); }
 s = sample(); s.devices[0].on = false; assert(makePlan(engine,s,'r').blockers.length);
 assert.throws(() => makePlan(engine,{devices:Array(101).fill({}),links:[]},'r'), /формат/);
 console.log('CHR план: неподдерживаемые настройки блокируются целиком.');
