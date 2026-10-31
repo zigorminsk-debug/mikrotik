@@ -264,7 +264,7 @@ public class MainActivity extends Activity {
                 }
             }
             if (!cur.isEmpty()) items.add(cur);
-            return reply(status, messageOf(items.isEmpty() ? null : items.get(items.size() - 1)), items);
+            return reply(status, messageOf(items.isEmpty() ? null : items.get(items.size() - 1), ""), items);
         }
 
         private JSONObject sendAndRead(List<Object> words) throws Exception {
