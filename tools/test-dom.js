@@ -241,6 +241,13 @@ async function main() {
   ok(doc.getElementById('content').children.length > 0, 'раздел отрендерен после перехода');
   ok(!!doc.querySelector('#content li img[src="assets/img/own/ether1-winbox4.jpg"]'), 'оригинальный снимок General свойства ether1 привязан к действию');
 
+  win.location.hash = '#ros-wireguard';
+  win.dispatchEvent(new win.Event('hashchange'));
+  await delay(30);
+  ok(!!doc.querySelector('#content li img[src="assets/img/own/wireguard-list-winbox4.jpg"]'), 'оригинальный снимок интерфейса WireGuard привязан к действию');
+  ok(!!doc.querySelector('#content li img[src="assets/img/own/wireguard-peers-winbox4.jpg"]'), 'оригинальный снимок Peers привязан к действию');
+  ok($('content').textContent.includes('пока не запускается с VPN'), 'недоступность VPN в CHR явно указана');
+
   win.location.hash = '#ros-ipv6';
   win.dispatchEvent(new win.Event('hashchange'));
   await delay(30);
