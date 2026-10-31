@@ -45,6 +45,10 @@
       services: { api: false, apiSsl: false, ssh: false, telnet: false, www: false, wwwSsl: false, ftp: false },
       users: [],         // { name, group, password }
       backups: [],       // { name, time }
+      servicePorts: [],  // { name, port, protocol }
+      graphing: [],      // { name, interface, storeEvery }
+      scheduler: [],     // { name, startTime, interval, disabled }
+      macServerEnabled: true,
       logs: []           // { time, topics, message }
     };
   }
@@ -820,6 +824,185 @@
     install: function (s) {
       log(s, 'system', 'установка обновлений RouterOS');
       return replyDone([itemOf({ status: 'обновления не найдены' })]);
+    }
+  };
+
+  /* --- /ip/dhcp-client --- */
+  HANDLERS['ip/dhcp-client'] = {
+    print: function (s) {
+      var items = s.dhcpClients.map(function (c) {
+        return itemOf({
+          interface: c.interface,
+          'add-default-route': c.addDefaultRoute ? 'yes' : 'no',
+          disabled: c.disabled ? 'yes' : 'no',
+          bound: c.bound ? 'yes' : 'no',
+          address: c.address || '',
+          gateway: c.gateway || ''
+        });
+      });
+      return replyDone(items);
+    },
+    add: function (s, attrs) {
+      var a = {};
+      attrs.forEach(function (w) { var eq = w.indexOf('=', 1); if (eq > 0) a[w.slice(1, eq)] = w.slice(eq + 1); });
+      if (!a.interface) return replyTrap('укажите interface');
+      s.dhcpClients.push({
+        interface: a.interface,
+        addDefaultRoute: a['add-default-route'] === 'yes',
+        disabled: a.disabled === 'yes',
+        bound: false,
+        address: '',
+        gateway: ''
+      });
+      log(s, 'dhcp', 'DHCP-клиент на ' + escAttr(a.interface));
+      return replyDone([itemOf({ interface: a.interface })]);
+    },
+    set: function (s, attrs, conds, words) {
+      var a = {};
+      attrs.forEach(function (w) { var eq = w.indexOf('=', 1); if (eq > 0) a[w.slice(1, eq)] = w.slice(eq + 1); });
+      var iface = a.interface;
+      if (!iface && conds && conds.length) {
+        for (var i = 0; i < conds.length; i++) { if (conds[i].name === 'interface') { iface = conds[i].value; break; } }
+      }
+      if (!iface) return replyTrap('укажите interface');
+      var idx = s.dhcpClients.findIndex(function (c) { return c.interface === iface; });
+      if (idx < 0) return replyTrap('DHCP-клиент не найден: ' + escAttr(iface));
+      if (a['add-default-route'] !== undefined) s.dhcpClients[idx].addDefaultRoute = a['add-default-route'] === 'yes';
+      if (a.disabled !== undefined) s.dhcpClients[idx].disabled = a.disabled === 'yes';
+      return replyDone([itemOf({ interface: s.dhcpClients[idx].interface })]);
+    },
+    remove: function (s, attrs, conds, words) {
+      var iface = null;
+      var a = {};
+      attrs.forEach(function (w) { var eq = w.indexOf('=', 1); if (eq > 0) a[w.slice(1, eq)] = w.slice(eq + 1); });
+      if (a.interface) iface = a.interface;
+      if (!iface && conds && conds.length) {
+        for (var i = 0; i < conds.length; i++) { if (conds[i].name === 'interface') { iface = conds[i].value; break; } }
+      }
+      if (!iface) return replyTrap('укажите interface');
+      var idx = s.dhcpClients.findIndex(function (c) { return c.interface === iface; });
+      if (idx < 0) return replyTrap('DHCP-клиент не найден: ' + escAttr(iface));
+      s.dhcpClients.splice(idx, 1);
+      return replyDone([]);
+    }
+  };
+
+  /* --- /ip/firewall/service-port --- */
+  HANDLERS['ip/firewall/service-port'] = {
+    print: function (s) {
+      var items = (s.servicePorts || []).map(function (sp) {
+        return itemOf({ name: sp.name, port: sp.port || '', protocol: sp.protocol || '' });
+      });
+      return replyDone(items);
+    },
+    add: function (s, attrs) {
+      var a = {};
+      attrs.forEach(function (w) { var eq = w.indexOf('=', 1); if (eq > 0) a[w.slice(1, eq)] = w.slice(eq + 1); });
+      if (!a.name) return replyTrap('укажите name');
+      s.servicePorts = s.servicePorts || [];
+      s.servicePorts.push({ name: a.name, port: a.port || '', protocol: a.protocol || '' });
+      log(s, 'firewall', 'service-port ' + escAttr(a.name));
+      return replyDone([itemOf({ name: a.name })]);
+    },
+    remove: function (s, attrs, conds, words) {
+      var name = null;
+      var a = {};
+      attrs.forEach(function (w) { var eq = w.indexOf('=', 1); if (eq > 0) a[w.slice(1, eq)] = w.slice(eq + 1); });
+      if (a.name) name = a.name;
+      if (!name && conds && conds.length) {
+        for (var i = 0; i < conds.length; i++) { if (conds[i].name === 'name') { name = conds[i].value; break; } }
+      }
+      if (!name) return replyTrap('укажите name');
+      if (!s.servicePorts) return replyDone([]);
+      var idx = s.servicePorts.findIndex(function (sp) { return sp.name === name; });
+      if (idx < 0) return replyTrap('service-port не найден: ' + escAttr(name));
+      s.servicePorts.splice(idx, 1);
+      return replyDone([]);
+    }
+  };
+
+  /* --- /tool/graphing --- */
+  HANDLERS['tool/graphing'] = {
+    print: function (s) {
+      var items = (s.graphing || []).map(function (g) {
+        return itemOf({ name: g.name, interface: g.interface || '', 'store-every': g.storeEvery || '5m' });
+      });
+      return replyDone(items);
+    }
+  };
+
+  /* --- /tool/graphing/queue --- */
+  HANDLERS['tool/graphing/queue'] = {
+    add: function (s, attrs) {
+      var a = {};
+      attrs.forEach(function (w) { var eq = w.indexOf('=', 1); if (eq > 0) a[w.slice(1, eq)] = w.slice(eq + 1); });
+      if (!a.name) return replyTrap('укажите name');
+      s.graphing = s.graphing || [];
+      s.graphing.push({ name: a.name, interface: a.interface || '', storeEvery: a['store-every'] || '5m' });
+      log(s, 'system', 'график ' + escAttr(a.name));
+      return replyDone([itemOf({ name: a.name })]);
+    }
+  };
+
+  /* --- /system/scheduler --- */
+  HANDLERS['system/scheduler'] = {
+    print: function (s) {
+      var items = (s.scheduler || []).map(function (t) {
+        return itemOf({ name: t.name, 'start-time': t.startTime || 'startup', interval: t.interval || '', disabled: t.disabled ? 'yes' : 'no' });
+      });
+      return replyDone(items);
+    },
+    add: function (s, attrs) {
+      var a = {};
+      attrs.forEach(function (w) { var eq = w.indexOf('=', 1); if (eq > 0) a[w.slice(1, eq)] = w.slice(eq + 1); });
+      if (!a.name) return replyTrap('укажите name');
+      s.scheduler = s.scheduler || [];
+      s.scheduler.push({ name: a.name, startTime: a['start-time'] || 'startup', interval: a.interval || '', disabled: a.disabled === 'yes' });
+      log(s, 'system', 'планировщик ' + escAttr(a.name));
+      return replyDone([itemOf({ name: a.name })]);
+    },
+    set: function (s, attrs, conds, words) {
+      var a = {};
+      attrs.forEach(function (w) { var eq = w.indexOf('=', 1); if (eq > 0) a[w.slice(1, eq)] = w.slice(eq + 1); });
+      var name = a.name;
+      if (!name && conds && conds.length) {
+        for (var i = 0; i < conds.length; i++) { if (conds[i].name === 'name') { name = conds[i].value; break; } }
+      }
+      if (!name) return replyTrap('укажите name');
+      var idx = (s.scheduler || []).findIndex(function (t) { return t.name === name; });
+      if (idx < 0) return replyTrap('задача не найдена: ' + escAttr(name));
+      if (a.disabled !== undefined) s.scheduler[idx].disabled = a.disabled === 'yes';
+      if (a.interval) s.scheduler[idx].interval = a.interval;
+      return replyDone([itemOf({ name: s.scheduler[idx].name })]);
+    },
+    remove: function (s, attrs, conds, words) {
+      var name = null;
+      var a = {};
+      attrs.forEach(function (w) { var eq = w.indexOf('=', 1); if (eq > 0) a[w.slice(1, eq)] = w.slice(eq + 1); });
+      if (a.name) name = a.name;
+      if (!name && conds && conds.length) {
+        for (var i = 0; i < conds.length; i++) { if (conds[i].name === 'name') { name = conds[i].value; break; } }
+      }
+      if (!name) return replyTrap('укажите name');
+      if (!s.scheduler) return replyDone([]);
+      var idx = s.scheduler.findIndex(function (t) { return t.name === name; });
+      if (idx < 0) return replyTrap('задача не найдена: ' + escAttr(name));
+      s.scheduler.splice(idx, 1);
+      return replyDone([]);
+    }
+  };
+
+  /* --- /tool/mac-server --- */
+  HANDLERS['tool/mac-server'] = {
+    print: function (s) {
+      return replyDone([itemOf({ enabled: s.macServerEnabled ? 'yes' : 'no' })]);
+    },
+    set: function (s, attrs) {
+      var a = {};
+      attrs.forEach(function (w) { var eq = w.indexOf('=', 1); if (eq > 0) a[w.slice(1, eq)] = w.slice(eq + 1); });
+      if (a.enabled !== undefined) s.macServerEnabled = a.enabled === 'yes';
+      log(s, 'system', 'MAC-сервер ' + (s.macServerEnabled ? 'включён' : 'выключен'));
+      return replyDone([]);
     }
   };
 
