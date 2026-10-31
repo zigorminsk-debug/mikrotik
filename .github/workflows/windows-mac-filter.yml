@@ -33,16 +33,19 @@ jobs:
           $src=Join-Path $base 'tik4net-d4597fa04fcad3e96a9fcd51ddac499778344638'
           Copy-Item -Recurse $src (Join-Path $base 'wildcard-source')
           Copy-Item -Recurse $src (Join-Path $base 'filtered-source')
+          Copy-Item -Recurse $src (Join-Path $base 'filtered-all-source')
           python tools/patch-tik4net-wildcard-ci.py (Join-Path $base 'wildcard-source')
           if ($LASTEXITCODE -ne 0) { throw 'Wildcard patch failed' }
           python tools/patch-tik4net-wildcard-ci.py (Join-Path $base 'filtered-source') filter
           if ($LASTEXITCODE -ne 0) { throw 'Filtered patch failed' }
+          python tools/patch-tik4net-wildcard-ci.py (Join-Path $base 'filtered-all-source') filter-all
+          if ($LASTEXITCODE -ne 0) { throw 'Candidate filter patch failed' }
       - name: Build temporary research variants and test harness
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
           $base=Join-Path $env:RUNNER_TEMP 'mac-filter'
-          foreach ($kind in @('wildcard','filtered')) {
+          foreach ($kind in @('wildcard','filtered','filtered-all')) {
             $src=Join-Path $base "$kind-source"
             $out=Join-Path $base "helper-$kind"
             dotnet publish tools/mac-readonly-ci/mac-readonly-ci.csproj -t:Rebuild -c Release -r win-x64 --self-contained true "-p:TikSource=$src" -o $out
@@ -55,7 +58,7 @@ jobs:
         run: |
           $base=Join-Path $env:RUNNER_TEMP 'mac-filter'
           $test=Join-Path $base 'test/mac-filter-ci.dll'
-          foreach ($kind in @('wildcard','filtered')) {
+          foreach ($kind in @('wildcard','filtered','filtered-all')) {
             $assembly=Join-Path $base "helper-$kind/tik4net.dll"
             dotnet $test $assembly $kind
             if ($LASTEXITCODE -ne 0) { throw "Loopback test failed: $kind" }
