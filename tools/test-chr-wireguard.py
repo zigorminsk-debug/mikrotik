@@ -107,8 +107,8 @@ try:
     stage='ping tunnel';verify_ping(client,'10.10.10.1')
     stage='ping LAN gateway';verify_ping(client,'192.168.88.1')
     stage='disabled peer negative test';command(server,'/interface wireguard peers disable [find]');verify_ping(client,'10.10.10.1',expect_success=False)
-    stage='re-enabled peer test';command(server,'/interface wireguard peers enable [find]');verify_ping(client,'10.10.10.1')
-    print('::notice title=Real WireGuard tunnel::Two disposable CHRs established a WireGuard tunnel over an isolated UDP link. The client reached the VPN address and server LAN gateway through the tunnel. Disabling the server peer blocked traffic; re-enabling restored it. No client LAN VM, external network or Windows GUI was tested.')
+    stage='re-enabled peer test';command(server,'/interface wireguard peers enable [find]');command(client,'/interface wireguard peers disable [find]');command(client,'/interface wireguard peers enable [find]');verify_ping(client,'10.10.10.1')
+    print('::notice title=Real WireGuard tunnel::Two disposable CHRs established a WireGuard tunnel over an isolated UDP link. The client reached the VPN address and server LAN gateway through the tunnel. Disabling the server peer blocked traffic; re-enabling and restarting the client peer restored it. No client LAN VM, external network or Windows GUI was tested.')
 except Exception as exc:
     # Never include raw console buffers, private keys or passwords in CI logs.
     msg=str(exc) if isinstance(exc,RuntimeError) else type(exc).__name__
