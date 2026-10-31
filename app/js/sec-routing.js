@@ -9,6 +9,7 @@ section({
   steps: [
     { t: 'Основы: таблица маршрутизации', b: [
       P('Роутер выбирает маршрут по **наибольшему совпадению префикса** (longest match), при равенстве — по меньшему `distance`.'),
+      IMG('assets/img/routes-failover.svg', 'WinBox: IP → Routes — таблица с основным и резервным каналом (distance 1 и 2)'),
       CMD(
 `/ip route print
 #    D A S DstAddress        Gateway        Distance

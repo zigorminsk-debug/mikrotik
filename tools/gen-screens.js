@@ -722,6 +722,65 @@ scenes['system-backup.svg'] = {
   }
 };
 
+/* 24. Интерактивный стенд — моделирование */
+scenes['stand-modeling.svg'] = {
+  build() {
+    let b = txt(24, 24, 'Интерактивный стенд — моделирование конфигурации', { size: 14, bold: true });
+    // Form panel
+    b += rect(24, 52, 330, 320, '#ffffff', { stroke: '#c3ccd7', rx: 6 });
+    b += txt(44, 74, 'Задача:', { size: 12, bold: true });
+    const form = [
+      ['Тип провайдеров:', 'PPPoE + DHCP'],
+      ['Основной канал:', 'PPPoE (ether1)'],
+      ['Резервный:', 'DHCP (ether2)'],
+      ['LAN:', '192.168.88.0/24'],
+      ['Гости:', '192.168.99.0/24'],
+      ['VPN:', 'WireGuard wg0'],
+      ['Публикация:', '80→192.168.88.10:80']
+    ];
+    let fy = 96;
+    form.forEach(([l, v]) => {
+      b += field(44, fy, l, v, { lw: 130, vw: 180 });
+      fy += 30;
+    });
+    b += buttons(44, fy + 14, [{ t: 'Смоделировать настройки', primary: true, w: 200 }, { t: 'Сброс', w: 80 }]);
+
+    // Result panel
+    b += rect(370, 52, 350, 320, '#f7fafc', { stroke: '#c3ccd7', rx: 6 });
+    b += txt(390, 74, 'Результат моделирования:', { size: 12, bold: true });
+    const t = table(390, 96, 310,
+      ['Проверка', 'Статус'],
+      [
+        ['Пересечение подсетей', { t: 'OK', fill: '#0f8a3d', bold: true }],
+        ['Конфликты портов', { t: 'OK', fill: '#0f8a3d', bold: true }],
+        ['Failover distance', { t: 'OK', fill: '#0f8a3d', bold: true }],
+        ['Masquerade WAN', { t: 'OK', fill: '#0f8a3d', bold: true }],
+        ['DNS настроен', { t: 'OK', fill: '#0f8a3d', bold: true }]
+      ],
+      { cols: [220, 70], monoCols: [1] });
+    b += t.s;
+    b += caption(390, t.bottom + 14, 'Все проверки пройдены — конфигурация готова к применению.');
+
+    // Config preview
+    b += rect(24, 392, 700, 130, '#1e293b', { rx: 6 });
+    b += txt(40, 412, 'Сгенерированная конфигурация RouterOS v7:', { size: 11.5, fill: '#94a3b8', bold: true });
+    const cfg = [
+      '/interface bridge add name=bridge-lan',
+      '/ip address add address=192.168.88.1/24 interface=bridge-lan',
+      '/ip pool add name=pool-lan ranges=192.168.88.10-192.168.88.250',
+      '/ip dhcp-server add name=dhcp1 interface=bridge-lan address-pool=pool-lan disabled=no',
+      '/ip firewall nat add chain=srcnat out-interface-list=WAN action=masquerade'
+    ];
+    let cy = 432;
+    cfg.forEach((line, i) => {
+      b += txt(40, cy, line, { size: 10, fill: '#4ade80', mono: true });
+      cy += 15;
+    });
+    b += caption(40, cy + 8, 'Нажмите «Отправить на роутер» — команды применятся на выбранную цель (реальную или виртуальную).');
+    return win('Стенд моделирования', 748, 550, b, {});
+  }
+};
+
 /* ---------- запись ---------- */
 let count = 0;
 for (const [name, spec] of Object.entries(scenes)) {
