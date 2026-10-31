@@ -144,6 +144,26 @@ ping 8.8.8.8
         'PPP/WiFi/VPN/диагностика')
     ]},
 
+    { t: 'ARP-таблица, метки трафика (mangle), аренды DHCP', b: [
+      CMD(
+`# --- ARP-таблица (динамические и статические записи) ---
+/ip arp print
+/ip arp add address=192.168.88.50 mac-address=AA:BB:CC:DD:EE:FF interface=ether2 published=yes comment="сервер 1С\"
+/ip arp remove [ find address=192.168.88.50 ]
+
+# --- Mangle: маркировка пакетов и соединений ---
+/ip firewall mangle print
+/ip firewall mangle add chain=prerouting action=mark-routing new-routing-mark=to-vpn passthrough=yes comment="трафик в VPN\"
+/ip firewall mangle add chain=prerouting action=mark-connection new-connection-mark=voip passthrough=yes protocol=udp dst-port=5060 comment="VoIP: приоритет\"
+/ip firewall mangle remove [ find comment="трафик в VPN\" ]
+
+# --- Аренды и статические адреса DHCP ---
+/ip dhcp-server lease print
+/ip dhcp-server lease remove [ find address=192.168.88.25 ]
+/ip dhcp-server static add mac-address=AA:BB:CC:DD:EE:FF address=192.168.88.50 server=dhcp-lan comment="сервер 1С\"`,
+        'ARP / mangle / DHCP lease')
+    ]},
+
     { t: 'Горячие клавиши и приёмы WinBox', b: [
       TBL(['Действие', 'Как'], [
         ['Открыть терминал', 'Меню → New Terminal (все команды учебника)'],

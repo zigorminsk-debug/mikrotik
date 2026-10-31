@@ -518,6 +518,8 @@ function genCommands(plan) {
   var gv = ['/* === ' + (inp.vpn.type !== 'none' ? 10 : 9) + '. Быстрая проверка === */',
     '/ip route print where dst-address=0.0.0.0/0  # маршруты и расстояния',
     '/interface print                             # состояние pppoe/lte/dhcp',
+    '/ip arp print                                # ARP-записи (динамика + статика)',
+    '/ip firewall mangle print                    # правила маркировки трафика',
     '/ip firewall filter print stats             # счётчики правил',
     '/tool netwatch print                         # контроль шлюзов',
     'ping 8.8.8.8 src-address=' + inp.lan.gw + '  # выход в интернет',

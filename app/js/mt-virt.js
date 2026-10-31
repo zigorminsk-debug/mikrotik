@@ -49,6 +49,9 @@
       graphing: [],      // { name, interface, storeEvery }
       scheduler: [],     // { name, startTime, interval, disabled }
       macServerEnabled: true,
+      arp: [],           // { address, 'mac-address', interface, published }
+      mangle: [],        // { chain, action, routingMark, connMark, comment }
+      dhcpLeases: [],    // { mac-address, address, server, status, expires-after }
       logs: []           // { time, topics, message }
     };
   }
@@ -1002,6 +1005,111 @@
       attrs.forEach(function (w) { var eq = w.indexOf('=', 1); if (eq > 0) a[w.slice(1, eq)] = w.slice(eq + 1); });
       if (a.enabled !== undefined) s.macServerEnabled = a.enabled === 'yes';
       log(s, 'system', 'MAC-сервер ' + (s.macServerEnabled ? 'включён' : 'выключен'));
+      return replyDone([]);
+    }
+  };
+
+  /* --- /ip/arp --- */
+  HANDLERS['ip/arp'] = {
+    print: function (s) {
+      var items = (s.arp || []).map(function (a) {
+        return itemOf({ address: a.address, 'mac-address': a.mac, interface: a.interface || '', 'published': a.published ? 'yes' : 'no' });
+      });
+      return replyDone(items);
+    },
+    add: function (s, attrs) {
+      var a = {};
+      attrs.forEach(function (w) { var eq = w.indexOf('=', 1); if (eq > 0) a[w.slice(1, eq)] = w.slice(eq + 1); });
+      if (!a.address) return replyTrap('укажите address');
+      if (!a['mac-address']) return replyTrap('укажите mac-address');
+      s.arp = s.arp || [];
+      s.arp.push({ address: a.address, mac: a['mac-address'], interface: a.interface || '', published: a.published === 'yes' });
+      log(s, 'arp', 'ARP запись ' + escAttr(a.address));
+      return replyDone([itemOf({ address: a.address })]);
+    },
+    remove: function (s, attrs, conds, words) {
+      var address = null;
+      var a = {};
+      attrs.forEach(function (w) { var eq = w.indexOf('=', 1); if (eq > 0) a[w.slice(1, eq)] = w.slice(eq + 1); });
+      if (a.address) address = a.address;
+      if (!address && conds && conds.length) {
+        for (var i = 0; i < conds.length; i++) { if (conds[i].name === 'address') { address = conds[i].value; break; } }
+      }
+      if (!address) return replyTrap('укажите address');
+      if (!s.arp) return replyDone([]);
+      var idx = s.arp.findIndex(function (ar) { return ar.address === address; });
+      if (idx < 0) return replyTrap('ARP запись не найдена: ' + escAttr(address));
+      s.arp.splice(idx, 1);
+      return replyDone([]);
+    }
+  };
+
+  /* --- /ip/firewall/mangle --- */
+  HANDLERS['ip/firewall/mangle'] = {
+    print: function (s) {
+      var items = (s.mangle || []).map(function (m) {
+        return itemOf({ chain: m.chain, action: m.action, 'new-routing-mark': m.routingMark || '', 'new-connection-mark': m.connMark || '', comment: m.comment || '' });
+      });
+      return replyDone(items);
+    },
+    add: function (s, attrs) {
+      var a = {};
+      attrs.forEach(function (w) { var eq = w.indexOf('=', 1); if (eq > 0) a[w.slice(1, eq)] = w.slice(eq + 1); });
+      if (!a.chain) return replyTrap('укажите chain');
+      if (!a.action) return replyTrap('укажите action');
+      s.mangle = s.mangle || [];
+      s.mangle.push({ chain: a.chain, action: a.action, routingMark: a['new-routing-mark'] || '', connMark: a['new-connection-mark'] || '', comment: a.comment || '' });
+      log(s, 'firewall', 'mangle правило ' + escAttr(a.chain) + '/' + escAttr(a.action));
+      return replyDone([itemOf({ chain: a.chain, action: a.action })]);
+    },
+    remove: function (s, attrs, conds, words) {
+      var a = {};
+      attrs.forEach(function (w) { var eq = w.indexOf('=', 1); if (eq > 0) a[w.slice(1, eq)] = w.slice(eq + 1); });
+      var chain = a.chain;
+      var action = a.action;
+      if (!chain && conds && conds.length) {
+        for (var i = 0; i < conds.length; i++) { if (conds[i].name === 'chain') { chain = conds[i].value; break; } }
+      }
+      if (!chain) return replyTrap('укажите chain');
+      if (!s.mangle) return replyDone([]);
+      var idx = s.mangle.findIndex(function (m) { return m.chain === chain && (!action || m.action === action); });
+      if (idx < 0) return replyTrap('mangle правило не найдено');
+      s.mangle.splice(idx, 1);
+      return replyDone([]);
+    }
+  };
+
+  /* --- /ip/dhcp-server/lease --- */
+  HANDLERS['ip/dhcp-server/lease'] = {
+    print: function (s) {
+      var items = (s.dhcpLeases || []).map(function (l) {
+        return itemOf({ 'mac-address': l.mac, address: l.address, 'server': l.server || '', 'status': l.status || 'bound', 'expires-after': l.expires || '' });
+      });
+      return replyDone(items);
+    },
+    add: function (s, attrs) {
+      var a = {};
+      attrs.forEach(function (w) { var eq = w.indexOf('=', 1); if (eq > 0) a[w.slice(1, eq)] = w.slice(eq + 1); });
+      if (!a['mac-address']) return replyTrap('укажите mac-address');
+      if (!a.address) return replyTrap('укажите address');
+      s.dhcpLeases = s.dhcpLeases || [];
+      s.dhcpLeases.push({ mac: a['mac-address'], address: a.address, server: a.server || 'dhcp-lan', status: 'bound', expires: '3d' });
+      log(s, 'dhcp', 'аренда DHCP ' + escAttr(a.address));
+      return replyDone([itemOf({ address: a.address })]);
+    },
+    remove: function (s, attrs, conds, words) {
+      var address = null;
+      var a = {};
+      attrs.forEach(function (w) { var eq = w.indexOf('=', 1); if (eq > 0) a[w.slice(1, eq)] = w.slice(eq + 1); });
+      if (a.address) address = a.address;
+      if (!address && conds && conds.length) {
+        for (var i = 0; i < conds.length; i++) { if (conds[i].name === 'address') { address = conds[i].value; break; } }
+      }
+      if (!address) return replyTrap('укажите address');
+      if (!s.dhcpLeases) return replyDone([]);
+      var idx = s.dhcpLeases.findIndex(function (l) { return l.address === address; });
+      if (idx < 0) return replyTrap('аренда не найдена: ' + escAttr(address));
+      s.dhcpLeases.splice(idx, 1);
       return replyDone([]);
     }
   };

@@ -18,7 +18,9 @@
     { id: 'pc1', kind: 'pc', name: 'ПК 1', x: 100, y: 260, icon: 'C', color: '#84cc16', label: 'Компьютер 1' },
     { id: 'pc2', kind: 'pc', name: 'ПК 2', x: 300, y: 260, icon: 'C', color: '#84cc16', label: 'Компьютер 2' },
     { id: 'server', kind: 'server', name: 'Сервер', x: 450, y: 260, icon: 'S', color: '#a855f7', label: 'Сервер' },
-    { id: 'printer', kind: 'printer', name: 'Принтер', x: 650, y: 260, icon: 'P', color: '#f59e0b', label: 'Принтер' }
+    { id: 'printer', kind: 'printer', name: 'Принтер', x: 650, y: 260, icon: 'P', color: '#f59e0b', label: 'Принтер' },
+    { id: 'wifi-ap', kind: 'wifi-ap', name: 'Wi-Fi точка доступа', x: 650, y: 90, icon: 'W', color: '#06b6d4', label: 'Wi-Fi точка доступа' },
+    { id: 'phone', kind: 'phone', name: 'IP-телефон', x: 740, y: 260, icon: 'T', color: '#ef4444', label: 'IP-телефон' }
   ];
 
   var LINKS = [
@@ -26,7 +28,9 @@
     { from: 'switch', to: 'pc1' },
     { from: 'switch', to: 'pc2' },
     { from: 'switch', to: 'server' },
-    { from: 'switch', to: 'printer' }
+    { from: 'switch', to: 'printer' },
+    { from: 'switch', to: 'wifi-ap' },
+    { from: 'wifi-ap', to: 'phone' }
   ];
 
   /* ---------- инициализация ---------- */
@@ -40,7 +44,7 @@
     svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svgEl.setAttribute('width', '100%');
     svgEl.setAttribute('height', '360');
-    svgEl.setAttribute('viewBox', '0 0 800 360');
+    svgEl.setAttribute('viewBox', '0 0 850 360');
     svgEl.setAttribute('class', 'net-map-svg');
     svgEl.style.display = 'block';
     mapEl.appendChild(svgEl);
