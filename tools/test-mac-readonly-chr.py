@@ -32,7 +32,7 @@ def probe(test_password):
     try: response=json.loads(result.stdout.strip().splitlines()[-1])
     except Exception: raise RuntimeError('MAC client produced no valid result') from None
     category=response.get('category','unknown')
-    if not isinstance(category,str) or not category.isidentifier() or len(category)>80: category='unknown'
+    if category not in ('Other','NoUsableNic','ChallengeNone','BadChallenge','NoConfirmation'): category='unknown'
     return result.returncode==0 and response.get('ok') is True,category
 
 try:

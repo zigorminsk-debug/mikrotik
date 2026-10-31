@@ -700,7 +700,7 @@ function openSettings(id) {
     html += '<button type="button" class="btn" id="lm_open_chr">🖥 Открыть RouterOS</button>' +
       '<p class="fs-hint">Только в Windows-установщике: настоящая CHR, без виртуальных клиентов. Один статический WAN запускается изолированно. Для двух статических виртуальных WAN доступен ограниченный интернет-режим после отдельного предупреждения: оба используют подключение Windows и могут обращаться к компьютеру и локальной сети. Для него нужны ether1: 10.0.2.20/24, шлюз 10.0.2.2; ether4: 10.0.3.20/24, шлюз 10.0.3.2; DNS 10.0.2.3 и 10.0.3.3. Проверялось отключение интерфейса, не обрыв интернета за шлюзом. Физические провайдеры и клиенты не эмулируются; Wi-Fi, LTE, VPN, два роутера и другие типы WAN блокируются. Закрытие окна удаляет виртуальный диск.</p>';
     html += '<div class="lm-t">Физический MikroTik по MAC — подготовка</div>' +
-      '<p class="fs-hint">Экспериментальный поиск соседних устройств MNDP: настоящие физические MikroTik этой функцией ещё не проверялись. Подключение, сброс и отправка схемы на физический роутер ещё не реализованы. MAC и имя из сети не подтверждены: сравните MAC с наклейкой на устройстве.</p>' +
+      '<p class="fs-hint">Экспериментальный поиск соседних устройств MNDP: настоящие физические MikroTik этой функцией ещё не проверялись. Подключение, сброс и отправка схемы на физический роутер ещё не реализованы. Ответы могут поступить через другие адаптеры. MAC и имя из сети не подтверждены: сравните MAC с наклейкой на устройстве.</p>' +
       '<label>Сетевой адаптер Windows<select id="lm_physical_if"><option value="">Загрузка…</option></select></label>' +
       '<button type="button" class="btn" id="lm_find_physical">Искать устройства по MAC</button><div id="lm_physical_result" class="fs-hint" style="white-space:pre-wrap;overflow-wrap:anywhere" aria-live="polite"></div>';
     html += sel('lm_router_role', 'Роль MikroTik (для общего LAN / VRRP)', [['primary', 'Основной'], ['backup', 'Резервный']], c.routerRole || 'primary') + '<p class="fs-hint">В двух независимых сетях эта роль не переключает интернет между роутерами.</p>';
@@ -855,16 +855,17 @@ function openSettings(id) {
         if (!result || !result.ok || !result.interfaces.length) { var empty=document.createElement('option'); empty.value=''; empty.textContent='Нет подходящих IPv4-адаптеров'; physicalSelect.appendChild(empty); physicalButton.disabled=true; return; }
         result.interfaces.forEach(function(nic) { var option=document.createElement('option'); option.value=nic.address; option.dataset.name=nic.name; option.textContent=nic.name+' — '+nic.address; physicalSelect.appendChild(option); });
       }).catch(function(){if (physicalResult === $('lm_physical_result')) physicalResult.textContent='Не удалось получить список адаптеров.';});
+      physicalSelect.addEventListener('change',function(){ physicalResult.textContent=''; });
       physicalButton.addEventListener('click',function(){
         var option=physicalSelect.selectedOptions[0]; if(!option || !option.value) return;
-        physicalButton.disabled=true; physicalResult.textContent='Ожидание подтверждения…';
+        physicalButton.disabled=true; physicalSelect.disabled=true; physicalResult.textContent='Ожидание подтверждения…';
         window.routerOS.discoverPhysical(option.dataset.name,option.value).then(function(result){
           if(physicalResult !== $('lm_physical_result')) return;
           if(result && result.cancelled) physicalResult.textContent='Поиск отменён.';
           else if(!result || !result.ok) physicalResult.textContent=(result && result.message)||'Поиск не выполнен.';
           else if(!result.devices.length) physicalResult.textContent='Устройства не обнаружены. Проверьте подключение, настройки обнаружения RouterOS и firewall Windows.';
           else physicalResult.textContent='Найдено (данные не аутентифицированы):\n'+result.devices.map(function(x){return x.mac+' — '+(x.identity||'без имени')+'; '+(x.hardware||x.platform||'модель неизвестна')+'; RouterOS '+(x.version||'неизвестна')+'; источник '+x.sourceAddress;}).join('\n')+'\nСверьте MAC на корпусе. Подключение и применение пока недоступны.';
-        }).catch(function(){if(physicalResult === $('lm_physical_result'))physicalResult.textContent='Ошибка связи с Windows-компонентом.';}).finally(function(){if(physicalButton === $('lm_find_physical'))physicalButton.disabled=false;});
+        }).catch(function(){if(physicalResult === $('lm_physical_result'))physicalResult.textContent='Ошибка связи с Windows-компонентом.';}).finally(function(){if(physicalButton === $('lm_find_physical')) {physicalButton.disabled=false; physicalSelect.disabled=false;}});
       });
     }
   }

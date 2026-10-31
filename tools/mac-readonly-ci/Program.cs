@@ -27,15 +27,14 @@ try
 catch (Exception ex)
 {
     // Do not include exception messages, response data, stack traces or secrets.
-    var names = new System.Collections.Generic.List<string>();
-    for (Exception? current=ex; current!=null && names.Count<4; current=current.InnerException) {
-        names.Add(current.GetType().Name);
-        // Classify known constant failure stages, never serialize exception text.
-        if (current.Message.Contains("No usable local network interface")) names.Add("NoUsableNic");
-        else if (current.Message.Contains("MAC-WinBox: bad challenge (none)")) names.Add("ChallengeNone");
-        else if (current.Message.Contains("MAC-WinBox: bad challenge")) names.Add("BadChallenge");
-        else if (current.Message.Contains("MAC-Winbox: no server confirmation", StringComparison.OrdinalIgnoreCase)) names.Add("NoConfirmation");
+    // Output only fixed constants, never dynamically constructed exception names.
+    var category = "Other";
+    for (Exception? current=ex; current!=null; current=current.InnerException) {
+        if (current.Message.Contains("No usable local network interface")) { category = "NoUsableNic"; break; }
+        if (current.Message.Contains("MAC-WinBox: bad challenge (none)")) { category = "ChallengeNone"; break; }
+        if (current.Message.Contains("MAC-WinBox: bad challenge")) { category = "BadChallenge"; break; }
+        if (current.Message.Contains("MAC-Winbox: no server confirmation", StringComparison.OrdinalIgnoreCase)) { category = "NoConfirmation"; break; }
     }
-    Console.WriteLine(JsonSerializer.Serialize(new {ok=false, category=string.Join("_", names)}));
+    Console.WriteLine(JsonSerializer.Serialize(new {ok=false, category}));
     Environment.ExitCode = 1;
 }
