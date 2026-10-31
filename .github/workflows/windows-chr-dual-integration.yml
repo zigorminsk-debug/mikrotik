@@ -91,5 +91,15 @@ jobs:
         shell: pwsh
         run: |
           $dir = Join-Path $env:RUNNER_TEMP 'qemu-candidate'
-          node tools/test-chr-dual-ntp.js "$env:QEMU_EXE" "$env:CHR_IMAGE" (Join-Path $dir 'dual-ntp-sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe')
-          if ($LASTEXITCODE -ne 0) { throw 'Dual WAN NTP verification failed' }
+          # The disposable GitHub runner can reserve UDP/123 for Windows Time.
+          # Do not do this on a user PC: stop it only here and restore it even
+          # if the test fails. A port still unavailable is a test failure.
+          $timeService = Get-Service W32Time -ErrorAction SilentlyContinue
+          $wasRunning = $timeService -and $timeService.Status -eq 'Running'
+          try {
+            if ($wasRunning) { Stop-Service W32Time -Force -ErrorAction Stop }
+            node tools/test-chr-dual-ntp.js "$env:QEMU_EXE" "$env:CHR_IMAGE" (Join-Path $dir 'dual-ntp-sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe')
+            if ($LASTEXITCODE -ne 0) { throw 'Dual WAN NTP verification failed' }
+          } finally {
+            if ($wasRunning) { Start-Service W32Time -ErrorAction Stop }
+          }
