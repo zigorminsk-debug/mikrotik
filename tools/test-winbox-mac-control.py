@@ -82,7 +82,7 @@ def probe_forged(label,helper,variant):
     udp=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
     udp.setsockopt(socket.SOL_SOCKET,socket.SO_BROADCAST,1)
     udp.bind(('0.0.0.0',20561));udp.settimeout(0.2)
-    child=None;early_data=False;injected=False
+    child=None;early_data=False;injected=False;client_port=None;start_time=time.monotonic()
     try:
         child=subprocess.Popen([str(base/helper/'mac-readonly-ci')],stdin=subprocess.PIPE,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,text=True)
         child.stdin.write(json.dumps({'mac':'02:11:22:33:44:55','password':password})+'\n');child.stdin.close()
@@ -91,7 +91,8 @@ def probe_forged(label,helper,variant):
             try:packet,addr=udp.recvfrom(2048)
             except socket.timeout:continue
             if len(packet)<22 or packet[0]!=1:continue
-            if packet[1]==0:
+            if packet[1]==0 and (client_port is None or client_port==addr[1]):
+                client_port=addr[1]
                 ack=bytearray(22);ack[0]=1;ack[1]=2
                 ack[2:8]=packet[8:14];ack[8:14]=packet[2:8]
                 ack[14:16]=packet[16:18];ack[16:18]=packet[14:16]
@@ -100,10 +101,10 @@ def probe_forged(label,helper,variant):
                 elif variant=='session':ack[16]^=1
                 elif variant=='client_type':ack[14]^=1
                 elif variant=='version':ack[0]=2
-                udp.sendto(ack,('192.0.2.255',addr[1]));injected=True
-            elif packet[1]==1 and injected:early_data=True;break
-        state='early_data' if early_data else ('no_data' if injected else 'not_injected')
-        print('::notice title=Forged '+label+'::state='+state,flush=True)
+                if variant!='none':udp.sendto(ack,('192.0.2.255',addr[1]));injected=True
+            elif packet[1]==1 and addr[1]==client_port:early_data=True;break
+        state='early_data' if early_data else ('no_data' if injected or (variant=='none' and client_port is not None) else 'not_injected')
+        print('Forged '+label+': '+state+' ('+str(round(time.monotonic()-start_time,1))+' s)',flush=True)
         return state
     finally:
         udp.close()
@@ -167,11 +168,19 @@ try:
     command('/ip address add address=192.0.2.2/24 interface=ether1')
     command('/ip service enable winbox')
     thread=threading.Thread(target=capture_counts,daemon=True);thread.start()
-    command('/tool mac-server mac-winbox set allowed-interface-list=none')
+    # Disable the guest interface itself: disabling mac-winbox alone may still
+    # let RouterOS acknowledge transport session-start before rejecting login.
+    command('/interface disable ether1')
+    fake_before=snapshot()
+    test_none=probe_forged('filtered-no-injection','helper-filtered','none')
     test_valid=probe_forged('filtered-valid-control','helper-filtered','valid')
     test_original=probe_forged('wildcard-wrong-session','helper-wildcard','session')
     negatives={kind:probe_forged('filtered-wrong-'+kind,'helper-filtered',kind) for kind in ('router','destination','session','client_type','version')}
-    command('/tool mac-server mac-winbox set allowed-interface-list=all')
+    fake_delta=snapshot()-fake_before
+    guest_packets=sum(v for k,v in fake_delta.items() if k.startswith('router_mac_'))
+    print('::notice title=Forged controls::no_injection='+test_none+'; valid='+test_valid+'; wildcard_wrong_session='+test_original+'; filtered='+','.join(k+':'+v for k,v in negatives.items())+'; guest_mac_packets='+str(guest_packets),flush=True)
+    command('/interface enable ether1')
+    time.sleep(4)
     ip=probe('192.0.2.2','IP-control')
     mac=probe('02:11:22:33:44:55','MAC-with-IP')
     tik_with_ip=probe_tik('original-with-IP','helper-original')
@@ -184,6 +193,7 @@ try:
     filtered=probe_tik('filtered-without-IP','helper-filtered')
     if ip!='workspace':raise RuntimeError('IP control did not reach a verified workspace; MAC result inconclusive')
     if mac!='workspace' or mac_no_ip!='workspace':raise RuntimeError('An official MAC test did not reach a verified workspace; see packet counts')
+    if test_none!='no_data' or guest_packets:raise RuntimeError('Forged ACK negative control was not isolated')
     if test_valid!='early_data' or test_original!='early_data':raise RuntimeError('Forged ACK test controls did not trigger the expected early DATA')
     if any(value!='no_data' for value in negatives.values()):raise RuntimeError('Filtered receive accepted a forged ACK or injection was inconclusive')
     if filtered!='read_ok':raise RuntimeError('Filtered experiment did not read the real CHR')
