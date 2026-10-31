@@ -10,6 +10,7 @@ on:
       - 'tools/test-chr-dual-wan.js'
       - 'tools/test-chr-dual-integration.js'
       - 'tools/test-chr-ntp.js'
+      - 'tools/test-chr-dual-ntp.js'
       - 'windows/main.js'
       - 'windows/chr/network-warning.js'
       - 'tools/test-chr-verify.js'
@@ -29,7 +30,7 @@ permissions:
 jobs:
   evaluate:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -86,3 +87,9 @@ jobs:
           $dir = Join-Path $env:RUNNER_TEMP 'qemu-candidate'
           node tools/test-chr-ntp.js "$env:QEMU_EXE" "$env:CHR_IMAGE" (Join-Path $dir 'ntp-sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe')
           if ($LASTEXITCODE -ne 0) { throw 'Isolated NTP settings verification failed' }
+      - name: Verify NTP with a synthetic local server and dual WAN (CI only)
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'qemu-candidate'
+          node tools/test-chr-dual-ntp.js "$env:QEMU_EXE" "$env:CHR_IMAGE" (Join-Path $dir 'dual-ntp-sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe')
+          if ($LASTEXITCODE -ne 0) { throw 'Dual WAN NTP verification failed' }

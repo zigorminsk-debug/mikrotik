@@ -72,6 +72,15 @@ jobs:
       - name: Export Clock screenshot 20–29
         if: always()
         run: /usr/bin/python3 tools/export-capture.py 20 clock
+      - name: Export applied NTP screenshot 0–9
+        if: always()
+        run: /usr/bin/python3 tools/export-capture.py 0 applied
+      - name: Export applied NTP screenshot 10–19
+        if: always()
+        run: /usr/bin/python3 tools/export-capture.py 10 applied
+      - name: Export applied NTP screenshot 20–29
+        if: always()
+        run: /usr/bin/python3 tools/export-capture.py 20 applied
       - name: Upload capture and diagnostic output
         if: always()
         uses: actions/upload-artifact@v4

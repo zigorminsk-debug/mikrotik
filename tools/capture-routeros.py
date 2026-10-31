@@ -69,8 +69,6 @@ try:
                         '/interface list add name=WAN',
                         '/interface list member add list=WAN interface=pppoe-out2',
                         '/system clock set time-zone-autodetect=no time-zone-name=Europe/Minsk',
-                        '/system ntp client set enabled=yes',
-                        '/system ntp client servers add address=192.0.2.123',
                         '/system resource print']:
             vm.sendline(command)
             vm.expect(r'\[admin@[^\]]+\]\s*>')
@@ -126,9 +124,23 @@ sleep 2
 xdotool mousemove --sync 305 421
 xdotool click 1
 sleep 8
+# Configure a reserved documentation-only address through the actual GUI.
+# Capture the edited form before applying; do not claim synchronization.
+xdotool mousemove --sync 674 328
+xdotool click 1
+xdotool mousemove --sync 740 379
+xdotool click 1
+xdotool key ctrl+a
+xdotool type --clearmodifiers '192.0.2.123'
+sleep 2
 rm -f "$3/winbox.png"
 scrot "$3/winbox.png"
 scrot -q 45 "$3/winbox.jpg"
+# Apply in this disposable VM, then capture the resulting status separately.
+xdotool mousemove --sync 936 585
+xdotool click 1
+sleep 8
+scrot -q 45 "$3/applied.jpg"
 # System -> Clock; captures an actual window, verified visually before use.
 xdotool mousemove --sync 180 443
 xdotool click 1
