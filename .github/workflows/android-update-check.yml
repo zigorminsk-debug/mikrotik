@@ -36,7 +36,16 @@ jobs:
         run: |
           set -euo pipefail
           # Also works if the target was published before the runner started.
-          previous=$(gh api "repos/$GH_REPO/releases?per_page=100" --jq '[.[] | select(.draft == false and .prerelease == false and .tag_name != env.TARGET_TAG)] | sort_by(.published_at) | last | .tag_name // empty')
+          # The latest published tag may have a higher semantic version than
+          # TARGET_TAG. Choose the greatest strictly older stable version so the
+          # updater is tested as an upgrade, not falsely described as one.
+          previous=$(gh api "repos/$GH_REPO/releases?per_page=100" --jq '
+            def version: ltrimstr("v") | split(".") | map(tonumber);
+            (env.TARGET_TAG | version) as $target |
+            [.[] | select(.draft == false and .prerelease == false) |
+             select(.tag_name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$")) |
+             select((.tag_name | version) < $target)] |
+            sort_by(.tag_name | version) | last | .tag_name // empty')
           if [[ -z "$previous" ]]; then echo '::error::No previous published release is available for this test.'; exit 1; fi
           mkdir -p "$RUNNER_TEMP/previous-release"
           gh release download "$previous" -p '*.apk' -D "$RUNNER_TEMP/previous-release"
