@@ -75,6 +75,42 @@ def probe_tik(label,helper,wrong_password=False):
     print('::notice title=Third-party '+label+'::state='+state+'; packet counts='+','.join(k+':'+str(delta[k]) for k in sorted(delta)),flush=True)
     return state
 
+def probe_forged(label,helper,variant):
+    # The real mac-server is disabled before this test. Listen only on this
+    # isolated host; construct a header ACK in memory using the client's own
+    # transient test header. Never record datagrams, session IDs or passwords.
+    udp=socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+    udp.setsockopt(socket.SOL_SOCKET,socket.SO_BROADCAST,1)
+    udp.bind(('0.0.0.0',20561));udp.settimeout(0.2)
+    child=None;early_data=False;injected=False
+    try:
+        child=subprocess.Popen([str(base/helper/'mac-readonly-ci')],stdin=subprocess.PIPE,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,text=True)
+        child.stdin.write(json.dumps({'mac':'02:11:22:33:44:55','password':password})+'\n');child.stdin.close()
+        deadline=time.monotonic()+6
+        while time.monotonic()<deadline:
+            try:packet,addr=udp.recvfrom(2048)
+            except socket.timeout:continue
+            if len(packet)<22 or packet[0]!=1:continue
+            if packet[1]==0:
+                ack=bytearray(22);ack[0]=1;ack[1]=2
+                ack[2:8]=packet[8:14];ack[8:14]=packet[2:8]
+                ack[14:16]=packet[16:18];ack[16:18]=packet[14:16]
+                if variant=='router':ack[2]^=2
+                elif variant=='destination':ack[8]^=2
+                elif variant=='session':ack[16]^=1
+                elif variant=='client_type':ack[14]^=1
+                elif variant=='version':ack[0]=2
+                udp.sendto(ack,('255.255.255.255',addr[1]));injected=True
+            elif packet[1]==1 and injected:early_data=True;break
+        state='early_data' if early_data else ('no_data' if injected else 'not_injected')
+        print('::notice title=Forged '+label+'::state='+state,flush=True)
+        return state
+    finally:
+        udp.close()
+        if child:
+            child.kill();child.wait()
+
+
 def gui():
     # The caller supplies the target/password via inherited environment. No
     # log escapes the worker: it may contain sensitive Qt application data.
@@ -140,11 +176,19 @@ try:
     tik_no_ip=probe_tik('original-without-IP','helper-original')
     patched_no_ip=probe_tik('wildcard-without-IP','helper-wildcard')
     wrong=probe_tik('wildcard-wrong-password','helper-wildcard',wrong_password=True)
+    filtered=probe_tik('filtered-without-IP','helper-filtered')
+    command('/tool mac-server mac-winbox set allowed-interface-list=none')
+    test_valid=probe_forged('filtered-valid-control','helper-filtered','valid')
+    test_original=probe_forged('wildcard-wrong-session','helper-wildcard','session')
+    negatives={kind:probe_forged('filtered-wrong-'+kind,'helper-filtered',kind) for kind in ('router','destination','session','client_type','version')}
     if ip!='workspace':raise RuntimeError('IP control did not reach a verified workspace; MAC result inconclusive')
     if mac!='workspace' or mac_no_ip!='workspace':raise RuntimeError('An official MAC test did not reach a verified workspace; see packet counts')
+    if test_valid!='early_data' or test_original!='early_data':raise RuntimeError('Forged ACK test controls did not trigger the expected early DATA')
+    if any(value!='no_data' for value in negatives.values()):raise RuntimeError('Filtered receive accepted a forged ACK or injection was inconclusive')
+    if filtered!='read_ok':raise RuntimeError('Filtered experiment did not read the real CHR')
     if wrong=='read_ok':raise RuntimeError('Wrong-password test unexpectedly read the resource')
     if patched_with_ip!='read_ok' or patched_no_ip!='read_ok':raise RuntimeError('Wildcard research client did not read CHR in both MAC-only conditions')
-    print('::notice title=Control conclusion::Official WinBox authenticated via MAC with and without IPv4; CI-only wildcard experiment read a resource in both cases and wrong credentials could not read it. This single-NIC Linux experiment is not a production fix or a physical/Windows test.')
+    print('::notice title=Control conclusion::Official WinBox authenticated via MAC with and without IPv4; CI-only filtered experiment also read a resource and rejected selected forged ACK headers. These single-NIC Linux experiments are not production fixes or physical/Windows tests.')
 except Exception as exc:
     print('::error title=WinBox control::'+(str(exc) if isinstance(exc,RuntimeError) else type(exc).__name__),flush=True)
     raise SystemExit(1) from None

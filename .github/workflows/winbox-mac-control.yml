@@ -38,9 +38,12 @@ jobs:
           set -euo pipefail
           source="$RUNNER_TEMP/winbox-control/tik4net-d4597fa04fcad3e96a9fcd51ddac499778344638"
           cp -a "$source" "$RUNNER_TEMP/winbox-control/wildcard-source"
+          cp -a "$source" "$RUNNER_TEMP/winbox-control/filtered-source"
           python3 tools/patch-tik4net-wildcard-ci.py "$RUNNER_TEMP/winbox-control/wildcard-source"
+          python3 tools/patch-tik4net-wildcard-ci.py "$RUNNER_TEMP/winbox-control/filtered-source" filter
           dotnet publish tools/mac-readonly-ci/mac-readonly-ci.csproj -t:Rebuild -c Release -r linux-x64 --self-contained true -p:TikSource="$source" -o "$RUNNER_TEMP/winbox-control/helper-original"
           dotnet publish tools/mac-readonly-ci/mac-readonly-ci.csproj -t:Rebuild -c Release -r linux-x64 --self-contained true -p:TikSource="$RUNNER_TEMP/winbox-control/wildcard-source" -o "$RUNNER_TEMP/winbox-control/helper-wildcard"
+          dotnet publish tools/mac-readonly-ci/mac-readonly-ci.csproj -t:Rebuild -c Release -r linux-x64 --self-contained true -p:TikSource="$RUNNER_TEMP/winbox-control/filtered-source" -o "$RUNNER_TEMP/winbox-control/helper-filtered"
       - name: Compare official and research clients without saving packet contents
         run: |
           set -euo pipefail
