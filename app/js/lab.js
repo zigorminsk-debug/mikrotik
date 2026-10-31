@@ -198,6 +198,7 @@ function renderLinks() {
 function togglePower(id) {
   var d = byId(id); if (!d) return;
   d.on = d.on === false;
+  if ($('physical-preview')) invalidate();
   if (playCtl) { clearTimeout(playCtl.timer); playCtl = null; playToken++; skipBtn.hidden = true; if (currentRes) { lastModel = currentRes.model; renderResults(currentRes); } }
   renderAll();
   if (flowEnabled) appendLog('info', d.name + (d.on ? ': ON. ' : ': OFF. ') + (LabEngine.activeRoutes(state).length ? 'Маршрут модели пересчитан.' : 'Активного пути нет.'));
@@ -206,6 +207,7 @@ function togglePower(id) {
 function toggleProbe(id) {
   var d = byId(id); if (!d || d.type !== 'router' || !d.cfg.wanMonitor) return;
   d.probeOn = d.probeOn === false;
+  if ($('physical-preview')) invalidate();
   if (playCtl) { clearTimeout(playCtl.timer); playCtl = null; playToken++; skipBtn.hidden = true; if (currentRes) { lastModel = currentRes.model; renderResults(currentRes); } }
   renderAll();
   if (flowEnabled) appendLog('warn', 'Контрольный узел: ' + (d.probeOn ? 'условно восстановлен' : 'условно недоступен') + '. Реальный ping не выполнялся; маршрут модели пересчитан.');

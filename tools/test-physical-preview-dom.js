@@ -18,6 +18,7 @@ const assert=require('assert');const path=require('path');const {JSDOM,VirtualCo
  assert(preview.textContent.includes('<img src=x'));assert(!preview.querySelector('img,script'));assert(!preview.textContent.includes('SECRET_ISP'));assert(preview.textContent.includes('Применение недоступно'));
  assert.equal(scans,0);assert.equal(launches,0);
  // An edit invalidates the displayed result, rather than keeping a stale plan.
+ w.Lab.togglePower(pc);assert($('lab-results').hidden);assert(!$('physical-preview'));
  w.Lab.openSettings(rt);$('lm_gw').value='192.168.88.3';$('lm_save').click();assert($('lab-results').hidden);assert(!$('physical-preview'));
  // Invalid form values must not save or render a misleading preview.
  w.Lab.openSettings(rt);$('lm_gw').value='invalid';$('lm_preview_physical').click();assert(!$('lab-modal').hidden);assert(!$('lm_err').hidden);assert($('lab-results').hidden);$('lm_cancel').click();

@@ -23,7 +23,8 @@ function build(engine, state, routerId) {
   catch (_) { out.errors.push('Не удалось проверить схему.'); return out; }
   if (!result || !Array.isArray(result.errors) || !Array.isArray(result.warnings)) {out.errors.push('Не удалось проверить схему.');return out;}
   out.errors=result.errors.slice(); out.warnings=result.warnings.slice();
-  if (out.errors.length || result.dual || result.independent || !result.model || !result.model.router) return out;
+  if (out.errors.length) return out;
+  if (result.dual || result.independent || !result.model || !result.model.router) {out.errors.push('Нельзя построить сводку для этой схемы.');return out;}
   var model=result.model, router=model.router;
   out.lan={network:router.net.first+'/24',gateway:router.gw,routerName:router.name};
   model.isps.forEach(function(i){out.ports.push({port:i.phys,peer:i.name,role:'WAN '+i.kind});});
