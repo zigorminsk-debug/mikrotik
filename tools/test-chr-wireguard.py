@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Two real disposable CHRs over an isolated UDP link, GitHub Actions only.
+"""Three real disposable CHRs over isolated UDP links, GitHub Actions only.
 
 No user data, public endpoints, external listening socket or persistent disk.
 Checks the laboratory's generated WireGuard configuration with a real peer and
@@ -25,9 +25,14 @@ password = 'TransientCI-' + secrets.token_hex(12)
 procs = []
 
 def reserve_ports():
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as a, socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as b:
-        a.bind(('127.0.0.1',0)); b.bind(('127.0.0.1',0))
-        return a.getsockname()[1], b.getsockname()[1]
+    sockets=[]
+    try:
+        for _ in range(4):
+            sock=socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.bind(('127.0.0.1',0));sockets.append(sock)
+        return [sock.getsockname()[1] for sock in sockets]
+    finally:
+        for sock in sockets: sock.close()
 
 def settle(vm):
     while True:
@@ -36,13 +41,16 @@ def settle(vm):
         except pexpect.TIMEOUT:
             return
 
-def boot(label, local, remote, extra):
+def boot(label, local, remote, extra, lan_link=None):
     disk=base/(label+'.img'); shutil.copyfile(image,disk)
     args=['-machine','pc,accel=tcg','-m','256','-smp','1','-nographic','-no-reboot',
           '-drive',f'file={disk},format=raw,if=ide',
           '-netdev',f'socket,id=wan,udp=127.0.0.1:{remote},localaddr=127.0.0.1:{local}',
           '-device','e1000,netdev=wan']
     for i in range(extra): args+=['-netdev',f'user,id=isolated{i},restrict=on','-device',f'e1000,netdev=isolated{i}']
+    if lan_link:
+        local_lan,remote_lan=lan_link
+        args+=['-netdev',f'socket,id=lan,udp=127.0.0.1:{remote_lan},localaddr=127.0.0.1:{local_lan}','-device','e1000,netdev=lan']
     vm=pexpect.spawn('qemu-system-x86_64',args,encoding='utf-8',timeout=180,dimensions=(50,160),echo=False)
     procs.append(vm)
     vm.expect(r'(?i)login:'); vm.sendline('admin'); vm.expect(r'(?i)password:');vm.sendline('')
@@ -85,9 +93,10 @@ def verify_ping(vm,address,expect_success=True):
 
 stage='initialization'
 try:
-    left,right=reserve_ports()
-    stage='server boot';server=boot('server',left,right,1)
+    left,right,lan_left,lan_right=reserve_ports()
+    stage='server boot';server=boot('server',left,right,0,(lan_left,lan_right))
     stage='client boot';client=boot('client',right,left,0)
+    stage='LAN host boot';lan=boot('lan',lan_right,lan_left,0)
     stage='server configuration'
     command(server,'/ip dhcp-client disable [find]')
     for group in fixture['groups']:
@@ -104,11 +113,17 @@ try:
         '/ip route add dst-address=192.168.88.0/24 gateway=wg-client',
         '/interface wireguard peers add interface=wg-client public-key="'+server_public+'" allowed-address=10.10.10.1/32,192.168.88.0/24 endpoint-address=198.51.100.2 endpoint-port=13231 persistent-keepalive=5s']:
         command(client,line)
+    stage='LAN host configuration'
+    command(lan,'/ip dhcp-client disable [find]')
+    command(lan,'/ip address add address=192.168.88.2/24 interface=ether1')
+    command(lan,'/ip route add dst-address=10.10.10.0/24 gateway=192.168.88.1')
+    stage='unsolicited LAN-to-VPN firewall test';verify_ping(lan,'10.10.10.2',expect_success=False)
     stage='ping tunnel';verify_ping(client,'10.10.10.1')
     stage='ping LAN gateway';verify_ping(client,'192.168.88.1')
+    stage='forward to LAN host';verify_ping(client,'192.168.88.2')
     stage='disabled peer negative test';command(server,'/interface wireguard peers disable [find]');verify_ping(client,'10.10.10.1',expect_success=False)
     stage='re-enabled peer test';command(server,'/interface wireguard peers enable [find]');command(client,'/interface wireguard peers disable [find]');command(client,'/interface wireguard peers enable [find]');verify_ping(client,'10.10.10.1')
-    print('::notice title=Real WireGuard tunnel::Two disposable CHRs established a WireGuard tunnel over an isolated UDP link. The client reached the VPN address and server LAN gateway through the tunnel. Disabling the server peer blocked traffic; re-enabling and restarting the client peer restored it. No client LAN VM, external network or Windows GUI was tested.')
+    print('::notice title=Real WireGuard tunnel::Three disposable CHRs tested an isolated WireGuard tunnel. The client reached the VPN address, server LAN gateway and a separate LAN host through the tunnel. Unsolicited LAN-to-VPN traffic was blocked. Disabling the server peer blocked traffic; re-enabling and restarting the client peer restored it. No external network or Windows GUI was tested.')
 except Exception as exc:
     # Never include raw console buffers, private keys or passwords in CI logs.
     msg=str(exc) if isinstance(exc,RuntimeError) else type(exc).__name__
