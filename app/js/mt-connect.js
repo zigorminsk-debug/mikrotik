@@ -277,41 +277,38 @@
       log(mtApplyOut, 'нет сгенерированной конфигурации — смоделируйте задачу на стенде', 'warn');
       return;
     }
-    var total = 0, ok = 0, fail = 0;
+    var commands = [];
     standGroups.forEach(function (g) {
       (g.code || '').split('\n').forEach(function (line) {
         line = line.trim();
         if (!line) return;
-        if (line.charAt(0) === '#' || line.charAt(0) === '/') {
-          if (line.indexOf('/*') >= 0 || line.indexOf('---') >= 0) return;
-        }
-        total++;
+        if (line.charAt(0) === '#') return;
+        if (line.indexOf('/*') >= 0 || line.indexOf('---') >= 0) return;
+        if (line.indexOf('IPF') >= 0 && line.indexOf('/') < 0) return;
+        if (/^=\s*=/.test(line)) return;
+        commands.push(line);
       });
     });
+    var total = commands.length;
+    var ok = 0, fail = 0;
     log(mtApplyOut, 'отправка ' + total + ' команд на ' + (isVirtual() ? 'виртуальный роутер' : 'реальный роутер') + '…', 'info');
 
-    (function runNext(groupIdx, lineIdx) {
-      while (groupIdx < standGroups.length) {
-        var lines = (standGroups[groupIdx].code || '').split('\n');
-        while (lineIdx < lines.length) {
-          var line = lines[lineIdx].trim();
-          lineIdx++;
-          if (!line) continue;
-          if (line.charAt(0) === '#') continue;
-          if (line.indexOf('/*') >= 0 || line.indexOf('---') >= 0) continue;
-          if (line.indexOf('IPF') >= 0 && line.indexOf('/') < 0) continue;
-          if (/^=\s*=/.test(line)) continue;
-          sendCli(line).then(function () { ok++; }).catch(function () { fail++; });
-          return runNextDelayed(groupIdx, lineIdx);
-        }
-        groupIdx++; lineIdx = 0;
+    var idx = 0;
+    function runNext() {
+      if (idx >= commands.length) {
+        log(mtApplyOut, 'завершено: ' + ok + ' выполнено, ' + fail + ' ошибок из ' + total, ok === total && total > 0 ? 'ok' : 'err');
+        return;
       }
-      log(mtApplyOut, 'завершено: ' + ok + ' выполнено, ' + fail + ' ошибок из ' + total, ok && !fail ? 'ok' : 'err');
-    })(0, 0);
-
-    function runNextDelayed(g, i) {
-      setTimeout(function () { runNext(g, i); }, 50);
+      var line = commands[idx++];
+      sendCli(line).then(function () {
+        ok++;
+        runNext();
+      }).catch(function () {
+        fail++;
+        runNext();
+      });
     }
+    runNext();
   });
 
   /* ---------- инициализация ---------- */
