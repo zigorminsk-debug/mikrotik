@@ -48,9 +48,26 @@ win=$(xdotool search --onlyvisible --pid "$pid" | head -n 1)
 xdotool windowfocus --sync "$win"
 sleep 2
 scrot -q 45 "$2/mac-neighbors.jpg"
+# Select the actual CHR MAC from the neighbour list, then capture the filled
+# Connect to field. The next step uses only this VM's disposable password.
+xdotool mousemove --sync 690 245
+xdotool click 1
+sleep 3
+scrot -q 45 "$2/mac-selected.jpg"
+xdotool mousemove --sync 330 443
+xdotool click 1
+xdotool type --clearmodifiers -- "$WB_TEMP_PASS"
+xdotool mousemove --sync 310 545
+xdotool click 1
+sleep 20
+if grep -q 'Auth OK' "$2/winbox.log" && grep -q 'WBOXSESS,INFO: first clock synced' "$2/winbox.log"; then
+  echo '::notice title=WinBox MAC comparison::Official WinBox authenticated to the disposable CHR after the MAC was selected.'
+else
+  echo '::notice title=WinBox MAC comparison::Official WinBox did not reach a verified authenticated session in this attempt.'
+fi
 kill "$pid" 2>/dev/null || true
 '''
-    env=os.environ.copy();env['QT_X11_NO_MITSHM']='1';env['HOME']=str(base/'gui-home');pathlib.Path(env['HOME']).mkdir(exist_ok=True)
+    env=os.environ.copy();env['QT_X11_NO_MITSHM']='1';env['WB_TEMP_PASS']=password;env['HOME']=str(base/'gui-home');pathlib.Path(env['HOME']).mkdir(exist_ok=True)
     subprocess.run(['xvfb-run','-a','-s','-screen 0 1440x900x24','bash','-c',script,'capture',str(winbox),str(out)],env=env,check=True,timeout=90)
     if (out/'mac-neighbors.jpg').stat().st_size<5000:raise RuntimeError('WinBox image unexpectedly small')
 finally:

@@ -27,7 +27,7 @@ jobs:
           unzip -o "$RUNNER_TEMP/mac-capture/chr.zip" -d "$RUNNER_TEMP/mac-capture"
           curl -fL --retry 2 -o "$RUNNER_TEMP/mac-capture/winbox.zip" https://download.mikrotik.com/routeros/winbox/4.4/WinBox_Linux.zip
           unzip -o "$RUNNER_TEMP/mac-capture/winbox.zip" -d "$RUNNER_TEMP/mac-capture/winbox"
-      - name: Capture WinBox without authentication
+      - name: Capture WinBox neighbour list and try a disposable MAC login
         run: |
           set -euo pipefail
           ns='mac-capture-ci'
@@ -49,3 +49,12 @@ jobs:
       - name: Export screenshot parts 20–29
         if: success()
         run: python3 tools/export-winbox-mac.py 20
+      - name: Export selected MAC screenshot parts 0–9
+        if: success()
+        run: python3 tools/export-winbox-mac.py 0 selected
+      - name: Export selected MAC screenshot parts 10–19
+        if: success()
+        run: python3 tools/export-winbox-mac.py 10 selected
+      - name: Export selected MAC screenshot parts 20–29
+        if: success()
+        run: python3 tools/export-winbox-mac.py 20 selected
