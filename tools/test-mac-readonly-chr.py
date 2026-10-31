@@ -54,6 +54,7 @@ try:
     js="const d=require('./windows/physical/mndp');d.discover('tap0','192.0.2.1',{timeout:6000}).then(x=>process.exit(x.some(y=>y.mac==='02:11:22:33:44:55')?0:1)).catch(()=>process.exit(1));"
     result=subprocess.run(['node','-e',js],capture_output=True,timeout=20)
     if result.returncode:raise RuntimeError('No matching MNDP response on isolated TAP')
+    print('::notice title=Real CHR MNDP::Application discovery received the expected MAC from one disposable RouterOS CHR over an isolated TAP network. No physical device or Windows broadcast was tested.', flush=True)
     stage='authenticated MAC read';
     success,category=probe(password)
     if not success:raise RuntimeError('MAC read-only probe failed ('+category+')')
