@@ -8,6 +8,7 @@ on:
       - 'tools/test-windows-chr-linux-ping.js'
       - 'windows/chr/ping.js'
       - 'windows/chr/ethernet-hub.js'
+      - 'windows/chr/linux-guest.js'
       - 'tools/test-ethernet-hub.js'
       - 'windows/chr/console.js'
       - 'tools/windows/chr-supervisor.c'

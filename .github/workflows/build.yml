@@ -48,6 +48,7 @@ jobs:
           node tools/test-chr-ping.js
           node tools/test-chr-resolve.js
           node tools/test-ethernet-hub.js
+          node tools/test-linux-guest.js
           node tools/test-endpoint-plan.js
           node tools/test-chr-plan.js
           node tools/test-chr-verify.js
