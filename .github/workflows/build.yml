@@ -45,6 +45,7 @@ jobs:
       - name: Тесты консоли и проверки виртуальной CHR
         run: |
           node tools/test-chr-console.js
+          node tools/test-chr-ping.js
           node tools/test-chr-plan.js
           node tools/test-chr-verify.js
           node tools/test-chr-session-unit.js

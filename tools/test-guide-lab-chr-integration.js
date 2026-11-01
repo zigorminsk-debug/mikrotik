@@ -47,6 +47,12 @@ let session,dom;const errors=[];
  }
  session=new ChrSession({qemu:path.resolve(qemu),image:path.resolve(image),tempRoot:path.resolve(work),supervisor:path.resolve(supervisor),diagnostic:record=>{if(record.ipv6Filter)console.log('::notice title=Disposable IPv6 filter shape::'+JSON.stringify({count:record.count,rules:record.ipv6Filter}));}});
  assert.equal(session.internetConsent,false);const info=await session.start(plan);assert.equal(new URL(info.url).hostname,'127.0.0.1');
+ if(kind==='ip'){
+  const self=await session.ping(plan.expected.lanAddress.split('/')[0]);assert.deepStrictEqual(self,{sent:3,received:3},'Actual CHR local address did not reply to ping');
+  const absent=await session.ping('192.168.88.254');assert.deepStrictEqual(absent,{sent:3,received:0},'Absent isolated fixture should not respond');
+  await assert.rejects(session.ping('192.168.88.1;bad'),/IPv4/);
+  console.log('::notice title=Actual isolated CHR ping::RouterOS returned three replies for its own configured LAN address, and zero for the absent test address. This does not test a client VM, physical router, public internet or VPN.');
+ }
  const dir=session.directory;await session.stop();assert(!fs.existsSync(dir));
  console.log('::notice title=Guide to isolated CHR::Selected '+kind+' in the actual guide UI, applied and verified its generated plan in disposable CHR and deleted the disk. No physical device, client VM, internet, WinBox screenshots or packaged EXE tested.');
 })().catch(e=>{console.log('::error title=Guide to isolated CHR::'+String(e.message).replace(/[\r\n%]/g,' '));process.exitCode=1;}).finally(async()=>{if(dom)dom.window.close();if(session)try{await session.stop();}catch(_){process.exitCode=1;}});

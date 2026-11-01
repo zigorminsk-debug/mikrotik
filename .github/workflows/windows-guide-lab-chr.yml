@@ -16,6 +16,7 @@ on:
       - 'windows/chr/plan.js'
       - 'windows/chr/session.js'
       - 'windows/chr/console.js'
+      - 'windows/chr/ping.js'
       - 'windows/chr/verify.js'
       - 'tools/windows/chr-supervisor.c'
   workflow_dispatch:
