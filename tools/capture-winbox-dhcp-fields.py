@@ -19,7 +19,7 @@ if len(images) != 1:
     raise SystemExit('Expected exactly one official CHR .img image')
 password = 'Temporary-Lab-Only-42!'
 args = [
-    '-machine', 'pc,accel=tcg', '-m', '256', '-smp', '2', '-nographic',
+    '-machine', 'pc,accel=tcg', '-m', '256', '-smp', '1', '-nographic',
     '-drive', f'file={images[0]},format=raw,if=ide',
     '-netdev', 'user,id=net0,restrict=on,hostfwd=tcp:127.0.0.1:18291-:8291',
     '-device', 'e1000,netdev=net0',
@@ -96,8 +96,9 @@ for attempt in $(seq 1 12); do
   scrot "$3/winbox.png"
   if grep -q 'Auth OK' "$3/winbox.log" && grep -q 'WBOXSESS,INFO: first clock synced' "$3/winbox.log" && kill -0 "$pid" 2>/dev/null; then ready=1; break; fi
   # A QEMU/slirp connection may close during startup. Reopen WinBox instead
-  # of waiting indefinitely on an error dialog; keep the check fail-closed.
-  if grep -q 'RemoteHostClosedError' "$3/winbox.log" || ! kill -0 "$pid" 2>/dev/null; then
+  # of waiting indefinitely on an error dialog or a stuck login; still require
+  # both Auth OK and first clock synced before capture.
+  if grep -q 'RemoteHostClosedError' "$3/winbox.log" || ! kill -0 "$pid" 2>/dev/null || [ $((attempt % 3)) -eq 0 ]; then
     kill "$pid" 2>/dev/null || true
     wait "$pid" 2>/dev/null || true
     "$1" 127.0.0.1:18291 admin "$2" >"$3/winbox.log" 2>&1 &
