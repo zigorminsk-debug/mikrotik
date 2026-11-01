@@ -8,10 +8,11 @@ function endpointPlan(engine, state, routerId) {
   if (!result || result.errors.length || result.dual || result.independent || !result.model || result.model.router.id !== routerId) return {blockers:['Для виртуальных клиентов нужна проверенная схема с одним MikroTik.'],segments:[]};
   const router = result.model.router, devices = state.devices;
   if (router.cfg.vlanGuest) return {blockers:['Гостевой VLAN с виртуальными клиентами пока не проверен.'],segments:[]};
+  if (!router.cfg.dhcp) return {blockers:['Для запуска тестового Linux-клиента пока нужен выбранный DHCP-сервер LAN; настройки роутера не будут изменены без выбора пользователя.'],segments:[]};
   const endpoints=devices.filter(x=>['pc','server','printer'].includes(x.type));
   if (!endpoints.length || endpoints.length > 4) return {blockers:['Для первого этапа нужны от одного до четырёх виртуальных клиентов.'],segments:[]};
   if (devices.some(x=>x.on===false)) return {blockers:['Выключенные устройства пока нельзя запустить как виртуальные клиенты.'],segments:[]};
-  if (endpoints.some(d=>!d.cfg || d.cfg.mode!=='static' || d.cfg.segment==='guest' || d.cfg.nics&&d.cfg.nics.length)) return {blockers:['Виртуальные клиенты пока поддерживают только основную LAN, одну сетевую карту и заданный вручную IPv4. DHCP-клиенты ещё проверяются.'],segments:[]};
+  if (endpoints.some(d=>!d.cfg || !['static','dhcp'].includes(d.cfg.mode) || d.cfg.segment==='guest' || d.cfg.nics&&d.cfg.nics.length)) return {blockers:['Виртуальные клиенты пока поддерживают только основную LAN, одну сетевую карту и IPv4.'],segments:[]};
   const ids=new Set(devices.map(d=>d.id));
   if(ids.size!==devices.length || devices.some(d=>typeof d.id!=='string'||!d.id))return {blockers:['Некорректные идентификаторы устройств.'],segments:[]};
   const neighbors=new Map(devices.map(d=>[d.id,[]]));
@@ -23,9 +24,9 @@ function endpointPlan(engine, state, routerId) {
     while(queue.length){const id=queue.shift();if(visited.has(id))continue;visited.add(id);const d=byId.get(id);
       if(!d || !['switch','pc','server','printer'].includes(d.type))return {blockers:['Ветвь LAN содержит неподдерживаемое устройство.'],segments:[]};
       if(d.type!=='switch'){
-        const ip=engine.parseCidr(d.cfg.ip);
-        if(!ip || ip.prefix!==24 || !validTarget(ip.ip) || (d.cfg.gw && !validTarget(d.cfg.gw)))return {blockers:['Нужны допустимые адреса клиентов IPv4/24 и шлюза.'],segments:[]};
-        found.add(id);members.push({id:d.id,type:d.type,ip:ip.ip,netmask:24,gateway:d.cfg.gw||''});
+        const ip=d.cfg.mode==='static' ? engine.parseCidr(d.cfg.ip) : null;
+        if(d.cfg.mode==='static' && (!ip || ip.prefix!==24 || !validTarget(ip.ip) || (d.cfg.gw && !validTarget(d.cfg.gw))))return {blockers:['Нужны допустимые адреса клиентов IPv4/24 и шлюза.'],segments:[]};
+        found.add(id);members.push({id:d.id,type:d.type,mode:d.cfg.mode,ip:ip?ip.ip:null,netmask:24,gateway:ip?(d.cfg.gw||''):null});
       }
       for(const next of neighbors.get(id))if(!visited.has(next))queue.push(next);
     }

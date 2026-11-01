@@ -36,7 +36,13 @@ async function linuxCommand(c,cmd,expected=0){const token='LNX'+randomBytes(16).
  for(const cmd of cmds)await router.command(cmd);
  stage='first Linux boot';const pc=new LinuxGuest({qemu,image:linuxImage,tempRoot:root,supervisor,localPort:pcLink[0],hubPort:pcLink[1],mac:pcLink[2]});guests.push(pc);await pc.start();
  stage='second Linux boot';const server=new LinuxGuest({qemu,image:linuxImage,tempRoot:root,supervisor,localPort:serverLink[0],hubPort:serverLink[1],mac:serverLink[2]});guests.push(server);await server.start();
- stage='DHCP leases';for(const guest of guests){assert(/^192\.168\.88\.1(?:0[0-9]|[1-4][0-9]|50)$/.test(await guest.address()));assert.deepStrictEqual(await guest.ping('192.168.88.1'),{sent:3,received:3});}
+ stage='DHCP leases';for(const guest of guests){assert(/^192\.168\.88\.1(?:0[0-9]|[1-4][0-9]|50)$/.test(await guest.address()));
+ // Report the fixed non-sensitive ping summary, so a CI failure can distinguish
+ // an unexpected guest ping format from a real connectivity failure.
+ await guest.console.settle();guest.console.send('ping -c 3 -W 2 192.168.88.1');
+ const summary=await guest.console.expect(/3 packets transmitted[^\r\n]*/,30000);console.log('::notice title=Fixed Linux ping summary::'+summary.replace(/%/g,'%25'));
+ await guest.console.expect(/\$\s*$/m,30000);
+ assert.deepStrictEqual(await guest.ping('192.168.88.1'),{sent:3,received:3});}
  stage='Linux static addresses';await pc.setStatic('192.168.88.10','192.168.88.1');await server.setStatic('192.168.88.20','192.168.88.1');assert.equal(await pc.address(),'192.168.88.10');assert.equal(await server.address(),'192.168.88.20');
  stage='PC to router';assert.deepStrictEqual(await pc.ping('192.168.88.1'),{sent:3,received:3});
  stage='PC to server';assert.deepStrictEqual(await pc.ping('192.168.88.20'),{sent:3,received:3});

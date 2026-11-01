@@ -59,7 +59,7 @@ class LinuxGuest {
     if(!validTarget(ip))throw Error('Укажите допустимый IPv4-адрес');
     return this.operation(async()=>{
       // Parse only the fixed BusyBox ping packet-count line, not terminal output.
-      const cmd="out=$(ping -c 3 -W 2 "+ip+" 2>&1); result=$(printf '%s\\n' \"$out\" | sed -n 's/^.*transmitted, *\\([0-3]\\) packets received.*$/\\1/p')";
+      const cmd="out=$(ping -c 3 -W 2 "+ip+" 2>&1); result=$(printf '%s\\n' \"$out\" | sed -n 's/^.*transmitted, *\\([0-3]\\) \\(packets \\)\\{0,1\\}received.*$/\\1/p')";
       return {sent:3,received:await shellResult(this.console,cmd,'count')};
     });
   }
