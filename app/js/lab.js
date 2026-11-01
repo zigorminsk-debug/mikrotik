@@ -39,6 +39,7 @@ var TYPES = {
       dhcp: true, nat: true, firewall: true, vpn: false, wanFailover: false, routerFailover: true,
       wanMonitor: false, monitorHost: '9.9.9.9', staticRoute: false, routeDst: '10.20.0.0/24', routeGw: '192.168.88.254', routeDistance: '1',
       dnsCache: true, customDns: false, dnsPrimary: '1.1.1.1', dnsSecondary: '8.8.8.8', dnsStatic: false, dnsStaticName: 'server.lan', dnsStaticIp: '192.168.88.10',
+      logSystem: false, logInterface: false,
       simpleQueue: false, queueTarget: '192.168.88.10', queueRate: '10',
       ntpClient: false, ntpServer: 'pool.ntp.org', timeZone: 'Etc/UTC', cloudDdns: false, secureManagement: false, identityOn: false, systemIdentity: 'MikroTik-Lab',
       vlanGuest: false, guestVlan: '20', guestNet: '192.168.99.0/24', guestGw: '192.168.99.1', guestDhcp: true,
@@ -795,6 +796,9 @@ function openSettings(id) {
     html += '<div class="lm-t">Маршрутизация и системные службы</div>' +
       chk('lm_wan_monitor', 'Проверять основной WAN по внешнему IPv4 (статический WAN)', c.wanMonitor) +
       '<div id="lm_monitor_box"' + (c.wanMonitor ? '' : ' hidden') + '>' + f('lm_monitor_host', 'Контрольный IPv4 (ICMP)', 'text', c.monitorHost || '9.9.9.9', 'inputmode="decimal"') + '<p class="fs-hint">Для двух каналов и включённого резервирования: рекурсивный маршрут проверяет один узел. DHCP, PPPoE и LTE как основной в этом режиме пока не поддерживаются. При выборе MikroTik можно условно имитировать сбой узла.</p></div>' +
+      chk('lm_log_system', 'Журнал: события system в памяти CHR', c.logSystem) +
+      chk('lm_log_interface', 'Журнал: события interface в памяти CHR', c.logInterface) +
+      '<p class="fs-hint">Проверяются правила журнала, не возникновение событий. Память не сохраняется после выключения; журнал может содержать чувствительные данные.</p>' +
       chk('lm_simple_queue', 'Simple Queue для одного IPv4 в основной LAN', c.simpleQueue) +
       '<div id="lm_queue_box"' + (c.simpleQueue ? '' : ' hidden') + '><div class="lm-grid">' + f('lm_queue_target', 'IPv4 клиента', 'text', c.queueTarget || '192.168.88.10', 'inputmode="decimal"') + f('lm_queue_rate', 'Лимит в обоих направлениях (Мбит/с, 1–1000)', 'text', c.queueRate || '10', 'inputmode="numeric"') + '</div><p class="fs-hint">В CHR проверяются настройки, но не реальная скорость. У клиента должен быть постоянный адрес; FastTrack может обходить очередь. Это не Queue Tree.</p></div>' +
       chk('lm_static_route', 'Статический маршрут через шлюз в основной LAN', c.staticRoute) +
@@ -1048,6 +1052,7 @@ function saveSettings() {
       firewall: $('lm_fw').checked, vpn: vpn, routerRole: $('lm_router_role').value, wanFailover: $('lm_wan_failover').checked, routerFailover: $('lm_router_failover').checked,
       wanMonitor: $('lm_wan_monitor').checked, monitorHost: $('lm_monitor_host').value.trim(), staticRoute: $('lm_static_route').checked, routeDst: $('lm_route_dst').value.trim(), routeGw: $('lm_route_gw').value.trim(), routeDistance: $('lm_route_distance').value.trim(),
       dnsCache: $('lm_dns_cache').checked, customDns: $('lm_custom_dns').checked, dnsPrimary: $('lm_dns_primary').value.trim(), dnsSecondary: $('lm_dns_secondary').value.trim(), dnsStatic: $('lm_dns_static').checked, dnsStaticName: $('lm_dns_name').value.trim(), dnsStaticIp: $('lm_dns_ip').value.trim(),
+      logSystem: $('lm_log_system').checked, logInterface: $('lm_log_interface').checked,
       simpleQueue: $('lm_simple_queue').checked, queueTarget: $('lm_queue_target').value.trim(), queueRate: $('lm_queue_rate').value.trim(),
       ntpClient: $('lm_ntp').checked, ntpServer: $('lm_ntp_server').value.trim(), timeZone: $('lm_timezone').value.trim(), cloudDdns: $('lm_cloud').checked, secureManagement: $('lm_secure_management').checked, identityOn: $('lm_identity').checked, systemIdentity: $('lm_identity_name').value.trim(),
       vlanGuest: $('lm_guest_vlan').checked, guestVlan: $('lm_guest_vlan_id').value.trim(), guestNet: $('lm_guest_net').value.trim(), guestGw: $('lm_guest_gw').value.trim(), guestDhcp: $('lm_guest_dhcp').checked,

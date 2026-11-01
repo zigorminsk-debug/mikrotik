@@ -7,7 +7,7 @@ const {JSDOM,VirtualConsole}=require('jsdom');
 const engine=require('../app/js/lab-sim'),{makePlan}=require('../windows/chr/plan');
 const {ChrSession}=require('../windows/chr/session');
 const [qemu,image,work,supervisor]=process.argv.slice(2),kind=process.env.CI_GUIDE_CASE;
-const cases={ip:'ros-ip',dhcp:'ros-ip',bridge:'ros-bridge',system:'ros-system',routing:'ros-routing',queues:'ros-queues'};
+const cases={ip:'ros-ip',dhcp:'ros-ip',bridge:'ros-bridge',system:'ros-system',routing:'ros-routing',queues:'ros-queues',log:'ros-log'};
 if(!qemu||!image||!work||!supervisor||!cases[kind])throw Error('Missing or invalid CI arguments');
 let session,dom;const errors=[];
 (async()=>{
@@ -20,6 +20,7 @@ let session,dom;const errors=[];
  if(kind==='ip'){enable('dns-static');enable('publication');}
  if(kind==='bridge'){enable('guest-vlan');enable('guest-dhcp');}
  if(kind==='system')enable('ntp');
+ if(kind==='log')enable('log-interface');
  const button=root.querySelector('.guide-lab-start');assert(button&&!button.disabled);button.click();await new Promise(r=>setTimeout(r,50));
  assert.equal(w.location.hash,'#lab');assert(w.document.getElementById('lab-results').textContent.includes('Проверка учебной модели пройдена'));
  const state=JSON.parse(JSON.stringify(w.Lab.state)),router=state.devices.find(x=>x.type==='router');assert(router&&!errors.length);
@@ -29,6 +30,7 @@ let session,dom;const errors=[];
  if(kind==='bridge')assert(plan.expected.vlan&&plan.expected.guestDhcp);
  if(kind==='system')assert(plan.expected.ntp&&plan.expected.identity);
  if(kind==='routing')assert(plan.expected.staticRoute);
+ if(kind==='log')assert.deepStrictEqual(plan.expected.logTopics,['system','interface']);
  if(kind==='queues'){assert.deepStrictEqual(plan.expected.simpleQueue,{target:'192.168.88.10/32',rate:'10000000'});assert(!plan.expected.filterRules.some(x=>x.action==='fasttrack-connection'));}
  session=new ChrSession({qemu:path.resolve(qemu),image:path.resolve(image),tempRoot:path.resolve(work),supervisor:path.resolve(supervisor)});
  assert.equal(session.internetConsent,false);const info=await session.start(plan);assert.equal(new URL(info.url).hostname,'127.0.0.1');

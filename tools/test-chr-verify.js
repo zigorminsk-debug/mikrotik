@@ -29,6 +29,8 @@ const records = {
 const get = async key => { assert(key in records, key); return records[key]; };
 (async () => {
   await verifyConfiguration(e,get);
+  const logExpected={...e,logTopics:['system','interface']};records['/rest/system/logging']=[{topics:'system',action:'memory',prefix:'lab-system',disabled:'false'},{topics:'interface',action:'memory',prefix:'lab-interface',disabled:'false'}];
+  await verifyConfiguration(logExpected,get);for(const [key,value] of [['topics','error'],['action','disk'],['prefix','bad'],['disabled','true']]){const old=records['/rest/system/logging'][0][key];records['/rest/system/logging'][0][key]=value;await assert.rejects(verifyConfiguration(logExpected,get),/правило журнала/);records['/rest/system/logging'][0][key]=old;}records['/rest/system/logging'].push({...records['/rest/system/logging'][0]});await assert.rejects(verifyConfiguration(logExpected,get),/правило журнала/);records['/rest/system/logging'].pop();
   const queueExpected={...e,simpleQueue:{target:'192.168.88.10/32',rate:'10000000'}};
   records['/rest/queue/simple']=[{name:'queue-lab',target:'192.168.88.10/32','max-limit':'10000000/10000000',disabled:'false'}];
   await verifyConfiguration(queueExpected,get);

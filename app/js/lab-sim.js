@@ -431,6 +431,8 @@ function genCommands(state, model) {
   if (r.cfg.simpleQueue) add('queue', 'Simple Queue для одного адреса', ['/queue simple add name=queue-lab target=' + r.cfg.queueTarget + '/32 max-limit=' + r.cfg.queueRate + 'M/' + r.cfg.queueRate + 'M']);
   if (r.cfg.staticRoute) add('route', 'Статический маршрут к сети за LAN-шлюзом', ['/ip route add dst-address=' + r.cfg.routeDst + ' gateway=' + r.cfg.routeGw + ' distance=' + r.cfg.routeDistance]);
   var services = [];
+  if (r.cfg.logSystem) services.push('/system logging add topics=system action=memory prefix=lab-system');
+  if (r.cfg.logInterface) services.push('/system logging add topics=interface action=memory prefix=lab-interface');
   if (r.cfg.identityOn) services.push('/system identity set name=' + q(r.cfg.systemIdentity));
   if (r.cfg.dnsStatic) services.push('/ip dns static add name=' + q(r.cfg.dnsStaticName) + ' address=' + r.cfg.dnsStaticIp + ' type=A');
   if (r.cfg.ntpClient) services.push('/system clock set time-zone-autodetect=no time-zone-name=' + q(r.cfg.timeZone), '/system ntp client set enabled=yes', '/system ntp client servers add address=' + q(r.cfg.ntpServer));
@@ -607,6 +609,7 @@ function winboxSteps(state, model) {
     '11. Chain = forward; Action = drop. Сверьте порядок и существующие правила: добавление рядом с заводскими правилами без анализа может заблокировать доступ.'
   ]);
   if (r.cfg.wanMonitor) add('Контроль основного WAN через внешний узел', null, ['В IP → Routes настройте маршрут ' + r.cfg.monitorHost + '/32 через статический шлюз основного провайдера со Scope = 10, затем основной маршрут по умолчанию через этот узел с Target Scope = 11 и Check Gateway = ping. Резерв остаётся с Distance = 2.', 'Это один ICMP-узел: он может перестать отвечать независимо от канала. Проверьте маршруты, отказы и возврат на реальном оборудовании; модель ping не отправляет.']);
+  if (r.cfg.logSystem || r.cfg.logInterface) add('Журнал событий в памяти', null, ['В System → Logging проверьте добавленные правила выбранных тем system и interface с действием memory и учебными префиксами. В Log могут быть чувствительные данные; память журнала не сохраняется после выключения. События нужно проверить отдельно.']);
   if (r.cfg.simpleQueue) add('Simple Queue', null, ['В Queues → Simple Queues создайте queue-lab для ' + r.cfg.queueTarget + '/32 с лимитом ' + r.cfg.queueRate + 'M/' + r.cfg.queueRate + 'M. Проверьте правильность адреса, правила FastTrack и фактическую скорость с клиентом.']);
   if (r.cfg.staticRoute) add('Маршрут к дополнительной сети', null, ['В IP → Routes добавьте Dst. Address = ' + r.cfg.routeDst + ', Gateway = ' + r.cfg.routeGw + ', Distance = ' + r.cfg.routeDistance + '. Шлюз находится в основной LAN.', 'В Firewall до завершающего drop добавьте разрешение LAN → указанная сеть из проекта команд. Проверьте обратный маршрут и реальную доступность шлюза.']);
   if (r.cfg.identityOn || r.cfg.dnsStatic || r.cfg.ntpClient || r.cfg.cloudDdns) add('Имя роутера, DNS, время и IP Cloud', null, ['Включённые параметры приведены в проекте команд: System → Identity, IP → DNS → Static, System → NTP Client и IP → Cloud.', 'Проверьте DNS, время, часовой пояс и DDNS на устройстве. DDNS не обходит CGNAT, а модель не обращается к серверам.']);
@@ -654,7 +657,7 @@ function runDual(state) {
   if (isps.length !== 2) errors.push('Для схемы двух MikroTik добавьте двух провайдеров: по одному на каждый роутер.');
   var common = (adj[routers[0].id] || []).filter(function(id) { return (adj[routers[1].id] || []).indexOf(id) !== -1 && devices.some(function(d){ return d.id === id && d.type === 'switch'; }); });
   if (common.length !== 1) errors.push('Оба MikroTik должны быть подключены к одному общему коммутатору LAN.');
-  if (routers.some(function(r) { return r.cfg.simpleQueue || r.cfg.wanMonitor || r.cfg.staticRoute || r.cfg.customDns || r.cfg.dnsStatic || r.cfg.ntpClient || r.cfg.cloudDdns || r.cfg.identityOn || r.cfg.secureManagement || r.cfg.wifiGuestIsolation || r.cfg.dnsCache === false; })) errors.push('Дополнительные маршруты и сервисы в двухроутерной модели пока не поддерживаются; используйте один MikroTik.');
+  if (routers.some(function(r) { return r.cfg.logSystem || r.cfg.logInterface || r.cfg.simpleQueue || r.cfg.wanMonitor || r.cfg.staticRoute || r.cfg.customDns || r.cfg.dnsStatic || r.cfg.ntpClient || r.cfg.cloudDdns || r.cfg.identityOn || r.cfg.secureManagement || r.cfg.wifiGuestIsolation || r.cfg.dnsCache === false; })) errors.push('Дополнительные маршруты и сервисы в двухроутерной модели пока не поддерживаются; используйте один MikroTik.');
   if (routers[0].cfg.vlanGuest || routers[1].cfg.vlanGuest || routers[0].cfg.wifiAp || routers[1].cfg.wifiAp) errors.push('VLAN и Wi-Fi в двухроутерной модели пока не поддерживаются; используйте один MikroTik.');
   if (routers[0].cfg.lan !== routers[1].cfg.lan || routers[0].cfg.gw !== routers[1].cfg.gw) errors.push('На двух MikroTik задайте общую LAN-подсеть и виртуальный IP шлюза.');
   if (links.length !== devices.length - 1) errors.push('Схема должна быть связным деревом без петель и параллельных путей.');
@@ -770,6 +773,7 @@ function chrPreflight(state, routerId) {
     if (c.vpn) blockers.push('Автоматическое применение VPN и проверка сертификатов для CHR ещё не реализованы.');
     if (c.secureManagement) blockers.push('Ограничение управления пока несовместимо со служебным каналом доступа к CHR.');
     if (c.cloudDdns || c.wanMonitor) blockers.push('IP Cloud и проверка WAN требуют доступа к внешним сервисам, который в изолированной VM не предусмотрен.');
+    if (c.logSystem || c.logInterface) notices.push('Проверяются только правила журнала в памяти, не возникновение событий; журнал может содержать чувствительные данные.');
     if (c.simpleQueue) notices.push('Simple Queue: проверяется запись и лимит в CHR, но не запуск клиента или фактическая скорость.');
     if (c.ntpClient) notices.push('В CHR проверяются параметры NTP и часового пояса, но не успешность синхронизации или доступность выбранного сервера. В изолированном режиме внешний сервер недоступен; интернет-режим требует отдельного согласия.');
     var conflicts = [c.lan, c.vlanGuest ? c.guestNet : null, c.staticRoute ? c.routeDst : null, c.vpn ? c.vpnPool : null];

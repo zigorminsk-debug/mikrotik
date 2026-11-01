@@ -92,6 +92,10 @@ async function verifyConfiguration(expected, get, diagnostic = () => {}) {
     const servers = list(await get('/rest/system/ntp/client/servers'));
     check(servers.length === 1 && one(servers, x => x.address === expected.ntp.server && enabled(x)), 'NTP-сервер');
   }
+  if (expected.logTopics && expected.logTopics.length) {
+    const logging = list(await get('/rest/system/logging'));
+    for (const topic of expected.logTopics) check(one(logging, x => x.topics === topic && x.action === 'memory' && x.prefix === 'lab-' + topic && enabled(x)), 'правило журнала ' + topic);
+  }
   if (expected.simpleQueue) {
     const queues = list(await get('/rest/queue/simple'));
     check(one(queues, x => x.name === 'queue-lab' && enabled(x) && x.target === expected.simpleQueue.target && x['max-limit'] === expected.simpleQueue.rate + '/' + expected.simpleQueue.rate), 'Simple Queue');

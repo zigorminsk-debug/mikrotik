@@ -10,7 +10,7 @@ const engine=require('../app/js/lab-sim'),{makePlan}=require('../windows/chr/pla
  // Use actual device defaults, not a second copy that could drift.
  const saved={};['isp','router','pc','server'].forEach(type=>{const id=w.Lab.place(type,30,30);saved[type]=JSON.parse(JSON.stringify(w.Lab.state.devices.find(d=>d.id===id).cfg));});w.Lab.reset();
  const types=Object.fromEntries(Object.keys(saved).map(type=>[type,{cfg:()=>JSON.parse(JSON.stringify(saved[type]))}]));
- const sections=['intro','ros-ip','ros-interfaces','ros-bridge','ros-routing','ros-system','ros-queues'];let checked=0,invalid=0;
+ const sections=['intro','ros-ip','ros-interfaces','ros-bridge','ros-routing','ros-system','ros-queues','ros-log'];let checked=0,invalid=0;
  for(const section of sections){
   const cat=w.GuideLab.catalog(section);const available=cat.choices.filter(c=>!c.unavailable).map(c=>c.id);
   for(let bits=0;bits<(1<<available.length);bits++){
@@ -23,6 +23,7 @@ const engine=require('../app/js/lab-sim'),{makePlan}=require('../windows/chr/pla
    assert.equal(plan.expected.dhcp,rt.cfg.dhcp);assert.equal(plan.expected.vlan,rt.cfg.vlanGuest);
    assert.equal(plan.expected.wans[0].kind,chosen.includes('wan-dhcp')?'dhcp':'static');
    assert.equal(!!plan.expected.ntp,rt.cfg.ntpClient);assert.equal(!!plan.expected.staticRoute,rt.cfg.staticRoute);
+   assert.deepStrictEqual(plan.expected.logTopics,['system','interface'].filter(x=>chosen.includes('log-'+x)));
    if(chosen.includes('simple-queue')){assert.deepStrictEqual(plan.expected.simpleQueue,{target:'192.168.88.10/32',rate:'10000000'});assert.equal(draft.state.devices.find(d=>d.type==='pc').cfg.mode,'static');}else assert.equal(plan.expected.simpleQueue,null);
    if(chosen.includes('publication')){const pub=plan.expected.natRules.filter(x=>x.chain==='dstnat');assert.equal(pub.length,1);assert.equal(pub[0]['dst-port'],'8443');assert.equal(pub[0]['to-addresses'],'192.168.88.20');assert.equal(pub[0]['to-ports'],'443');assert(plan.expected.filterRules.some(x=>x['connection-nat-state']==='dstnat'&&x['dst-port']==='443'));}else assert(!plan.expected.natRules.some(x=>x.chain==='dstnat'));
    checked++;
@@ -34,6 +35,7 @@ const engine=require('../app/js/lab-sim'),{makePlan}=require('../windows/chr/pla
  assert(w.GuideLab.validate('ros-ip',['wan-static','firewall','nat','dns-static']).errors.some(x=>x.includes('DNS-кэша')));
  assert(w.GuideLab.validate('ros-ip',['wan-static','firewall']).errors.some(x=>x.includes('NAT')));
  assert(w.GuideLab.validate('ros-ip',['wan-static','nat','publication']).errors.some(x=>x.includes('Публикация')));
+ assert(w.GuideLab.validate('ros-log',['log-remote']).errors.some(x=>x.includes('syslog')));
  assert(w.GuideLab.validate('ros-queues',['queue-tree']).errors.some(x=>x.includes('Queue Tree')));
  assert(w.GuideLab.validate('ros-wifi',['wifi']).errors.some(x=>x.includes('Wi-Fi')));
  assert(w.GuideLab.validate('ros-ip',['unknown']).errors.length);
