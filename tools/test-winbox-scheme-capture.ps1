@@ -46,7 +46,11 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -ArgumentList @("127.0.0.1:$env:
  if($r.Width -le 0 -or $r.Height -le 0){throw 'WinBox IP control is not visible'}
  [void][CiMouse]::SetCursorPos([int]($r.X+$r.Width/2),[int]($r.Y+$r.Height/2));[CiMouse]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[CiMouse]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
  Start-Sleep -Seconds 3
- # First validate the actual IP-menu position; this is not an Addresses screenshot.
+ # Coordinates were visually checked on the disposable runner at 1024x768.
+ # The image remains provisional until visually checked against the plan.
+ $stage='addresses-menu'
+ [void][CiMouse]::SetCursorPos([int]$rect.X+185,[int]$rect.Y+75);[CiMouse]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[CiMouse]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
+ Start-Sleep -Seconds 5
  $stage='screenshot'
  $bitmap=[System.Drawing.Bitmap]::new([int]$rect.Width,[int]$rect.Height);$graphics=[System.Drawing.Graphics]::FromImage($bitmap)
  $params=New-Object System.Drawing.Imaging.EncoderParameters(1);$params.Param[0]=New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality,[long]40)
