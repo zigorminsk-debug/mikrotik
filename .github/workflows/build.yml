@@ -36,8 +36,10 @@ jobs:
           }
       - name: Модульные тесты
         run: node tools/test-stand.js
-      - name: Актуальность инвентаризации снимков
-        run: node tools/audit-screens.js --check
+      - name: Актуальность инвентаризации снимков и истории выпусков
+        run: |
+          node tools/audit-screens.js --check
+          node tools/generate-release-history.js --check
       - name: Тесты графической лаборатории
         run: node tools/test-lab.js
       - name: Тесты консоли и проверки виртуальной CHR
@@ -58,6 +60,7 @@ jobs:
           npm install --prefix tools --no-audit --no-fund
           NODE_PATH=tools/node_modules node tools/test-chr-download.js
           node tools/test-dom.js
+          node tools/test-about.js
           node tools/test-lab-dom.js
           node tools/test-guide-lab.js
           node tools/test-chr-dual-wan-dom.js

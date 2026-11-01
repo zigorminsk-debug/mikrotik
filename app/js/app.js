@@ -164,6 +164,30 @@ function renderGuideLab(sec) {
   body.appendChild(title);body.appendChild(toggle);body.appendChild(panel);box.appendChild(body);return box;
 }
 
+function renderAbout() {
+  var head=el('div','sec-header');
+  var icon=el('div','sec-icon');icon.textContent='ℹ️';head.appendChild(icon);
+  var text=el('div');var title=document.createElement('h1');title.textContent='О программе';text.appendChild(title);
+  var version=el('p','sec-lead');version.textContent='MikroTik Guide · версия '+window.APP_VERSION;text.appendChild(version);head.appendChild(text);contentEl.appendChild(head);
+  var note=el('p','fs-hint');note.textContent='Описания сохранены в приложении и доступны без интернета. Показаны версии, для которых сохранены заметки; старые файлы релизов могут быть недоступны.';contentEl.appendChild(note);
+  var list=el('div','release-history');list.setAttribute('aria-label','История версий');
+  (window.RELEASE_HISTORY||[]).forEach(function(release){
+    var details=document.createElement('details');details.className='step release-entry';details.open=release.version===window.APP_VERSION;
+    var summary=document.createElement('summary');summary.className='release-summary';summary.textContent='Версия '+release.version+(details.open?' · текущая':'');details.appendChild(summary);
+    var body=el('div','step-body');var bullets=null;
+    release.entries.forEach(function(entry){
+      if(entry.kind==='bullet'){
+        if(!bullets){bullets=document.createElement('ul');body.appendChild(bullets);}
+        var item=document.createElement('li');item.textContent=entry.text;bullets.appendChild(item);
+      } else {
+        bullets=null;var node=document.createElement(entry.kind==='heading'?'h3':'p');node.className=entry.kind==='heading'?'sec-sub':'p';node.textContent=entry.text;body.appendChild(node);
+      }
+    });
+    details.appendChild(body);list.appendChild(details);
+  });
+  contentEl.appendChild(list);
+}
+
 function renderSection(sec) {
   var head = el('div', 'sec-header',
     '<div class="sec-icon">' + esc(sec.icon || '📘') + '</div><div>' +
@@ -217,7 +241,8 @@ function route() {
     labView.hidden = true;
     contentEl.hidden = false;
     contentEl.innerHTML = '';
-    if (sec) renderSection(sec);
+    if (sec && sec.type === 'about') renderAbout();
+    else if (sec) renderSection(sec);
   }
   window.scrollTo(0, 0);
 }

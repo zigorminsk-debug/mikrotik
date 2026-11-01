@@ -259,3 +259,10 @@ figure.shot img{width:auto;max-width:100%;height:auto;object-fit:contain;margin:
 .guide-lab .row-check{display:flex;align-items:flex-start;line-height:1.45;margin:10px 0}
 .guide-lab .row-check input{flex:0 0 17px;margin:2px 0 0}
 .guide-lab .fs-hint{overflow-wrap:anywhere}
+
+/* История выпусков доступна офлайн в разделе «О программе». */
+.release-history { margin-top: 18px; }
+.release-entry { margin-bottom: 12px; }
+.release-summary { cursor: pointer; padding: 16px 20px; font-weight: 700; color: var(--ink); }
+.release-summary:focus-visible { outline: 3px solid #0ea5e9; outline-offset: -3px; }
+.release-entry .step-body { padding-top: 0; }
