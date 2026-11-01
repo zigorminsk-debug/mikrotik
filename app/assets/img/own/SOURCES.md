@@ -61,3 +61,5 @@
 `guide-lab-selection-windows.jpg` и `guide-lab-conflict-windows.jpg` — оригинальные снимки Windows Electron приложения из [CI 41303022826](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41303022826). Тест раскрыл выбор функций в разделе IP, отметил учебную публикацию NAT и затем одновременно отметил статический и DHCP WAN; кнопка перехода отключилась. CHR, WinBox, реальный интернет и физический роутер не запускались. Это не снимки WinBox; оба кадра визуально проверены.
 
 `guide-lab-queue-windows.jpg` — оригинальный снимок Windows Electron из [CI 41305654409](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41305654409): выбран Simple Queue, Queue Tree недоступен. Изображение визуально проверено; CHR, WinBox, клиент и сеть не запускались. Это не снимок WinBox.
+
+`guide-lab-log-windows.jpg` — оригинальный снимок Windows Electron из [CI 41311210019](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41311210019): выбраны темы system и interface, удалённый syslog недоступен. Снимок визуально проверен; CHR и WinBox не запускались, это не снимок WinBox.
