@@ -71,8 +71,18 @@ for i in $(seq 1 12); do
  sleep 1
 done
 if [[ $found != 1 ]]; then echo '::error::Lab ping availability notice not found on Android'; exit 1; fi
+# Show the whole notice rather than merely its top edge.
+adb shell input swipe 155 560 155 375 350
+sleep 1
 adb exec-out screencap -p > "$RUNNER_TEMP/android-font-lab.png"
-tap 'Открыть меню'
+# In this fixed 320x640 emulator the visible sticky hamburger is at 35,54.
+# WebView may report stale accessibility bounds after scroll; use real touch
+# and require the next navigation action to succeed, without claiming that
+# screen-reader hit testing was fixed.
+snapshot
+xy=$(coords 'Открыть меню' || true)
+if [[ -n $xy ]]; then adb shell input tap $xy; else adb shell input tap 35 54; fi
+sleep 1
 tap 'Интерактивный стенд'
 snapshot; coords 'Интерактивный стенд' >/dev/null || { echo '::error::Stand page not reachable'; exit 1; }
 adb shell am force-stop by.mikrotik.tutor
