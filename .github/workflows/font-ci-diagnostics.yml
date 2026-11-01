@@ -1,5 +1,8 @@
 name: Font CI diagnostics
 on:
+  push:
+    branches: ['**']
+    paths: ['.github/workflows/font-ci-diagnostics.yml']
   workflow_dispatch:
     inputs:
       android_run:
@@ -19,8 +22,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          ANDROID_RUN: ${{ inputs.android_run }}
-          WINDOWS_RUN: ${{ inputs.windows_run }}
+          ANDROID_RUN: ${{ inputs.android_run || '41321163061' }}
+          WINDOWS_RUN: ${{ inputs.windows_run || '41321163110' }}
         shell: bash
         run: |
           set -euo pipefail
