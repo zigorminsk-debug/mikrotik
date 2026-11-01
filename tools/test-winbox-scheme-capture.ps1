@@ -51,6 +51,14 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -ArgumentList @("127.0.0.1:$env:
  $stage='addresses-menu'
  [void][CiMouse]::SetCursorPos([int]$rect.X+185,[int]$rect.Y+75);[CiMouse]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[CiMouse]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
  Start-Sleep -Seconds 5
+ # The default Address column truncates IPs on this runner. Widen it so the
+ # actual example values are readable, then require human visual inspection.
+ [void][CiMouse]::SetCursorPos([int]$rect.X+515,[int]$rect.Y+204)
+ [CiMouse]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
+ [void][CiMouse]::SetCursorPos([int]$rect.X+650,[int]$rect.Y+204)
+ Start-Sleep -Milliseconds 500
+ [CiMouse]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
+ Start-Sleep -Seconds 3
  $stage='screenshot'
  $bitmap=[System.Drawing.Bitmap]::new([int]$rect.Width,[int]$rect.Height);$graphics=[System.Drawing.Graphics]::FromImage($bitmap)
  $params=New-Object System.Drawing.Imaging.EncoderParameters(1);$params.Param[0]=New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality,[long]40)
