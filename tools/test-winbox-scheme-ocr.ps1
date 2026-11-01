@@ -23,6 +23,9 @@ public static class CiMouse {
 # Input simulation is NOT safe for production (foreground focus can change).
 $record=([Console]::In.ReadLine() | ConvertFrom-Json)
 if(!$record -or $record.port -lt 1 -or $record.port -gt 65535 -or $record.password -notmatch '^Lab_[0-9a-f]{40}$'){exit 1}
+if($record.kind -notin @('static','custom')){exit 1}
+$targetAddress=if($record.kind -eq 'custom'){'192.168.73.1/24'}else{'192.168.88.1/24'}
+$targetNetwork=if($record.kind -eq 'custom'){'192.168.73.0'}else{'192.168.88.0'}
 $stage='start'
 $p=$null
 $errLog=Join-Path $env:RUNNER_TEMP 'winbox-ci.stderr'
@@ -134,10 +137,10 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -PassThru -RedirectStandardError
   . (Join-Path $PSScriptRoot 'winbox-ocr-ci.ps1')
   $result=Read-CiOcr (Join-Path $env:RUNNER_TEMP 'lab-scheme-winbox-ocr.png')
   # Fixed-fixture counts only. Never emit OCR text or window contents to logs.
-  $addressLines=@($result.Lines | Where-Object { $_.Text.Contains('192.168.88.1/24') }).Count
+  $addressLines=@($result.Lines | Where-Object { $_.Text.Contains($targetAddress) }).Count
   $interfaceLines=@($result.Lines | Where-Object { $_.Text.Contains('bridge-lan') }).Count
-  $sharedLines=@($result.Lines | Where-Object { $_.Text.Contains('192.168.88.1/24') -and $_.Text.Contains('bridge-lan') }).Count
-  $addressWords=@($result.Lines | ForEach-Object { $_.Words } | Where-Object { $_.Text -eq '192.168.88.1/24' }).Count
+  $sharedLines=@($result.Lines | Where-Object { $_.Text.Contains($targetAddress) -and $_.Text.Contains('bridge-lan') }).Count
+  $addressWords=@($result.Lines | ForEach-Object { $_.Words } | Where-Object { $_.Text -eq $targetAddress }).Count
   Write-Output ('CI_OCR_COUNTS='+$addressLines+','+$interfaceLines+','+$sharedLines+','+$addressWords)
   # Counts of fixed tokens only, no recognized text or coordinates logged.
   $bridgeLines=@($result.Lines | Where-Object { $_.Text -match '(?i)bridge' }).Count
@@ -149,7 +152,7 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -PassThru -RedirectStandardError
   # Never use this coordinate/OCR heuristic on a user's desktop.
   $wrong=@(Find-CiUniqueAddress $result '192.168.88.99/24')
   if($wrong.Count -ne 0){throw 'Negative OCR target unexpectedly matched'}
-  $rows=@(Find-CiUniqueAddress $result '192.168.88.1/24')
+  $rows=@(Find-CiUniqueAddress $result $targetAddress)
   if($rows.Count -ne 1){throw 'OCR row missing or ambiguous'}
   $x=[int][Math]::Round(($rows[0].Left+$rows[0].Width/2)/3);$y=[int][Math]::Round(($rows[0].Top+$rows[0].Height/2)/3)
   if($x -lt 0 -or $y -lt 0 -or $x -ge $rect.Width -or $y -ge $rect.Height){throw 'OCR row outside window'}
@@ -174,8 +177,8 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -PassThru -RedirectStandardError
   }finally{$params.Dispose();$graphics.Dispose();$bitmap.Dispose()}
   $stage='address-detail-ocr'
   $detail=Read-CiOcr (Join-Path $env:RUNNER_TEMP 'lab-scheme-detail-fields.png')
-  $addressOk=Test-CiDetailField $detail 'Address' '192.168.88.1/24'
-  $networkOk=Test-CiDetailField $detail 'Network' '192.168.88.0'
+  $addressOk=Test-CiDetailField $detail 'Address' $targetAddress
+  $networkOk=Test-CiDetailField $detail 'Network' $targetNetwork
   $interfaceOk=Test-CiDetailField $detail 'Interface' 'bridge-lan'
   Write-Output ('CI_DETAIL_FIELDS='+[int]$addressOk+','+[int]$networkOk+','+[int]$interfaceOk)
   # Independent exact OCR of the same isolated fixture; neither OCR engine

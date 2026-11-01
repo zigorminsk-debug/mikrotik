@@ -2,7 +2,11 @@
 const assert=require('assert'),{field,verify}=require('./winbox-tesseract-ci');
 const w=(text,x,y,confidence=90)=>({text,confidence,bbox:{x0:x,y0:y,x1:x+80,y1:y+40}});
 const words=[w('Address',0,0),w('192.168.88.1/24',150,0),w('Network',0,100),w('192.168.88.0',150,100),w('Interface',0,200),w('bridge-lan',150,200)];
-assert.deepStrictEqual(verify(words),[true,true,true]);
+const expected={address:'192.168.88.1/24',network:'192.168.88.0',interface:'bridge-lan'};
+assert.deepStrictEqual(verify(words,expected),[true,true,true]);
+assert.deepStrictEqual(verify(words,{...expected,address:'192.168.73.1/24'}),[false,true,true]);
+assert.deepStrictEqual(verify(words,{...expected,interface:'ether1'}),[true,true,false]);
+assert.deepStrictEqual(verify(words,null),[false,false,false]);
 assert(!field(words,'Interface','ether1'));
 assert(!field([...words,w('bridge-lan',150,300)],'Interface','bridge-lan'));
 assert(!field([...words,w('Interface',0,300)],'Interface','bridge-lan'));

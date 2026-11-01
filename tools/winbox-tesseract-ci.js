@@ -12,10 +12,11 @@ function field(words, label, value) {
   const a=labels[0].bbox,b=values[0].bbox;
   return b.x0>a.x1 && Math.abs((a.y0+a.y1-b.y0-b.y1)/2)<=24;
 }
-function verify(words) {
-  if (!Array.isArray(words)) return [false,false,false];
-  return [['Address','192.168.88.1/24'],['Network','192.168.88.0'],['Interface','bridge-lan']].map(([k,v])=>field(words,k,v));
+function verify(words, expected) {
+  if (!Array.isArray(words) || !expected || !['address','network','interface'].every(k=>typeof expected[k]==='string' && expected[k].length>0)) return [false,false,false];
+  return [['Address',expected.address],['Network',expected.network],['Interface',expected.interface]].map(([k,v])=>field(words,k,v));
 }
+const fixtures={static:{address:'192.168.88.1/24',network:'192.168.88.0',interface:'bridge-lan'},custom:{address:'192.168.73.1/24',network:'192.168.73.0',interface:'bridge-lan'}};
 if (require.main === module) {
   (async()=>{
     let worker;
@@ -25,7 +26,7 @@ if (require.main === module) {
       const {createWorker}=require('./winbox-ocr-deps/node_modules/tesseract.js');
       worker=await createWorker('eng',1,{langPath,cacheMethod:'none'});
       const {data}=await worker.recognize(image);
-      const result=verify(data.words);
+      const result=verify(data.words,fixtures[process.env.CI_SCHEME_KIND]);
       console.log('CI_TESS_FIELDS='+result.map(Number).join(','));
       if(!result.every(Boolean))process.exitCode=1;
     } catch (_) { console.log('CI_TESS_FIELDS=error');process.exitCode=1; }
