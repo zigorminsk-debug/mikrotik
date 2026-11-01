@@ -76,6 +76,8 @@ function center(d) { return { x: d.x + DEV_W / 2, y: d.y + DEV_H / 2 }; }
 var canvas, svg, hintEl, emptyEl, inspectEl, logBox, logLines, resultsEl,
     modeBtns, palBtns, runBtn, resetBtn, skipBtn, modal, lmTitle, lmBody, lmErr,
     lmSave, lmCancel, lmClose;
+// The result action must use exactly the state that was model-checked.
+var checkedStateJson = null, checkedLaunchPending = false;
 
 function $(id) { return document.getElementById(id); }
 
@@ -501,6 +503,7 @@ function flyPacket(ev) {
 function invalidate() {
   if (playCtl) { clearTimeout(playCtl.timer); playCtl = null; playToken++; }
   currentRes = null;
+  checkedStateJson = null;
   flowEnabled = false;
   if ($('lab-flow-status')) $('lab-flow-status').hidden = true;
   lastModel = null;
@@ -553,6 +556,7 @@ function run(opts) {
   lastModel = null;
   renderDevices();
 
+  checkedStateJson = JSON.stringify(state);
   var res = (typeof LabEngine !== 'undefined') ? LabEngine.run(state) : { errors: ['Движок не загружен'], warnings: [] };
   currentRes = res;
 
@@ -589,6 +593,12 @@ function renderResults(res) {
   } else {
     html += '<div class="res-summary"><h3>✅ Проверка учебной модели пройдена</h3>' +
       '<p>Показан предполагаемый путь, реальные пакеты не отправлялись. DHCP-адреса на карте — примеры. ' + (res.dual ? 'Для двух роутеров ниже приведён только план VRRP, настройка выполняется вручную.' : res.independent ? 'Две независимые сети: команды каждого роутера выполняются отдельно; ВМ и гипервизор не моделируются.' : 'Ниже — проект настроек для проверки на реальном оборудовании.') + '</p></div>';
+    var resultRouters = state.devices.filter(function(d) { return d.type === 'router'; });
+    html += '<div class="res-card" id="lab-checked-chr"><div class="res-head">🖥 Виртуальная RouterOS для проверенной схемы</div><div class="res-body">' +
+      '<p>В Windows можно отдельно запустить настоящую CHR с поддерживаемыми настройками этой схемы. Проверка модели сама не запускает CHR. Физический MikroTik не меняется. На Android запуск CHR пока недоступен.</p>' +
+      '<p class="fs-hint">Откроется WebFig, а не WinBox. Автоматические снимки всех настроек этой схемы ещё не создаются. Неподдерживаемые настройки блокируют запуск; интернет-режим требует отдельного согласия.</p>' +
+      (window.routerOS && typeof window.routerOS.launch === 'function' ? resultRouters.map(function(d) { return '<button type="button" class="btn lab-checked-launch" data-router-id="' + esc(d.id) + '">Открыть CHR: ' + esc(d.name) + '</button> '; }).join('') : '') +
+      '<div id="lab-checked-chr-status" class="fs-hint" aria-live="polite"></div></div></div>';
     if (res.warnings.length) {
       html += '<div class="res-card"><div class="res-head">⚠ Предупреждения: ' + res.warnings.length + '</div><div class="res-body"><ul class="check-list">' +
         res.warnings.map(function (w) { return '<li class="warn"><span class="ci">⚠</span><span>' + esc(w) + '</span></li>'; }).join('') +
@@ -626,6 +636,29 @@ function renderResults(res) {
   }
   resultsEl.innerHTML = html;
   resultsEl.hidden = false;
+  Array.prototype.slice.call(resultsEl.querySelectorAll('.lab-checked-launch')).forEach(function(button) {
+    button.addEventListener('click', function() {
+      var status = $('lab-checked-chr-status');
+      if (checkedLaunchPending) return;
+      if (!checkedStateJson || JSON.stringify(state) !== checkedStateJson || !currentRes || currentRes.errors.length) {
+        status.textContent = 'Схема изменилась после проверки. Нажмите «Запустить модель» ещё раз.'; return;
+      }
+      var routerId = button.dataset.routerId, snapshot = JSON.parse(checkedStateJson);
+      if (!snapshot.devices.some(function(d) { return d.id === routerId && d.type === 'router'; })) {
+        status.textContent = 'Роутер не найден в проверенной схеме.'; return;
+      }
+      checkedLaunchPending = true;
+      button.disabled = true;
+      status.textContent = 'Проверка и запуск виртуальной CHR…';
+      Promise.resolve().then(function() { return window.routerOS.launch(routerId, snapshot); }).then(function(result) {
+        if (!status.isConnected) return;
+        if (result && result.ok) status.textContent = 'Виртуальная CHR открыта. При закрытии её окна временный диск удаляется.';
+        else if (result && result.cancelled) status.textContent = 'Запуск отменён.';
+        else status.textContent = (result && result.message) || 'Не удалось открыть виртуальную CHR.';
+      }).catch(function() { if (status.isConnected) status.textContent = 'Не удалось связаться с Windows-компонентом CHR.'; })
+        .finally(function() { checkedLaunchPending = false; if (button.isConnected) button.disabled = false; });
+    });
+  });
 }
 
 /* ---------- Настройки устройства (модальное окно) ---------- */

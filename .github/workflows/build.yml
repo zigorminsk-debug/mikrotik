@@ -155,8 +155,12 @@ jobs:
       - name: Проверка установленного приложения и компонентов
         shell: pwsh
         run: ./scripts/smoke-packaged.ps1
+      # Branch builds still compile and smoke-test the installer, but only tag
+      # builds need to transfer its >1 GB artifact to the release job.
       - uses: actions/upload-artifact@v4
+        if: startsWith(github.ref, 'refs/tags/v')
         with:
+          compression-level: 0 # EXE is already compressed; avoid recompressing it.
           name: MikroTik-Guide-Windows
           path: windows/dist/*.exe
           if-no-files-found: error
