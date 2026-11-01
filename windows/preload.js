@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 // Narrow bridge: the renderer can submit a lab state, never executable paths or commands.
 contextBridge.exposeInMainWorld('routerOS', Object.freeze({
   launch: (routerId, state) => ipcRenderer.invoke('chr:launch', routerId, state),
+  ping: (routerId, state, target) => ipcRenderer.invoke('chr:ping', routerId, state, target),
   physicalInterfaces: () => ipcRenderer.invoke('physical:interfaces'),
   discoverPhysical: (name, address) => ipcRenderer.invoke('physical:discover', name, address),
   openWinbox: () => ipcRenderer.invoke('physical:open-winbox'),

@@ -320,3 +320,10 @@ figure.shot img{width:auto;max-width:100%;height:auto;object-fit:contain;margin:
 .wb-practice-body ol { margin: 6px 0 12px; padding-left: 1.5em; }
 .wb-practice-body li { margin: 8px 0; }
 .wb-practice-source a { overflow-wrap: anywhere; color: #075e56; }
+/* Настоящий ping только из запущенной Windows CHR, не из нарисованных узлов. */
+.lab-ping { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.lab-ping h3 { margin: 0 0 8px; }
+.lab-ping-controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+.lab-ping-controls label { display: flex; flex-direction: column; gap: 4px; flex: 1 1 180px; min-width: 0; }
+.lab-ping-controls input, .lab-ping-controls select { width: 100%; min-width: 0; padding: 8px; border: 1px solid #9caead; border-radius: 6px; background: #fff; color: #193735; }
+.lab-ping-controls button { min-height: 38px; }

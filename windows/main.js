@@ -3,18 +3,20 @@
 const { app, BrowserWindow, shell, dialog, ipcMain, clipboard } = require('electron');
 const fs = require('fs').promises;
 const path = require('path');
-const { randomBytes } = require('crypto');
+const { randomBytes, createHash } = require('crypto');
 const engine = require('./www/js/lab-sim');
 const { makePlan } = require('./chr/plan');
 const { validateDualInternet } = require('./chr/online');
 const { networkWarning } = require('./chr/network-warning');
 const { ensureImage } = require('./chr/download');
 const { ChrSession } = require('./chr/session');
+const {validTarget} = require('./chr/ping');
 const physicalDiscovery = require('./physical/mndp');
 const {openWinbox} = require('./physical/open-winbox');
 const {spawn} = require('child_process');
 
-let mainWindow = null, chrWindow = null, active = null, launching = false, quitting = false, cleanupFailed = false;
+let mainWindow = null, chrWindow = null, active = null, activeMeta = null, pingBusy = false, launching = false, quitting = false, cleanupFailed = false;
+function stateHash(state) { const data=JSON.stringify(state); if(typeof data!=='string'||Buffer.byteLength(data,'utf8')>256000) throw new Error('Недопустимый проект'); return createHash('sha256').update(data).digest('hex'); }
 const sessionsRoot = () => path.join(app.getPath('userData'), 'chr-sessions');
 function publishStatus(text) { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('chr:status', text); }
 
@@ -32,7 +34,7 @@ async function staleSessions() {
   await removeStale(path.join(app.getPath('userData'), 'chr-cache'), /^\.chr-[A-Za-z0-9_-]+$/);
 }
 async function closeChr() {
-  const s = active; active = null;
+  const s = active; active = null; activeMeta = null;
   if (chrWindow && !chrWindow.isDestroyed()) { const w = chrWindow; chrWindow = null; w.destroy(); }
   if (s) await s.stop();
 }
@@ -63,7 +65,7 @@ function openChrWindow(info, vm) {
   win.webContents.on('will-redirect', (event, url) => { if (!allowed(url)) event.preventDefault(); });
   win.on('closed', () => {
     if (chrWindow === win) chrWindow = null;
-    if (active === vm) { active = null; vm.stop().then(() => publishStatus('Виртуальная RouterOS закрыта; временный диск удалён.')).catch(() => { publishStatus('Не удалось удалить временные данные CHR.'); if (mainWindow && !mainWindow.isDestroyed()) dialog.showErrorBox('Очистка CHR', 'Не удалось удалить временные данные CHR. Закройте приложение и удалите папку chr-sessions из его данных.'); }); }
+    if (active === vm) { active = null; activeMeta = null; vm.stop().then(() => publishStatus('Виртуальная RouterOS закрыта; временный диск удалён.')).catch(() => { publishStatus('Не удалось удалить временные данные CHR.'); if (mainWindow && !mainWindow.isDestroyed()) dialog.showErrorBox('Очистка CHR', 'Не удалось удалить временные данные CHR. Закройте приложение и удалите папку chr-sessions из его данных.'); }); }
   });
   win.loadURL(info.url).catch(() => { if (!win.isDestroyed()) win.close(); });
 }
@@ -78,6 +80,7 @@ ipcMain.handle('chr:launch', async (event, routerId, state) => {
   try {
     status('Проверка проекта виртуальной RouterOS…');
     if (typeof routerId !== 'string' || routerId.length > 128 || !state || Buffer.byteLength(JSON.stringify(state), 'utf8') > 256000) throw new Error('Недопустимый размер или формат проекта.');
+    const digest = stateHash(state);
     const plan = makePlan(engine, state, routerId, {allowDualStaticWan:true});
     if (plan.blockers.length) return {ok:false, message:plan.blockers.join('\n')};
     const online = Array.isArray(plan.expected.wans) && plan.expected.wans.length === 2;
@@ -113,11 +116,35 @@ ipcMain.handle('chr:launch', async (event, routerId, state) => {
       setTimeout(() => { try { if (clipboard.readText() === info.password) clipboard.clear(); } catch (_) {} }, 60000).unref();
     }
     openChrWindow(info, vm);
+    activeMeta = {routerId, digest};
     return {ok:true};
   } catch (error) {
     try { await closeChr(); } catch (_) { return {ok:false, message:'Ошибка CHR; не удалось очистить временные данные. Закройте приложение и удалите папку chr-sessions из его данных.'}; }
     return {ok:false, message:'Не удалось открыть виртуальную RouterOS: ' + (error && error.message ? error.message : 'неизвестная ошибка')};
   } finally { launching = false; if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setProgressBar(-1); }
+});
+// A single real ICMP probe from the already-running disposable CHR only.
+// Never send arbitrary commands or use the Windows host's networking tools.
+ipcMain.handle('chr:ping', async (event, routerId, state, target) => {
+  if (!trustedMain(event) || !app.isPackaged) return {ok:false,message:'Проверка доступна только в окне установленного приложения Windows.'};
+  if (pingBusy) return {ok:false,message:'Проверка уже выполняется.'};
+  if (!validTarget(target)) return {ok:false,message:'Укажите одиночный IPv4-адрес узла. Имена, IPv6, специальные и широковещательные адреса пока не поддерживаются.'};
+  const vm=active, meta=activeMeta;
+  if (!vm || !meta || routerId!==meta.routerId) return {ok:false,message:'Запустите CHR именно для выбранного MikroTik и оставьте её окно открытым.'};
+  try { if(stateHash(state)!==meta.digest) return {ok:false,message:'Схема изменилась после запуска CHR. Проверьте её и запустите новую CHR.'}; }
+  catch (_) { return {ok:false,message:'Недопустимая схема.'}; }
+  pingBusy=true;
+  try {
+    const answer=await dialog.showMessageBox(mainWindow,{type:'warning',title:'Реальная проверка из виртуальной CHR',
+      message:'Отправить три ICMP-запроса на '+target+'?',
+      detail:'Источник — запущенная виртуальная RouterOS, не нарисованный ПК и не физический MikroTik. В изолированном режиме внешняя сеть недоступна; в интернет-режиме запрос может попасть в локальную сеть или интернет через Windows. Виртуальные ПК, серверы, принтеры, провайдеры и VPN между офисами пока не запускаются. Ноль ответов не доказывает отсутствие сети: ICMP может быть заблокирован.',
+      buttons:['Отмена','Отправить'],defaultId:0,cancelId:0,noLink:true});
+    if(answer.response!==1 || active!==vm || activeMeta!==meta || quitting) return {ok:false,cancelled:true};
+    const result=await vm.ping(target);
+    if(active!==vm || activeMeta!==meta) return {ok:false,message:'CHR закрылась во время проверки; результат неизвестен.'};
+    return {ok:true,sent:result.sent,received:result.received};
+  } catch (_) { return {ok:false,message:'Не удалось выполнить ping в виртуальной CHR; результат неизвестен.'}; }
+  finally { pingBusy=false; }
 });
 // Local read-only MNDP discovery. MAC and identity advertisements are unauthenticated.
 let physicalScanning = false;

@@ -63,6 +63,7 @@ jobs:
           node tools/test-dom.js
           node tools/test-about.js
           node tools/test-lab-dom.js
+          node tools/test-lab-ping-dom.js
           node tools/test-guide-lab.js
           node tools/test-guide-interfaces.js
           node tools/test-chr-dual-wan-dom.js

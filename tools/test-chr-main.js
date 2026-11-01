@@ -27,6 +27,7 @@ class Session {
   constructor(opts){this.opts=opts;this.stopped=false;this.exitPromise=new Promise(resolve=>{this.exit=resolve;});created.push(this);}
   async start(p){this.plan=p;return {url:'http://127.0.0.1:18765/',user:'admin',password:'TEMPORARY_TEST_PASSWORD'};}
   async stop(){this.stopped=true;}
+  async ping(target){this.pingCalls=(this.pingCalls||[]).concat(target);return {sent:3,received:2};}
 }
 const app=new EventEmitter();Object.assign(app,{isPackaged:true,getPath:()=>'/test-data',requestSingleInstanceLock:()=>true,whenReady:()=>Promise.resolve(),quit:()=>{}});
 const electron={app,BrowserWindow:Window,shell:{openExternal:async url=>opened.push(url)},
@@ -41,6 +42,7 @@ const req=name=>{
   if(name==='./chr/network-warning')return require('../windows/chr/network-warning');
   if(name==='./chr/download')return {ensureImage:async(root,consent)=>{downloads.push({root,consent});return '/image/chr-7.23.8.img';}};
   if(name==='./chr/session')return {ChrSession:Session};
+  if(name==='./chr/ping')return require('../windows/chr/ping');
   if(name==='child_process')return {spawn:mockSpawn};
   if(name==='./physical/open-winbox')return require('../windows/physical/open-winbox');
   if(name==='./physical/mndp')return {interfaces:()=>[physicalNic],discover:async()=>{physicalCalls++;return [{mac:'02:11:22:33:44:55'}];}};
@@ -89,8 +91,22 @@ vm.runInNewContext(source,{require:req,process:{platform:'win32',resourcesPath:'
   let outcome;guest.requests({url:'https://example.com/'},x=>outcome=x);assert(outcome.cancel);
   guest.requests({url:'http://127.0.0.1:18765/webfig'},x=>outcome=x);assert(!outcome.cancel);
   guest.requests({url:'ws://127.0.0.1:18765/socket'},x=>outcome=x);assert(!outcome.cancel);
+  const ping=handlers['chr:ping'];assert(ping);
+  assert(!(await ping({sender:{},senderFrame:{}},'r',{},'192.168.88.1')).ok);
+  assert(!(await ping(good,'r',{},'192.168.88.1;bad')).ok);
+  assert(!(await ping(good,'other',{},'192.168.88.1')).ok);
+  assert(!(await ping(good,'r',{modified:true},'192.168.88.1')).ok);
+  assert(!created[0].pingCalls);
+  choices.push(0);assert((await ping(good,'r',{},'192.168.88.1')).cancelled);assert(!created[0].pingCalls);
+  assert(dialogs.at(-1).defaultId===0 && dialogs.at(-1).detail.includes('локальную сеть'));
+  choices.push(1);const pingResult=await ping(good,'r',{},'192.168.88.1');assert.equal(pingResult.received,2);assert.equal(pingResult.sent,3);assert.equal(created[0].pingCalls[0],'192.168.88.1');
   assert(!JSON.stringify(main.events).includes('TEMPORARY_TEST_PASSWORD'));
-  guest.destroy();await new Promise(resolve=>setImmediate(resolve));assert(created[0].stopped);assert(!errors.length);
+  let finishPing;created[0].ping=()=>new Promise(resolve=>{finishPing=resolve;});choices.push(1);
+  const pending=ping(good,'r',{},'192.168.88.1');await new Promise(resolve=>setImmediate(resolve));assert(finishPing);
+  assert(!(await ping(good,'r',{},'192.168.88.2')).ok,'parallel ping must be rejected');
+  guest.destroy();await new Promise(resolve=>setImmediate(resolve));assert(created[0].stopped);finishPing({sent:3,received:3});
+  const afterClose=await pending;assert(!afterClose.ok && afterClose.message.includes('неизвестен'));
+  assert(!errors.length);assert(!(await ping(good,'r',{},'192.168.88.1')).ok);
   plan={blockers:[],groups:[{id:'iface',commands:['/interface print']}],expected:{wans:[{},{}]}};
   plan.expected.ntp={server:'192.0.2.123',zone:'Europe/Minsk'}; // Still subject to the same network guard and per-launch consent.
   onlineValid=false; let rejectedOnline=await call(good,'r',{}); assert(!rejectedOnline.ok && rejectedOnline.message.includes('10.0.2.20')); assert.strictEqual(created.length,1);
