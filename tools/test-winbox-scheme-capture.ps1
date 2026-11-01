@@ -40,19 +40,13 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -ArgumentList @("127.0.0.1:$env:
   # Qt accessibility may not expose WinBox menus. Only use coordinates if
   # the private, temporary WinBox log confirms authentication AND workspace.
   $privateLog=(Get-Content -Raw $errLog -ErrorAction SilentlyContinue)+(Get-Content -Raw $outLog -ErrorAction SilentlyContinue)
-  if($privateLog -match 'Auth OK' -and $privateLog -match 'first clock synced') {$stage='verified-workspace-no-uia';$r=[System.Windows.Rect]::new($rect.X+45,$rect.Y+235,20,25)}
+  if($privateLog -match 'Auth OK' -and $privateLog -match 'first clock synced') {$stage='verified-workspace-no-uia';$r=[System.Windows.Rect]::new($rect.X+45,$rect.Y+270,20,22)}
   else {$stage='authentication-unconfirmed';throw 'WinBox workspace not authenticated'}
  } else {$r=$ip.Current.BoundingRectangle}
  if($r.Width -le 0 -or $r.Height -le 0){throw 'WinBox IP control is not visible'}
  [void][CiMouse]::SetCursorPos([int]($r.X+$r.Width/2),[int]($r.Y+$r.Height/2));[CiMouse]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[CiMouse]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
  Start-Sleep -Seconds 3
- $stage='addresses-menu'
- $addressCondition=[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,'Addresses')
- $addresses=[System.Windows.Automation.AutomationElement]::RootElement.FindFirst([System.Windows.Automation.TreeScope]::Descendants,$addressCondition)
- if(!$addresses){$r=[System.Windows.Rect]::new($rect.X+165,$rect.Y+48,50,20)} else {$r=$addresses.Current.BoundingRectangle}
- if($r.Width -le 0 -or $r.Height -le 0){throw 'WinBox Addresses menu is not visible'}
- [void][CiMouse]::SetCursorPos([int]($r.X+$r.Width/2),[int]($r.Y+$r.Height/2));[CiMouse]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[CiMouse]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
- Start-Sleep -Seconds 5
+ # First validate the actual IP-menu position; this is not an Addresses screenshot.
  $stage='screenshot'
  $bitmap=[System.Drawing.Bitmap]::new([int]$rect.Width,[int]$rect.Height);$graphics=[System.Drawing.Graphics]::FromImage($bitmap)
  $params=New-Object System.Drawing.Imaging.EncoderParameters(1);$params.Param[0]=New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality,[long]40)
