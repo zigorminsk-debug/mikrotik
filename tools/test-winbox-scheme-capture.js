@@ -31,10 +31,11 @@ const {ChrSession}=mod.exports;let session,dom;
  const info=await session.start(plan);assert.equal(new URL(info.url).hostname,'127.0.0.1');assert(Number.isInteger(info.ciWinboxPort));
  await new Promise((resolve,reject)=>{
   const env={...process.env,CI_WINBOX_PORT:String(info.ciWinboxPort),CI_WINBOX_PASSWORD:info.password,CI_WINBOX_EXE:path.resolve(winbox)};
-  const p=spawn('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'test-winbox-scheme-capture.ps1')],{env,stdio:['ignore','ignore','ignore'],windowsHide:true});
-  const timer=setTimeout(()=>{p.kill();reject(Error('WinBox GUI timeout'));},120000);
+  const p=spawn('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'test-winbox-scheme-capture.ps1')],{env,stdio:['ignore','pipe','ignore'],windowsHide:true});
+  let stage='unknown';p.stdout.on('data',data=>{const m=String(data).match(/CI_STAGE=(start|window|workspace|ip-menu|addresses-menu|screenshot)/);if(m)stage=m[1];});
+  const timer=setTimeout(()=>{p.kill();reject(Error('WinBox GUI timeout at '+stage));},120000);
   p.once('error',()=>{clearTimeout(timer);reject(Error('WinBox GUI automation failed'));});
-  p.once('exit',code=>{clearTimeout(timer);code===0?resolve():reject(Error('WinBox GUI did not complete; no screenshot exported'));});
+  p.once('exit',code=>{clearTimeout(timer);code===0?resolve():reject(Error('WinBox GUI did not complete at '+stage+'; no screenshot exported'));});
  });
  const picture=path.join(process.env.RUNNER_TEMP,'lab-scheme-winbox.jpg');assert(fs.existsSync(picture)&&fs.statSync(picture).size>5000);
  const dir=session.directory;await session.stop();assert(!fs.existsSync(dir));
