@@ -124,12 +124,53 @@ function renderStep(step, idx) {
   return s;
 }
 
+// Каждый раздел предлагает сценарий, но неподдерживаемые возможности не
+// выдаются за работающую CHR и не попадают в схему частично.
+function renderGuideLab(sec) {
+  var box=el('section','step guide-lab'), body=el('div','step-body');
+  var title=el('h2','step-title','🧪 Проверить на стенде');
+  var toggle=el('button','btn ghost','Выбрать функции раздела'); toggle.type='button';
+  toggle.setAttribute('aria-expanded','false');
+  var panel=el('div','guide-lab-panel');panel.hidden=true;
+  panel.appendChild(el('p','fs-hint','Будет создана отдельная учебная схема. После проверки модели в Windows можно запустить поддерживаемые настройки на настоящей виртуальной CHR; перед запуском нужны подтверждения и лицензия. Android и браузер показывают только модель. Физический MikroTik не изменяется. Снимки WinBox конкретной схемы пока не создаются.'));
+  var cat=GuideLab.catalog(sec.id);
+  if(cat.reason) panel.appendChild(el('div','note',esc(cat.reason)));
+  else {
+    panel.appendChild(el('p','fs-hint','Выберите функции этого раздела. В качестве основы используются один изолированный WAN, мост, основная LAN и учебный ПК. Для разделов Bridge, Interfaces, Routing и System также заранее включены DHCP LAN, Firewall, NAT и DNS-кэш. Поставщики и компьютеры не эмулируются как отдельные ВМ.'));
+    var inputs=[];
+    cat.choices.forEach(function(item) {
+      var label=el('label','row-check'), input=document.createElement('input');
+      input.type='checkbox'; input.value=item.id; input.disabled=!!item.unavailable; input.checked=cat.defaults.indexOf(item.id)>=0;
+      label.appendChild(input);label.appendChild(document.createTextNode(' '+item.label));panel.appendChild(label);inputs.push(input);
+      if(item.unavailable || item.detail) panel.appendChild(el('div','fs-hint',esc(item.unavailable||item.detail)));
+    });
+    var errors=el('div','warn guide-lab-errors');errors.setAttribute('aria-live','polite');
+    var launch=el('button','btn guide-lab-start','Открыть сценарий в лаборатории');launch.type='button';
+    function selected(){return inputs.filter(function(x){return x.checked;}).map(function(x){return x.value;});}
+    function check(){var result=GuideLab.validate(sec.id,selected());errors.textContent=result.errors.join(' ');errors.hidden=!result.errors.length;launch.disabled=!!result.errors.length;return result;}
+    inputs.forEach(function(input){input.addEventListener('change',check);});
+    panel.appendChild(errors);panel.appendChild(launch);check();
+    launch.addEventListener('click',function(){
+      if(check().errors.length)return;
+      var result=window.Lab.loadGuide(sec.id,selected());
+      if(result.cancelled)return;
+      if(!result.ok){errors.hidden=false;errors.textContent=(result.errors||['Сценарий не подготовлен.']).join(' ');return;}
+      location.hash='lab';
+      // Навигация и моделирование: сама CHR запускается только по отдельной кнопке.
+      setTimeout(function(){if(location.hash==='#lab')window.Lab.run({instant:true});},0);
+    });
+  }
+  toggle.addEventListener('click',function(){panel.hidden=!panel.hidden;toggle.setAttribute('aria-expanded',String(!panel.hidden));});
+  body.appendChild(title);body.appendChild(toggle);body.appendChild(panel);box.appendChild(body);return box;
+}
+
 function renderSection(sec) {
   var head = el('div', 'sec-header',
     '<div class="sec-icon">' + esc(sec.icon || '📘') + '</div><div>' +
     '<h1>' + esc(sec.title) + '</h1>' +
     (sec.lead ? '<p class="sec-lead">' + fmt(sec.lead) + '</p>' : '') + '</div>');
   contentEl.appendChild(head);
+  contentEl.appendChild(renderGuideLab(sec));
   (sec.steps || []).forEach(function (st, i) { contentEl.appendChild(renderStep(st, i)); });
 }
 

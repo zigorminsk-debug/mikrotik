@@ -1291,6 +1291,14 @@ window.addEventListener('hashchange', function () {
 /* ---------- Публичный API (для тестов и отладки) ---------- */
 window.Lab = {
   state: state,
+  loadGuide: function(section, ids) {
+    var draft = GuideLab.build(section, ids, TYPES, LabEngine);
+    if (draft.errors.length) return {ok:false, errors:draft.errors};
+    if (state.devices.length && !window.confirm('Заменить текущую схему учебным сценарием? Текущие устройства и их настройки будут удалены. CHR и физический роутер не запускаются.')) return {ok:false, cancelled:true};
+    closeSettings(); state.devices = draft.state.devices; state.links = draft.state.links; state.seq = draft.state.seq;
+    selected=null; linkFrom=null; pickType=null; invalidate(); setMode('select'); renderAll();
+    return {ok:true};
+  },
   place: place,
   link: addLink,
   run: run,
