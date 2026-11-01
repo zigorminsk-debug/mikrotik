@@ -23,8 +23,12 @@ jobs:
       - name: Install Electron and copy application
         shell: pwsh
         run: |
-          npm install --prefix windows --no-audit --no-fund
-          npm run copy --prefix windows
+          Push-Location windows
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'npm install failed' }
+          npm run copy
+          if ($LASTEXITCODE -ne 0) { throw 'App copy failed' }
+          Pop-Location
       - name: Check mobile and desktop Chromium layouts
         shell: pwsh
         run: |

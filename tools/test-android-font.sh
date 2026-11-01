@@ -5,7 +5,7 @@ set -euo pipefail
 xml="$RUNNER_TEMP/font-ui.xml"
 # This emulator uses a fresh disposable app profile; expose its accessibility
 # hierarchy only on failure to diagnose coordinates, never user data.
-trap 'status=$?; if (( status != 0 )) && [[ -s "$xml" ]]; then python3 - "$xml" <<'PYDUMP'
+trap 'status=$?; if (( status != 0 )); then adb exec-out screencap -p > "$RUNNER_TEMP/android-font-failure.png" 2>/dev/null || true; fi; if (( status != 0 )) && [[ -s "$xml" ]]; then python3 - "$xml" <<'PYDUMP'
 import sys
 s=open(sys.argv[1],encoding="utf-8",errors="replace").read()
 print("::notice title=Android disposable UI::"+s[:20000].replace("%","%25").replace("\r","").replace("\n","%0A"))
@@ -53,7 +53,9 @@ for i in 1 2 3 4 5 6; do
  adb shell input swipe 150 535 150 220 450
  sleep 1
 done
+adb exec-out screencap -p > "$RUNNER_TEMP/android-font-menu.png"
 tap 'О программе'
+adb exec-out screencap -p > "$RUNNER_TEMP/android-font-about.png"
 snapshot; coords 'О программе' >/dev/null || { echo '::error::About page not reachable'; exit 1; }
 adb shell am force-stop by.mikrotik.tutor
 adb shell am start -n by.mikrotik.tutor/.MainActivity >/dev/null

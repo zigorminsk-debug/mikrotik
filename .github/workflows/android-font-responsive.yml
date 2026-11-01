@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/android-font-responsive.yml'
       - 'tools/test-android-font.sh'
+      - 'tools/export-android-font.py'
       - 'app/css/app.css'
       - 'app/js/app.js'
       - 'app/index.html'
@@ -52,3 +53,18 @@ jobs:
           path: ${{ runner.temp }}/font-ui.xml
           if-no-files-found: ignore
           retention-days: 3
+      - name: Prepare screenshot encoder
+        if: always()
+        run: python3 -m pip install pillow
+      - name: Export disposable Android screenshot 0–9
+        if: always()
+        run: |
+          python3 tools/export-android-font.py failure 0
+          python3 tools/export-android-font.py menu 0
+          python3 tools/export-android-font.py about 0
+      - name: Export disposable Android screenshot 10–19
+        if: always()
+        run: |
+          python3 tools/export-android-font.py failure 10
+          python3 tools/export-android-font.py menu 10
+          python3 tools/export-android-font.py about 10
