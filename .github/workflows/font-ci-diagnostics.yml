@@ -45,3 +45,4 @@ jobs:
           text='\n'.join(keep[-25:])[-8000:].replace('%','%25').replace('\r','').replace('\n','%0A')
           print('::notice title='+sys.argv[2]+' failed step summary::'+text)
           PY
+          done
