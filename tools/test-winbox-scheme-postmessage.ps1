@@ -122,6 +122,18 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -PassThru -RedirectStandardError
   $jpeg=[System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object {$_.MimeType -eq 'image/jpeg'} | Select-Object -First 1
   $bitmap.Save((Join-Path $env:RUNNER_TEMP 'lab-scheme-winbox.jpg'),$jpeg,$params)
  }finally{$params.Dispose();$graphics.Dispose();$bitmap.Dispose()}
+ if($env:CI_DETAIL_NAV -eq '1'){
+  if($env:CI_BACKGROUND_NAV -ne '1' -or $env:CI_CAPTURE_DHCP -eq '1'){throw 'Detail research requires static background scenario'}
+  $stage='address-detail'
+  # Static fixture only: double-click the checked LAN-address row. This is a
+  # probe, not a reusable selector. The result requires visual inspection.
+  PostAt 0x201 470 249 1; PostAt 0x202 470 249 0; PostAt 0x203 470 249 1; PostAt 0x202 470 249 0
+  Start-Sleep -Seconds 5
+  if([CiMouse]::GetForegroundWindow() -ne $decoy.Handle){throw 'Detail navigation changed foreground'}
+  $bitmap=[System.Drawing.Bitmap]::new([int]$rect.Width,[int]$rect.Height);$graphics=[System.Drawing.Graphics]::FromImage($bitmap)
+  $params=New-Object System.Drawing.Imaging.EncoderParameters(1);$params.Param[0]=New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality,[long]40)
+  try{$hdc=$graphics.GetHdc();try{$ok=[CiMouse]::PrintWindow($handle,$hdc,2)}finally{$graphics.ReleaseHdc($hdc)};if(!$ok){throw 'PrintWindow failed'};$bitmap.Save((Join-Path $env:RUNNER_TEMP 'lab-scheme-detail.jpg'),$jpeg,$params)}finally{$params.Dispose();$graphics.Dispose();$bitmap.Dispose()}
+ }
  if($env:CI_CAPTURE_PRINT -eq '1'){
   $stage='print-window'
   # Cover part of WinBox with a harmless decoy to see whether PrintWindow

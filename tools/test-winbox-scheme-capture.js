@@ -36,12 +36,13 @@ const {ChrSession}=mod.exports;let session,dom;
   const helper=process.env.CI_INPUT_METHOD==='postmessage'?'test-winbox-scheme-postmessage.ps1':'test-winbox-scheme-capture.ps1';
   const p=spawn('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,helper)],{env,stdio:['pipe','pipe','ignore'],windowsHide:true});
   p.stdin.on('error',()=>{});p.stdin.end(JSON.stringify({port:info.ciWinboxPort,password:info.password})+'\n');
-  let stage='unknown';p.stdout.on('data',data=>{const m=String(data).match(/CI_STAGE=(start|window|login-input|workspace|ip-menu|addresses-menu|screenshot|dhcp-client|print-window|verified-workspace-no-uia|authentication-unconfirmed)/);if(m)stage=m[1];});
+  let stage='unknown';p.stdout.on('data',data=>{const m=String(data).match(/CI_STAGE=(start|window|login-input|workspace|ip-menu|addresses-menu|screenshot|dhcp-client|address-detail|print-window|verified-workspace-no-uia|authentication-unconfirmed)/);if(m)stage=m[1];});
   const timer=setTimeout(()=>{p.kill();reject(Error('WinBox GUI timeout at '+stage));},120000);
   p.once('error',()=>{clearTimeout(timer);reject(Error('WinBox GUI automation failed'));});
   p.once('exit',code=>{clearTimeout(timer);code===0?resolve():reject(Error('WinBox GUI did not complete at '+stage+'; no screenshot exported'));});
  });
  const picture=path.join(process.env.RUNNER_TEMP,'lab-scheme-winbox.jpg');assert(fs.existsSync(picture)&&fs.statSync(picture).size>5000);if(kind==='dhcp'){const p=path.join(process.env.RUNNER_TEMP,'lab-scheme-dhcp.jpg');assert(fs.existsSync(p)&&fs.statSync(p).size>5000);}
+ if(process.env.CI_DETAIL_NAV==='1'){const p=path.join(process.env.RUNNER_TEMP,'lab-scheme-detail.jpg');assert(fs.existsSync(p)&&fs.statSync(p).size>5000);}
  const dir=session.directory;await session.stop();assert(!fs.existsSync(dir));
  console.log('::notice title=Scheme WinBox research::Disposable Windows CHR received the exact UI preset and passed REST verification; WinBox GUI capture completed. The image needs visual inspection. No physical router, user credentials, internet, or production GUI integration.');
 })().catch(e=>{console.log('::error title=Scheme WinBox research::'+String(e.message).replace(/[\r\n%]/g,' '));process.exitCode=1;}).finally(async()=>{if(dom)dom.window.close();if(session)try{await session.stop();}catch(_){process.exitCode=1;}});
