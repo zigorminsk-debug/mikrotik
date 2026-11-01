@@ -1,0 +1,85 @@
+# Research only: this does not bundle the candidate into the application.
+name: Windows isolated CHR and Linux endpoints research
+on:
+  push:
+    branches: ['**'] # Tags run only Build and Android update; branch coverage is unchanged.
+    paths:
+      - '.github/workflows/windows-chr-linux-ping.yml'
+      - 'tools/test-windows-chr-linux-ping.js'
+      - 'windows/chr/ping.js'
+      - 'windows/chr/console.js'
+      - 'tools/windows/chr-supervisor.c'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  evaluate:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Fetch pinned QEMU installer, verify and extract without installing
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dir = Join-Path $env:RUNNER_TEMP 'qemu-candidate'
+          New-Item -ItemType Directory -Path $dir -Force | Out-Null
+          $package = Join-Path $dir 'qemu-setup.exe'
+          Invoke-WebRequest -Uri 'https://github.com/dextoros/qemu-runtime/releases/download/qemu-11.1.0-20260811/qemu-w64-setup-20260811.exe' -OutFile $package
+          $sha = (Get-FileHash -Algorithm SHA512 $package).Hash.ToLowerInvariant()
+          if ($sha -ne '5bcf9eed634e8575a37b74f445af41a2fe4106da512d0c30c368301d4c105037fdfab40a5287367a28a957624cddebbc8c07e16c88ab6634f554cdf3d16bf543') { throw 'QEMU installer SHA-512 mismatch' }
+          $dest = Join-Path $dir 'qemu'
+          7z x -y "-o$dest" $package
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to extract QEMU installer' }
+          $exe = @(Get-ChildItem -Recurse -File -Path $dest -Filter qemu-system-x86_64.exe)
+          if ($exe.Count -ne 1) { throw 'Expected one QEMU executable' }
+          & $exe[0].FullName --version
+          if ($LASTEXITCODE -ne 0) { throw 'QEMU failed to start' }
+          "QEMU_EXE=$($exe[0].FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $licenses = @(Get-ChildItem -Recurse -File -Path $dest | Where-Object { $_.Name -match '^(COPYING|LICENSE)' } | Select-Object -ExpandProperty FullName)
+          Write-Output "::notice title=Extracted QEMU license files::$($licenses.Count)"
+      - name: Obtain official CHR for isolated CI only
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'qemu-candidate'
+          $zip = Join-Path $dir 'chr.zip'
+          Invoke-WebRequest -Uri 'https://download.mikrotik.com/routeros/7.23.8/chr-7.23.8.img.zip' -OutFile $zip
+          if ((Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant() -ne 'ac01ec7c092f4cab8136212e8ebfd613e0a37844c406317fa228d1ad446ce62c') { throw 'CHR ZIP hash mismatch' }
+          Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $dir 'chr')
+          $img = @(Get-ChildItem -Recurse -File -Path (Join-Path $dir 'chr') -Filter '*.img')
+          if ($img.Count -ne 1) { throw 'Expected one CHR image' }
+          "CHR_IMAGE=$($img[0].FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          node tools/chr-ci-fixture.js | Out-File -FilePath (Join-Path $dir 'fixture.json') -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw 'Fixture generation failed' }
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Build Windows QEMU supervisor
+        shell: pwsh
+        run: |
+          cl /nologo /O2 /W3 tools/windows/chr-supervisor.c "/Fo$env:RUNNER_TEMP/chr-supervisor.obj" /link "/OUT:$env:RUNNER_TEMP/chr-supervisor.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Supervisor compilation failed' }
+      - name: Download CirrOS 0.6.3 test image and verify upstream checksum
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dir = Join-Path $env:RUNNER_TEMP 'qemu-candidate'
+          $base = 'https://github.com/cirros-dev/cirros/releases/download/0.6.3'
+          $image = Join-Path $dir 'cirros-0.6.3-x86_64-disk.img'
+          $sums = Join-Path $dir 'SHA256SUMS'
+          Invoke-WebRequest -Uri "$base/SHA256SUMS" -OutFile $sums
+          Invoke-WebRequest -Uri "$base/cirros-0.6.3-x86_64-disk.img" -OutFile $image
+          $entry = @(Get-Content $sums | Where-Object { $_ -match '^([a-f0-9]{64})\s+\*?cirros-0\.6\.3-x86_64-disk\.img$' })
+          if ($entry.Count -ne 1) { throw 'No unique upstream checksum' }
+          $expected = ($entry[0] -split '\s+')[0]
+          $hash = (Get-FileHash -Algorithm SHA256 $image).Hash.ToLowerInvariant()
+          if ($hash -ne $expected) { throw 'CirrOS checksum mismatch' }
+          Write-Output "::notice title=CirrOS test image SHA256::$hash"
+          "LINUX_IMAGE=$image" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Verify real ICMP between Linux guests and RouterOS
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'qemu-candidate'
+          node tools/test-windows-chr-linux-ping.js "$env:QEMU_EXE" "$env:CHR_IMAGE" "$env:LINUX_IMAGE" (Join-Path $dir 'linux-sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe')
+          if ($LASTEXITCODE -ne 0) { throw 'Linux endpoints experiment failed' }
