@@ -67,3 +67,5 @@
 `guide-lab-system-windows.jpg` — оригинальный снимок Windows Electron из [CI 41313217696](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41313217696): выбраны имя, NTP и две темы журнала, IP Cloud недоступен. Снимок проверен визуально; CHR и WinBox не запускались, это не снимок WinBox.
 
 `guide-lab-ipv6-windows.jpg` — оригинальный снимок Windows Electron из [CI 41314878732](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41314878732): выбран учебный адрес, DHCPv6 и IPv6-маршрутизация недоступны. Кадр визуально проверен; CHR и WinBox при съёмке не запускались.
+
+`about-history-windows.jpg` — оригинальный снимок меню «О программе» в Windows Electron, [CI 41315808020](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41315808020). Проверен визуально, отображает версию и сохранённые заметки. Это не WinBox, CHR не запускалась.
