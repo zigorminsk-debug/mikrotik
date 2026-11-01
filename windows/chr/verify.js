@@ -96,8 +96,16 @@ async function verifyConfiguration(expected, get, diagnostic = () => {}) {
     const addresses6=list(await get('/rest/ipv6/address'));
     check(one(addresses6, x => x.address === expected.ipv6Lab.address && x.interface === expected.ipv6Lab.interface && enabled(x) && String(x.advertise) === 'false'), 'изолированный IPv6-адрес');
     const filter6=list(await get('/rest/ipv6/firewall/filter'));
-    const valid6=filter6.length === 2 && ['input','forward'].every((chain,n) => filter6[n].chain === chain && filter6[n].action === 'drop' && enabled(filter6[n]));
-    if (!valid6) { try { diagnostic({ipv6Filter:filter6.slice(0,10).map(x=>({chain:['input','forward','output'].includes(x.chain)?x.chain:'other', action:['drop','accept','passthrough'].includes(x.action)?x.action:'other', disabled:!Object.prototype.hasOwnProperty.call(x,'disabled')?'absent':(x.disabled===true||x.disabled==='true'?'true':(x.disabled===false||x.disabled==='false'?'false':'other')), invalid:!Object.prototype.hasOwnProperty.call(x,'invalid')?'absent':(x.invalid===true||x.invalid==='true'?'true':(x.invalid===false||x.invalid==='false'?'false':'other')), dynamic:x.dynamic===true||x.dynamic==='true', matchFields:['src-address','dst-address','src-address-list','dst-address-list','in-interface','out-interface','in-interface-list','out-interface-list','protocol','connection-state','connection-mark','packet-mark','routing-mark','src-port','dst-port','port','icmp-options','limit','time','tls-host','layer7-protocol','fragment','ipsec-policy','hop-limit','address-list','address-list-timeout'].filter(k=>Object.prototype.hasOwnProperty.call(x,k))})),count:filter6.length}); } catch (_) {} }
+    // RouterOS 7.23.8 omits the disabled property on enabled firewall rules.
+    // Fail closed on unknown flags and match properties: a drop restricted to
+    // a source or interface is not the requested unconditional IPv6 block.
+    const allowed6=new Set(['.id','chain','action','disabled','invalid','dynamic','log','log-prefix','comment','bytes','packets']);
+    const falseOrAbsent=(x,k)=>!Object.prototype.hasOwnProperty.call(x,k)||x[k]===false||x[k]==='false';
+    const valid6=filter6.length === 2 && ['input','forward'].every((chain,n) => {
+      const x=filter6[n];
+      return x && x.chain===chain && x.action==='drop' && falseOrAbsent(x,'disabled') && falseOrAbsent(x,'dynamic') && (x.invalid===false||x.invalid==='false') && Object.keys(x).every(k=>allowed6.has(k));
+    });
+    if (!valid6) { try { diagnostic({ipv6Filter:filter6.slice(0,10).map(x=>({chain:['input','forward','output'].includes(x.chain)?x.chain:'other', action:['drop','accept','passthrough'].includes(x.action)?x.action:'other', disabled:!Object.prototype.hasOwnProperty.call(x,'disabled')?'absent':(x.disabled===true||x.disabled==='true'?'true':(x.disabled===false||x.disabled==='false'?'false':'other')), invalid:!Object.prototype.hasOwnProperty.call(x,'invalid')?'absent':(x.invalid===true||x.invalid==='true'?'true':(x.invalid===false||x.invalid==='false'?'false':'other')), dynamic:x.dynamic===true||x.dynamic==='true', matchFields:['src-address','dst-address','src-address-list','dst-address-list','in-interface','out-interface','in-interface-list','out-interface-list','protocol','connection-state','connection-mark','packet-mark','routing-mark','src-port','dst-port','port','icmp-options','limit','time','tls-host','layer7-protocol','fragment','ipsec-policy','hop-limit','address-list','address-list-timeout'].filter(k=>Object.prototype.hasOwnProperty.call(x,k))})),count:filter6.length, unknownFieldCounts:filter6.slice(0,10).map(x=>Object.keys(x).filter(k=>!allowed6.has(k)).length)}); } catch (_) {} }
     check(valid6, 'запрет IPv6');
   }
   if (expected.logTopics && expected.logTopics.length) {

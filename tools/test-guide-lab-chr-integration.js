@@ -33,6 +33,18 @@ let session,dom;const errors=[];
  if(kind==='ipv6')assert.deepStrictEqual(plan.expected.ipv6Lab,{address:'fd42:7469:6b::1/64',interface:'bridge-lan'});
  if(kind==='log')assert.deepStrictEqual(plan.expected.logTopics,['system','interface']);
  if(kind==='queues'){assert.deepStrictEqual(plan.expected.simpleQueue,{target:'192.168.88.10/32',rate:'10000000'});assert(!plan.expected.filterRules.some(x=>x.action==='fasttrack-connection'));}
+ if(kind==='ipv6'){
+  // Negative control on another disposable CHR: the REST verifier must reject
+  // an actually disabled input rule, not just a synthetic JS fixture.
+  const negative=JSON.parse(JSON.stringify(plan));
+  negative.groups.find(g=>g.id==='ipv6').commands.push('/ipv6 firewall filter disable [find chain=input]');
+  let observed;
+  session=new ChrSession({qemu:path.resolve(qemu),image:path.resolve(image),tempRoot:path.resolve(work),supervisor:path.resolve(supervisor),diagnostic:r=>{if(r.ipv6Filter)observed=r;}});
+  await assert.rejects(session.start(negative),/запрет IPv6/);
+  assert(observed&&observed.ipv6Filter[0].disabled==='true','CHR REST did not identify disabled rule');
+  console.log('::notice title=IPv6 negative control::Disposable CHR disabled input rule was detected and rejected.');
+  await session.stop();
+ }
  session=new ChrSession({qemu:path.resolve(qemu),image:path.resolve(image),tempRoot:path.resolve(work),supervisor:path.resolve(supervisor),diagnostic:record=>{if(record.ipv6Filter)console.log('::notice title=Disposable IPv6 filter shape::'+JSON.stringify({count:record.count,rules:record.ipv6Filter}));}});
  assert.equal(session.internetConsent,false);const info=await session.start(plan);assert.equal(new URL(info.url).hostname,'127.0.0.1');
  const dir=session.directory;await session.stop();assert(!fs.existsSync(dir));
