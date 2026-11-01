@@ -4,6 +4,8 @@ on:
     paths:
       - '.github/workflows/windows-physical-manual-mac-capture.yml'
       - 'tools/capture-physical-manual-mac.js'
+      - 'tools/test-physical-clipboard-windows.js'
+      - 'windows/main.js'
       - 'tools/export-physical-manual-mac.py'
       - 'app/js/lab.js'
       - 'windows/preload.js'
@@ -28,6 +30,11 @@ jobs:
           npm run copy
           if ($LASTEXITCODE -ne 0) { throw 'Copy failed' }
           Pop-Location
+      - name: Verify manual MAC through real Electron IPC and disposable clipboard
+        shell: pwsh
+        run: |
+          ./windows/node_modules/.bin/electron.cmd tools/test-physical-clipboard-windows.js
+          if ($LASTEXITCODE -ne 0) { throw 'Clipboard integration failed' }
       - name: Capture button (no WinBox or router)
         shell: pwsh
         run: |
