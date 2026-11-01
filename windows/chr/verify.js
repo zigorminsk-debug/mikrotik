@@ -96,7 +96,9 @@ async function verifyConfiguration(expected, get, diagnostic = () => {}) {
     const addresses6=list(await get('/rest/ipv6/address'));
     check(one(addresses6, x => x.address === expected.ipv6Lab.address && x.interface === expected.ipv6Lab.interface && enabled(x) && String(x.advertise) === 'false'), 'изолированный IPv6-адрес');
     const filter6=list(await get('/rest/ipv6/firewall/filter'));
-    check(filter6.length === 2 && ['input','forward'].every((chain,n) => filter6[n].chain === chain && filter6[n].action === 'drop' && enabled(filter6[n])), 'запрет IPv6');
+    const valid6=filter6.length === 2 && ['input','forward'].every((chain,n) => filter6[n].chain === chain && filter6[n].action === 'drop' && enabled(filter6[n]));
+    if (!valid6) { try { diagnostic({ipv6Filter:filter6.slice(0,10).map(x=>({chain:['input','forward','output'].includes(x.chain)?x.chain:'other', action:['drop','accept','passthrough'].includes(x.action)?x.action:'other', disabled:x.disabled===true||x.disabled==='true'?'true':(x.disabled===false||x.disabled==='false'?'false':'other'), dynamic:x.dynamic===true||x.dynamic==='true'})),count:filter6.length}); } catch (_) {} }
+    check(valid6, 'запрет IPv6');
   }
   if (expected.logTopics && expected.logTopics.length) {
     const logging = list(await get('/rest/system/logging'));

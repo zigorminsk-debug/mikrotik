@@ -65,3 +65,5 @@
 `guide-lab-log-windows.jpg` — оригинальный снимок Windows Electron из [CI 41312889660](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41312889660): выбраны темы system и interface, удалённый syslog недоступен. Снимок визуально проверен; CHR и WinBox не запускались, это не снимок WinBox.
 
 `guide-lab-system-windows.jpg` — оригинальный снимок Windows Electron из [CI 41313217696](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41313217696): выбраны имя, NTP и две темы журнала, IP Cloud недоступен. Снимок проверен визуально; CHR и WinBox не запускались, это не снимок WinBox.
+
+`guide-lab-ipv6-windows.jpg` — оригинальный снимок Windows Electron из [CI 41314878732](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41314878732): выбран учебный адрес, DHCPv6 и IPv6-маршрутизация недоступны. Кадр визуально проверен; CHR и WinBox при съёмке не запускались.

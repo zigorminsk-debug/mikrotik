@@ -33,7 +33,7 @@ let session,dom;const errors=[];
  if(kind==='ipv6')assert.deepStrictEqual(plan.expected.ipv6Lab,{address:'fd42:7469:6b::1/64',interface:'bridge-lan'});
  if(kind==='log')assert.deepStrictEqual(plan.expected.logTopics,['system','interface']);
  if(kind==='queues'){assert.deepStrictEqual(plan.expected.simpleQueue,{target:'192.168.88.10/32',rate:'10000000'});assert(!plan.expected.filterRules.some(x=>x.action==='fasttrack-connection'));}
- session=new ChrSession({qemu:path.resolve(qemu),image:path.resolve(image),tempRoot:path.resolve(work),supervisor:path.resolve(supervisor)});
+ session=new ChrSession({qemu:path.resolve(qemu),image:path.resolve(image),tempRoot:path.resolve(work),supervisor:path.resolve(supervisor),diagnostic:record=>{if(record.ipv6Filter)console.log('::notice title=Disposable IPv6 filter shape::'+JSON.stringify({count:record.count,rules:record.ipv6Filter}));}});
  assert.equal(session.internetConsent,false);const info=await session.start(plan);assert.equal(new URL(info.url).hostname,'127.0.0.1');
  const dir=session.directory;await session.stop();assert(!fs.existsSync(dir));
  console.log('::notice title=Guide to isolated CHR::Selected '+kind+' in the actual guide UI, applied and verified its generated plan in disposable CHR and deleted the disk. No physical device, client VM, internet, WinBox screenshots or packaged EXE tested.');
