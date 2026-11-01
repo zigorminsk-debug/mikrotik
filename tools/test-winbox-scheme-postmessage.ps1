@@ -64,7 +64,7 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -PassThru -RedirectStandardError
  PostText $record.password
  PostClick 198 471
  if([CiMouse]::GetForegroundWindow() -ne $decoy.Handle){throw 'Input changed the foreground window'}
- $decoy.Close();$decoy.Dispose()
+ if($env:CI_BACKGROUND_NAV -ne '1'){$decoy.Close();$decoy.Dispose();$decoy=$null}
  $record.password=$null
  $stage='workspace'
  Start-Sleep -Seconds 35
@@ -72,7 +72,8 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -PassThru -RedirectStandardError
  $element=[System.Windows.Automation.AutomationElement]::FromHandle($handle)
  $rect=$element.Current.BoundingRectangle
  if($rect.Width -lt 700 -or $rect.Height -lt 500 -or $rect.Width -gt 3000 -or $rect.Height -gt 2000){throw 'Unexpected WinBox dimensions'}
- [void][CiMouse]::SetForegroundWindow($handle)
+ if($env:CI_BACKGROUND_NAV -ne '1'){[void][CiMouse]::SetForegroundWindow($handle)}
+ else {if([CiMouse]::GetForegroundWindow() -ne $decoy.Handle){throw 'Decoy lost focus before navigation'}}
  # Fail closed: a genuine workspace must expose IP in the accessibility tree.
  $stage='ip-menu'
  $ipCondition=[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,'IP')
@@ -85,26 +86,39 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -PassThru -RedirectStandardError
   else {$stage='authentication-unconfirmed';throw 'WinBox workspace not authenticated'}
  } else {$r=$ip.Current.BoundingRectangle}
  if($r.Width -le 0 -or $r.Height -le 0){throw 'WinBox IP control is not visible'}
- [void][CiMouse]::SetCursorPos([int]($r.X+$r.Width/2),[int]($r.Y+$r.Height/2));[CiMouse]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[CiMouse]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
+ if($env:CI_BACKGROUND_NAV -eq '1'){PostClick ([int]($r.X+$r.Width/2-$rect.X)) ([int]($r.Y+$r.Height/2-$rect.Y))}
+ else {[void][CiMouse]::SetCursorPos([int]($r.X+$r.Width/2),[int]($r.Y+$r.Height/2));[CiMouse]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[CiMouse]::mouse_event(4,0,0,0,[UIntPtr]::Zero)}
  Start-Sleep -Seconds 3
  # Coordinates were visually checked on the disposable runner at 1024x768.
  # The image remains provisional until visually checked against the plan.
  $stage='addresses-menu'
- [void][CiMouse]::SetCursorPos([int]$rect.X+185,[int]$rect.Y+75);[CiMouse]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[CiMouse]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
+ if($env:CI_BACKGROUND_NAV -eq '1'){PostClick 185 75}
+ else {[void][CiMouse]::SetCursorPos([int]$rect.X+185,[int]$rect.Y+75);[CiMouse]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[CiMouse]::mouse_event(4,0,0,0,[UIntPtr]::Zero)}
  Start-Sleep -Seconds 5
  # The default Address column truncates IPs on this runner. Widen it so the
  # actual example values are readable, then require human visual inspection.
+ if($env:CI_BACKGROUND_NAV -eq '1'){
+  function PostAt([uint32]$msg,[int]$x,[int]$y,[int]$flags){
+   $pt=New-Object 'CiMouse+POINT';$pt.X=[int]$rect.X+$x;$pt.Y=[int]$rect.Y+$y
+   if(![CiMouse]::ScreenToClient($handle,[ref]$pt)){throw 'Coordinate conversion failed'}
+   if(![CiMouse]::PostMessage($handle,$msg,[IntPtr]$flags,[IntPtr](($pt.Y -shl 16) -bor ($pt.X -band 65535)))){throw 'Drag failed'}
+  }
+  PostAt 0x201 515 204 1; PostAt 0x200 650 204 1; PostAt 0x202 650 204 0; Start-Sleep -Seconds 3
+  if([CiMouse]::GetForegroundWindow() -ne $decoy.Handle){throw 'Navigation changed foreground'}
+ } else {
  [void][CiMouse]::SetCursorPos([int]$rect.X+515,[int]$rect.Y+204)
  [CiMouse]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
  [void][CiMouse]::SetCursorPos([int]$rect.X+650,[int]$rect.Y+204)
  Start-Sleep -Milliseconds 500
  [CiMouse]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
  Start-Sleep -Seconds 3
+ }
  $stage='screenshot'
  $bitmap=[System.Drawing.Bitmap]::new([int]$rect.Width,[int]$rect.Height);$graphics=[System.Drawing.Graphics]::FromImage($bitmap)
  $params=New-Object System.Drawing.Imaging.EncoderParameters(1);$params.Param[0]=New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality,[long]40)
  try{
-  $graphics.CopyFromScreen([int]$rect.X,[int]$rect.Y,0,0,$bitmap.Size)
+  if($env:CI_BACKGROUND_NAV -eq '1'){$hdc=$graphics.GetHdc();try{$ok=[CiMouse]::PrintWindow($handle,$hdc,2)}finally{$graphics.ReleaseHdc($hdc)};if(!$ok){throw 'PrintWindow failed'}}
+  else {$graphics.CopyFromScreen([int]$rect.X,[int]$rect.Y,0,0,$bitmap.Size)}
   $jpeg=[System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object {$_.MimeType -eq 'image/jpeg'} | Select-Object -First 1
   $bitmap.Save((Join-Path $env:RUNNER_TEMP 'lab-scheme-winbox.jpg'),$jpeg,$params)
  }finally{$params.Dispose();$graphics.Dispose();$bitmap.Dispose()}
@@ -126,12 +140,14 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -PassThru -RedirectStandardError
  }
  if($env:CI_CAPTURE_DHCP -eq '1'){
   $stage='dhcp-client'
-  [void][CiMouse]::SetCursorPos([int]$rect.X+55,[int]$rect.Y+280);[CiMouse]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[CiMouse]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
+  if($env:CI_BACKGROUND_NAV -eq '1'){PostClick 55 280}
+  else {[void][CiMouse]::SetCursorPos([int]$rect.X+55,[int]$rect.Y+280);[CiMouse]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[CiMouse]::mouse_event(4,0,0,0,[UIntPtr]::Zero)}
   Start-Sleep -Seconds 3
-  [void][CiMouse]::SetCursorPos([int]$rect.X+185,[int]$rect.Y+121);[CiMouse]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[CiMouse]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
+  if($env:CI_BACKGROUND_NAV -eq '1'){PostClick 185 121}
+  else {[void][CiMouse]::SetCursorPos([int]$rect.X+185,[int]$rect.Y+121);[CiMouse]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[CiMouse]::mouse_event(4,0,0,0,[UIntPtr]::Zero)}
   Start-Sleep -Seconds 5
   $bitmap=[System.Drawing.Bitmap]::new([int]$rect.Width,[int]$rect.Height);$graphics=[System.Drawing.Graphics]::FromImage($bitmap)
   $params=New-Object System.Drawing.Imaging.EncoderParameters(1);$params.Param[0]=New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality,[long]40)
-  try{$graphics.CopyFromScreen([int]$rect.X,[int]$rect.Y,0,0,$bitmap.Size);$bitmap.Save((Join-Path $env:RUNNER_TEMP 'lab-scheme-dhcp.jpg'),$jpeg,$params)}finally{$params.Dispose();$graphics.Dispose();$bitmap.Dispose()}
+  try{if($env:CI_BACKGROUND_NAV -eq '1'){if([CiMouse]::GetForegroundWindow() -ne $decoy.Handle){throw 'DHCP navigation changed foreground'};$hdc=$graphics.GetHdc();try{$ok=[CiMouse]::PrintWindow($handle,$hdc,2)}finally{$graphics.ReleaseHdc($hdc)};if(!$ok){throw 'PrintWindow failed'}}else{$graphics.CopyFromScreen([int]$rect.X,[int]$rect.Y,0,0,$bitmap.Size)};$bitmap.Save((Join-Path $env:RUNNER_TEMP 'lab-scheme-dhcp.jpg'),$jpeg,$params)}finally{$params.Dispose();$graphics.Dispose();$bitmap.Dispose()}
  }
-}catch{Write-Output ('CI_STAGE='+$stage);exit 1}finally{if($p){$p.Refresh();if(!$p.HasExited){Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue}};Remove-Item $errLog,$outLog -Force -ErrorAction SilentlyContinue}
+}catch{Write-Output ('CI_STAGE='+$stage);exit 1}finally{if($decoy){$decoy.Close();$decoy.Dispose()};if($p){$p.Refresh();if(!$p.HasExited){Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue}};Remove-Item $errLog,$outLog -Force -ErrorAction SilentlyContinue}

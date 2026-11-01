@@ -32,7 +32,7 @@ const {ChrSession}=mod.exports;let session,dom;
  session=new ChrSession({qemu:path.resolve(qemu),image:path.resolve(image),tempRoot:path.resolve(work),supervisor:path.resolve(supervisor)});
  const info=await session.start(plan);assert.equal(new URL(info.url).hostname,'127.0.0.1');assert(Number.isInteger(info.ciWinboxPort));
  await new Promise((resolve,reject)=>{
-  const env={...process.env,CI_WINBOX_EXE:path.resolve(winbox),CI_CAPTURE_DHCP:kind==='dhcp'?'1':'0',CI_CAPTURE_PRINT:(kind==='static' && process.env.CI_INPUT_METHOD==='postmessage')?'1':'0'};
+  const env={...process.env,CI_WINBOX_EXE:path.resolve(winbox),CI_CAPTURE_DHCP:kind==='dhcp'?'1':'0',CI_CAPTURE_PRINT:(kind==='static' && process.env.CI_INPUT_METHOD==='postmessage' && process.env.CI_BACKGROUND_NAV!=='1')?'1':'0'};
   const helper=process.env.CI_INPUT_METHOD==='postmessage'?'test-winbox-scheme-postmessage.ps1':'test-winbox-scheme-capture.ps1';
   const p=spawn('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,helper)],{env,stdio:['pipe','pipe','ignore'],windowsHide:true});
   p.stdin.on('error',()=>{});p.stdin.end(JSON.stringify({port:info.ciWinboxPort,password:info.password})+'\n');
