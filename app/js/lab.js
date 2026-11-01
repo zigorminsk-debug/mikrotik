@@ -1163,6 +1163,18 @@ function init() {
     addLink(isp, rt); addLink(rt, sw); addLink(sw, pc); addLink(sw, server);
     setMode('select');
   });
+  $('lab_example_chr_isolated').addEventListener('click', function () {
+    if (state.devices.length && !window.confirm('Заменить текущую схему примером изолированной CHR? Текущие устройства и их настройки будут удалены. Это не запускает CHR и не включает интернет.')) return;
+    resetBtn.click();
+    var w = canvas.clientWidth || 800, left = Math.max(0, w * .08), mid = Math.max(0, (w - DEV_W) / 2);
+    var isp = place('isp', mid, 10), rt = place('router', mid, 150), pc = place('pc', left, 330);
+    // Documentation-only address space; no physical WAN or client VM is created.
+    Object.assign(byId(isp).cfg, {kind:'static', priority:'primary', ip:'198.51.100.2/30', gw:'198.51.100.1', dns:'1.1.1.1'});
+    Object.assign(byId(rt).cfg, {wanFailover:false, routerFailover:false});
+    byId(pc).cfg.mode='dhcp';
+    addLink(isp,rt); addLink(rt,pc);
+    setMode('select'); renderAll();
+  });
   $('lab_example_chr').addEventListener('click', function () {
     if (state.devices.length && !window.confirm('Заменить текущую схему примером CHR с двумя виртуальными WAN? Текущие устройства и их настройки будут удалены. Это не запускает CHR и не включает интернет.')) return;
     resetBtn.click();

@@ -59,6 +59,7 @@ jobs:
           node tools/test-dom.js
           node tools/test-lab-dom.js
           node tools/test-chr-dual-wan-dom.js
+          node tools/test-chr-isolated-example-dom.js
           node tools/test-physical-dom.js
           node tools/test-physical-preview-dom.js
 

@@ -745,7 +745,7 @@ function expandedRun(state) {
   }
   return res;
 }
-/* Предварительная оценка совместимости с будущей изолированной CHR.
+/* Предварительная оценка совместимости с виртуальной CHR.
    Это НЕ запуск и НЕ проект для импорта: ошибки никогда не превращаются в
    частично применённую конфигурацию. Секреты и команды не возвращаются. */
 function chrPreflight(state, routerId) {
@@ -770,7 +770,7 @@ function chrPreflight(state, routerId) {
     notices.push('Виртуальные порты, провайдеры и клиенты не становятся физической сетью; действительный интернет и работу служб необходимо проверять отдельно.');
   }
   return {available:false, blockers:blockers, notices:notices,
-    reason:'Запуск CHR, установка зависимостей, применение настроек и их проверка ещё не реализованы.'};
+    reason:'Это только предварительная проверка, не разрешение запуска. Окончательный план и выбранные возможности проверяются Windows-компонентом.'};
 }
 var LabEngine = { ipToInt: ipToInt, intToIp: intToIp, validIp: validIp, parseCidr: parseCidr, poolOf: poolOf, adjacency: adjacency, bfsPath: bfsPath,
   isIndependent: function(state) { var v = expandAdapters(state); return !v.errors.length && !!independentNetworks(v.state); },
