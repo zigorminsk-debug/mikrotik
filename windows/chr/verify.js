@@ -92,6 +92,10 @@ async function verifyConfiguration(expected, get, diagnostic = () => {}) {
     const servers = list(await get('/rest/system/ntp/client/servers'));
     check(servers.length === 1 && one(servers, x => x.address === expected.ntp.server && enabled(x)), 'NTP-сервер');
   }
+  if (expected.simpleQueue) {
+    const queues = list(await get('/rest/queue/simple'));
+    check(one(queues, x => x.name === 'queue-lab' && enabled(x) && x.target === expected.simpleQueue.target && x['max-limit'] === expected.simpleQueue.rate + '/' + expected.simpleQueue.rate), 'Simple Queue');
+  }
   if (expected.dnsStatic) { const entries = await get('/rest/ip/dns/static'); check(one(entries, x => x.name === expected.dnsStatic.name && x.address === expected.dnsStatic.address && x.type === 'A' && enabled(x)), 'локальная DNS-запись'); }
   const dns = await get('/rest/ip/dns');
   check(dns && dns.servers === expected.dns && String(dns['allow-remote-requests']) === String(expected.dnsCache), 'DNS');

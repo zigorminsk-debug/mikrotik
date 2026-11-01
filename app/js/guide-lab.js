@@ -13,6 +13,8 @@ var features = {
   'bridge': {label:'Мост и Ethernet-порты LAN'},
   'guest-vlan': {label:'Гостевой VLAN с изоляцией', detail:'Для изоляции нужен Firewall.'},
   'guest-dhcp': {label:'DHCP гостевого VLAN', detail:'Требует гостевой VLAN.'},
+  'simple-queue': {label:'Simple Queue для учебного ПК', detail:'Ограничение 10 Мбит/с в каждом направлении для 192.168.88.10; сам ПК и проверка скорости не запускаются.'},
+  'queue-tree': {label:'Queue Tree', unavailable:'Queue Tree ещё не реализован в виртуальной лаборатории.'},
   'route': {label:'Статический маршрут к учебной сети', detail:'Следующий роутер и обратный маршрут не эмулируются.'},
   'identity': {label:'Системное имя MikroTik'},
   'ntp': {label:'NTP-клиент и часовой пояс', detail:'Параметры проверяются; синхронизация и доступность сервера не проверяются.'},
@@ -28,6 +30,7 @@ var catalogs = {
   'ros-ip': { choices:['wan-static','wan-dhcp','dhcp-lan','firewall','nat','dns-cache','dns-static','publication'], defaults:defaults },
   'ros-interfaces': {choices:['bridge'],defaults:['bridge'],base:defaults},
   'ros-bridge': {choices:['bridge','firewall','guest-vlan','guest-dhcp'],defaults:['bridge','firewall'],base:['wan-static','dhcp-lan','nat','dns-cache']},
+  'ros-queues': {choices:['simple-queue','queue-tree'],defaults:['simple-queue'],base:defaults},
   'ros-routing': {choices:['route','dynamic-routing'],defaults:['route'],base:defaults},
   'ros-system': {choices:['identity','ntp','cloud'],defaults:['identity'],base:defaults},
   'ros-wifi': {choices:['wifi'],defaults:[]},
@@ -63,7 +66,9 @@ function build(section,ids,types,engine) {
   var isp=types.isp.cfg(), router=types.router.cfg(), client=types.pc.cfg();
   Object.assign(isp,{kind:has('wan-dhcp')?'dhcp':'static',priority:'primary',ip:'198.51.100.2/30',gw:'198.51.100.1',dns:'1.1.1.1'});
   Object.assign(router,{wanFailover:false,routerFailover:false,dhcp:has('dhcp-lan'),firewall:has('firewall'),nat:has('nat'),dnsCache:has('dns-cache'),dnsStatic:has('dns-static'),vlanGuest:has('guest-vlan'),guestDhcp:has('guest-dhcp'),staticRoute:has('route'),identityOn:has('identity'),ntpClient:has('ntp'),ntpServer:'192.0.2.123',timeZone:'Europe/Minsk'});
-  client.mode=router.dhcp?'dhcp':'static';
+  if (has('simple-queue')) Object.assign(router,{simpleQueue:true,queueTarget:'192.168.88.10',queueRate:'10'});
+  client.mode=has('simple-queue')?'static':(router.dhcp?'dhcp':'static');
+  if (has('simple-queue')) Object.assign(client,{ip:'192.168.88.10/24',gw:'192.168.88.1'});
   var state={seq:5,devices:[{id:'d1',type:'isp',name:'Провайдер (учебный)',x:300,y:10,cfg:isp},{id:'d2',type:'router',name:'MikroTik',x:300,y:150,cfg:router},{id:'d3',type:'pc',name:'ПК основной LAN',x:150,y:330,cfg:client}],links:[{id:'l4',a:'d1',b:'d2'},{id:'l5',a:'d2',b:'d3',nicId:'nic1'}]};
   if(router.vlanGuest){var guest=types.pc.cfg();Object.assign(guest,{segment:'guest',mode:router.guestDhcp?'dhcp':'static',ip:'192.168.99.10/24',gw:'192.168.99.1'});var guestId='d'+(++state.seq);state.devices.push({id:guestId,type:'pc',name:'ПК гостевой VLAN',x:450,y:330,cfg:guest});state.links.push({id:'l'+(++state.seq),a:'d2',b:guestId,nicId:'nic1'});}
   if(has('publication')){var server=types.server.cfg();Object.assign(server,{mode:'static',ip:'192.168.88.20/24',gw:'192.168.88.1',external:true,extProto:'tcp',extPort:'8443',localPort:'443',extraPublications:[]});var serverId='d'+(++state.seq);state.devices.push({id:serverId,type:'server',name:'Учебный сервер',x:450,y:330,cfg:server});state.links.push({id:'l'+(++state.seq),a:'d2',b:serverId,nicId:'nic1'});}

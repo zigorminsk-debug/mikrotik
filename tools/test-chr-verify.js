@@ -29,6 +29,11 @@ const records = {
 const get = async key => { assert(key in records, key); return records[key]; };
 (async () => {
   await verifyConfiguration(e,get);
+  const queueExpected={...e,simpleQueue:{target:'192.168.88.10/32',rate:'10000000'}};
+  records['/rest/queue/simple']=[{name:'queue-lab',target:'192.168.88.10/32','max-limit':'10000000/10000000',disabled:'false'}];
+  await verifyConfiguration(queueExpected,get);
+  for(const [key,value] of [['target','192.168.88.11/32'],['max-limit','9000000/10000000'],['disabled','true']]){const old=records['/rest/queue/simple'][0][key];records['/rest/queue/simple'][0][key]=value;await assert.rejects(verifyConfiguration(queueExpected,get),/Simple Queue/);records['/rest/queue/simple'][0][key]=old;}
+  records['/rest/queue/simple'].push({...records['/rest/queue/simple'][0]});await assert.rejects(verifyConfiguration(queueExpected,get),/Simple Queue/);records['/rest/queue/simple'].pop();
   const withNtp={...e,ntp:{server:'192.0.2.123',zone:'Europe/Minsk'}};
   records['/rest/system/clock']={'time-zone-name':'Europe/Minsk','time-zone-autodetect':'false'};
   records['/rest/system/ntp/client']={enabled:'true'};

@@ -17,6 +17,10 @@ for (const flag of ['vpn','wifiAp','secureManagement','cloudDdns','wanFailover',
 }
 s = sample(); Object.assign(s.devices[1].cfg, {staticRoute:true, routeDst:'10.20.0.0/24', routeGw:'192.168.88.254', routeDistance:'2', dnsStatic:true, dnsStaticName:'host.lan', dnsStaticIp:'192.168.88.20', identityOn:true, systemIdentity:'Router Lab'});
 plan = makePlan(engine,s,'r'); assert.deepStrictEqual(plan.blockers, []); assert(plan.groups.some(g=>g.id==='route')); assert(plan.groups.some(g=>g.id==='services')); assert.strictEqual(plan.expected.identity, 'Router Lab');
+// One Simple Queue only, strictly validated before commands are generated.
+s = sample(); Object.assign(s.devices[1].cfg,{simpleQueue:true,queueTarget:'192.168.88.10',queueRate:'10'});
+plan=makePlan(engine,s,'r');assert.deepStrictEqual(plan.blockers,[]);assert.deepStrictEqual(plan.expected.simpleQueue,{target:'192.168.88.10/32',rate:'10000000'});assert(plan.groups.find(g=>g.id==='queue').commands.includes('/queue simple add name=queue-lab target=192.168.88.10/32 max-limit=10M/10M'));assert(!plan.expected.filterRules.some(x=>x.action==='fasttrack-connection'));
+for(const bad of ['0','1001','-1','1M','10; /system reboot']){s.devices[1].cfg.queueRate=bad;assert(makePlan(engine,s,'r').blockers.length,bad);}s.devices[1].cfg.queueRate='10';for(const bad of ['192.168.88.1','192.168.88.0','192.168.88.255','192.0.2.1','192.168.88.10;reboot']){s.devices[1].cfg.queueTarget=bad;assert(makePlan(engine,s,'r').blockers.length,bad);}
 // NTP settings may be configured; connectivity/synchronization are not assumed.
 s = sample(); Object.assign(s.devices[1].cfg,{ntpClient:true,ntpServer:'192.0.2.123',timeZone:'Europe/Minsk'});
 plan=makePlan(engine,s,'r');assert.deepStrictEqual(plan.blockers,[]);assert.deepStrictEqual(plan.expected.ntp,{server:'192.0.2.123',zone:'Europe/Minsk'});assert(plan.groups.some(g=>g.id==='services' && g.commands.some(x=>x.includes('/system ntp client servers add'))));

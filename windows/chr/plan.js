@@ -1,7 +1,7 @@
 'use strict';
 // Private main-process preflight; never accept RouterOS command strings from
 // a renderer. Selected unsupported capabilities block the whole plan.
-const allowedGroups = new Set(['iface', 'addr', 'wan', 'dhcp', 'guest-vlan', 'filter', 'nat', 'activate-lan', 'route', 'services']);
+const allowedGroups = new Set(['iface', 'addr', 'wan', 'dhcp', 'guest-vlan', 'filter', 'nat', 'activate-lan', 'route', 'services', 'queue']);
 function ruleProperties(command) {
   const result = {};
   for (const m of command.matchAll(/\b([a-z][a-z-]*)=([^\s]+)/g)) result[m[1]] = m[2];
@@ -47,6 +47,7 @@ function makePlan(engine, state, routerId, options = {}) {
     lanAddress: r.gw + '/24', wanAddress: wan.kind === 'static' ? wan.cfg.ip : null, wanPort: wan.phys, wanGateway: wan.kind === 'static' ? wan.cfg.gw : null,
     wans: result.model.isps.map(i => ({kind:i.kind, address:i.kind === 'static' ? i.cfg.ip : null, port:i.phys, gateway:i.kind === 'static' ? i.cfg.gw : null, distance:i.priority === 'primary' ? '1' : '2'})),
     dns: r.dns, dnsCache: r.cfg.dnsCache !== false,
+    simpleQueue: r.cfg.simpleQueue ? {target:r.cfg.queueTarget + '/32', rate:String(Number(r.cfg.queueRate) * 1000000)} : null,
     staticRoute: r.cfg.staticRoute ? {destination:r.cfg.routeDst, gateway:r.cfg.routeGw, distance:String(r.cfg.routeDistance)} : null,
     dnsStatic: r.cfg.dnsStatic ? {name:r.cfg.dnsStaticName, address:r.cfg.dnsStaticIp} : null,
     identity: r.cfg.identityOn ? r.cfg.systemIdentity : null,
