@@ -43,6 +43,11 @@ app.whenReady().then(async()=>{
     must(tabs[12].getAttribute('aria-selected')==='true'&&document.activeElement===tabs[12],'last tab not reachable by keyboard');
     const tabRect=tabs[12].getBoundingClientRect(), barRect=tabs[12].parentNode.getBoundingClientRect();
     must(tabRect.left>=barRect.left-1&&tabRect.right<=barRect.right+1,'last tab did not scroll into view');
+    window.confirm=()=>true;window.routerOS={launch:async()=>({ok:true}),ping:async()=>({ok:false,cancelled:true})};
+    location.hash='lab';await new Promise(r=>setTimeout(r,100));$('lab_example_chr_isolated').click();window.Lab.run({instant:true});await new Promise(r=>setTimeout(r,100));
+    must(document.querySelector('.lab-ping-availability').textContent.includes('на Android реальный ping'),'Android ping limitation missing');
+    for(const id of ['lab-ping-source','lab-ping-preset','lab-ping-target','lab-ping-run']){const e=$(id),rect=e.getBoundingClientRect();must(rect.width>0&&rect.left>=-1&&rect.right<=innerWidth+1,'ping control overflows: '+id);}
+    must(document.documentElement.scrollWidth<=innerWidth+1,'lab overflows horizontally');
     return {width:innerWidth,before,after};
    })()`);
    console.log('Font responsive layout:',JSON.stringify(result));

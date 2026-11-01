@@ -80,3 +80,9 @@ jobs:
       - name: Export Android reading screenshot 10–19
         if: always()
         run: python3 tools/export-android-font.py reading 10
+      - name: Export Android lab screenshot 0–9
+        if: always()
+        run: python3 tools/export-android-font.py lab 0
+      - name: Export Android lab screenshot 10–19
+        if: always()
+        run: python3 tools/export-android-font.py lab 10

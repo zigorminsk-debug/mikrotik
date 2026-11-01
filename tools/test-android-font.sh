@@ -62,6 +62,16 @@ snapshot; coords 'О программе' >/dev/null || { echo '::error::About pa
 tap 'Открыть меню'
 tap 'Лаборатория'
 snapshot; coords 'Лаборатория' >/dev/null || { echo '::error::Lab page not reachable'; exit 1; }
+# At 150%, scroll to the honest ping availability notice on the lab page.
+found=0
+for i in $(seq 1 12); do
+ snapshot
+ if grep -q 'на Android реальный ping' "$xml"; then found=1; break; fi
+ adb shell input swipe 155 550 155 240 350
+ sleep 1
+done
+if [[ $found != 1 ]]; then echo '::error::Lab ping availability notice not found on Android'; exit 1; fi
+adb exec-out screencap -p > "$RUNNER_TEMP/android-font-lab.png"
 tap 'Открыть меню'
 tap 'Интерактивный стенд'
 snapshot; coords 'Интерактивный стенд' >/dev/null || { echo '::error::Stand page not reachable'; exit 1; }

@@ -3,7 +3,7 @@
 import base64, io, os, pathlib, sys
 from PIL import Image
 kind = sys.argv[1]
-if kind not in ('failure', 'menu', 'about', 'reading'):
+if kind not in ('failure', 'menu', 'about', 'reading', 'lab'):
     raise SystemExit('Invalid screenshot')
 p = pathlib.Path(os.environ['RUNNER_TEMP']) / ('android-font-' + kind + '.png')
 if not p.is_file():
