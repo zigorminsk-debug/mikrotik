@@ -116,6 +116,7 @@ function analyze(state) {
     if (rt.cfg.simpleQueue) {
       var target = ipToInt(rt.cfg.queueTarget), rate = String(rt.cfg.queueRate || '');
       if (!net || target === null || !net.contains(target) || target === net.firstInt || target === net.lastInt || rt.cfg.queueTarget === rt.cfg.gw) errors.push('Simple Queue: укажите допустимый IPv4 клиента в основной LAN, не адрес шлюза.');
+      if (rt.cfg.dhcp && pool && target !== null && target >= pool.startInt && target <= pool.endInt) errors.push('Simple Queue: выберите постоянный адрес вне DHCP-пула; резервирование адреса пока не моделируется.');
       if (!/^(?:[1-9][0-9]{0,2}|1000)$/.test(rate)) errors.push('Simple Queue: целый лимит от 1 до 1000 Мбит/с.');
       warnings.push('Simple Queue: клиент с этим адресом и фактическая скорость не проверяются. FastTrack может обходить очередь.');
     }
