@@ -28,5 +28,9 @@ jobs:
       - name: Check mobile and desktop Chromium layouts
         shell: pwsh
         run: |
-          ./windows/node_modules/.bin/electron.cmd tools/test-font-responsive-electron.js
-          if ($LASTEXITCODE -ne 0) { throw 'Responsive layout failed' }
+          $ErrorActionPreference = 'Continue'
+          $lines = & ./windows/node_modules/.bin/electron.cmd tools/test-font-responsive-electron.js 2>&1
+          $exitCode = $LASTEXITCODE
+          $safe = (($lines | Out-String) -replace '%','%25' -replace "`r",'' -replace "`n",'%0A')
+          Write-Output "::notice title=Disposable Chromium test output::$safe"
+          if ($exitCode -ne 0) { throw 'Responsive layout failed' }

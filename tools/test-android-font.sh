@@ -34,6 +34,15 @@ sys.exit(1)
 PY
 }
 tap() { snapshot; local xy; xy=$(coords "$1") || { echo "::error title=Android font test::Control not reachable: $1"; exit 1; }; adb shell input tap $xy; sleep 1; }
+# UIAutomator may initially expose just the WebView while Chromium starts or
+# while its accessibility tree is being enabled. Wait for the actual button.
+ready=0
+for attempt in $(seq 1 20); do
+ snapshot
+ if coords 'Увеличить шрифт' >/dev/null; then ready=1; break; fi
+ sleep 3
+done
+if [[ $ready != 1 ]]; then echo '::error::Android WebView accessibility tree did not become ready'; exit 1; fi
 for i in 1 2 3; do tap 'Увеличить шрифт'; done
 snapshot; coords '150%' >/dev/null || { echo '::error::Font level 150% not visible'; exit 1; }
 tap 'Открыть меню'
