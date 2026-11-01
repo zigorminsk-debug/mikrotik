@@ -226,7 +226,8 @@ function renderSection(sec) {
   var head = el('div', 'sec-header',
     '<div class="sec-icon">' + esc(sec.icon || '📘') + '</div><div>' +
     '<h1>' + esc(sec.title) + '</h1>' +
-    (sec.lead ? '<p class="sec-lead">' + fmt(sec.lead) + '</p>' : '') + '</div>');
+    (sec.lead ? '<p class="sec-lead">' + fmt(sec.lead) + '</p>' : '') +
+    (sec.badge && sec.id.indexOf('ros-') === 0 ? '<p class="fs-hint">Раздел дополняется: описание и возможности лаборатории пока неполные.</p>' : '') + '</div>');
   contentEl.appendChild(head);
   if (sec.id === 'ros-interfaces' && window.INTERFACES_GUIDE) contentEl.appendChild(renderInterfacesGuide());
   contentEl.appendChild(renderGuideLab(sec));
@@ -265,7 +266,8 @@ function buildNav() {
     var a = el('a', 'nav-item',
       '<span class="ni-ico">' + navIcon(sec) + '</span>' +
       '<span class="ni-t">' + esc(sec.title) + '</span>' +
-      (sec.badge ? '<span class="ni-badge">' + esc(sec.badge) + '</span>' : ''));
+      (sec.badge && sec.id.indexOf('ros-') !== 0 ? '<span class="ni-badge">' + esc(sec.badge) + '</span>' : ''));
+    if (sec.badge && sec.id.indexOf('ros-') === 0) { a.title = 'Раздел ' + sec.badge; a.setAttribute('aria-label', sec.title + ': ' + sec.badge); }
     a.href = '#' + sec.id;
     a.dataset.sec = sec.id;
     a.addEventListener('click', function () { closeSidebar(); });
