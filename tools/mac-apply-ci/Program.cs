@@ -31,7 +31,18 @@ try {
     try { connection.CreateRawCommand("/interface bridge add name=bridge-lan").ExecuteNonQuery(); }
     catch (TikCommandTrapException) { rejected=true; }
     if(!rejected) throw new InvalidOperationException();
-    Console.WriteLine("{\"ok\":true}");
+    // Verify the successful fixture before simulating a one-way loss. The CI
+    // parent must explicitly release this checkpoint; no commands are read.
+    stage="checkpoint";
+    Console.WriteLine("{\"checkpoint\":true}");
+    if(Console.ReadLine() != "drop-replies") throw new InvalidOperationException();
+    stage="interrupted-unknown";
+    bool interrupted=false;
+    try { connection.CreateRawCommand("/system identity set name=\"CI interrupted probe\"").ExecuteNonQuery(); }
+    catch (Exception) { interrupted=true; }
+    if(!interrupted) throw new InvalidOperationException();
+    // A send failure is not proof that the command was not executed.
+    Console.WriteLine("{\"ok\":true,\"interrupted\":true}");
 } catch(Exception) {
     Console.WriteLine(JsonSerializer.Serialize(new {ok=false,stage,index}));
     Environment.ExitCode=1;

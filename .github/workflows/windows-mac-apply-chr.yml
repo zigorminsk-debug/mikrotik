@@ -10,6 +10,7 @@ on:
       - 'tools/mac-loopback-frame.js'
       - 'tools/test-mac-loopback-frame.js'
       - 'tools/patch-tik4net-loopback-ci.py'
+      - 'tools/patch-tik4net-no-replay-ci.py'
       - 'tools/patch-tik4net-wildcard-ci.py'
       - 'windows/chr/plan.js'
       - 'windows/chr/verify.js'
@@ -51,10 +52,12 @@ jobs:
           tar -xzf $archive -C $base
           if ($LASTEXITCODE -ne 0) { throw 'Source extraction failed' }
           $src=Join-Path $base 'tik4net-d4597fa04fcad3e96a9fcd51ddac499778344638'
-          python tools/patch-tik4net-wildcard-ci.py $src filter
+          python tools/patch-tik4net-wildcard-ci.py $src filter-all
           if ($LASTEXITCODE -ne 0) { throw 'Filter patch failed' }
           python tools/patch-tik4net-loopback-ci.py $src
           if ($LASTEXITCODE -ne 0) { throw 'Loopback patch failed' }
+          python tools/patch-tik4net-no-replay-ci.py $src
+          if ($LASTEXITCODE -ne 0) { throw 'No-replay patch failed' }
           dotnet publish tools/mac-apply-ci/mac-apply-ci.csproj -t:Rebuild -c Release -r win-x64 --self-contained true "-p:TikSource=$src" -o (Join-Path $base 'helper')
           if ($LASTEXITCODE -ne 0) { throw 'Research helper build failed' }
       - name: Fetch pinned QEMU installer, verify and extract without installing
