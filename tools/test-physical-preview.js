@@ -19,3 +19,15 @@ assert(P.build(E,state,'wrong').errors.length);assert(P.build(E,{devices:[],link
 const unusual={run:()=>({errors:[],warnings:[],model:{router:{net:{first:'192.0.2.0'},gw:'192.0.2.1',name:'r',lanPorts:[]},isps:[],publications:[]},groups:[{id:'unknown',title:'SECRET_FAKE',code:'SECRET_COMMAND'}]})};
 const unknown=P.build(unusual,state,'r');assert(unknown.warnings.length);assert(!JSON.stringify(unknown).includes('SECRET'));
 console.log('Черновая оценка: модель и порты, ошибки, несколько роутеров, секреты и неизвестные группы проверены.');
+// Manual names are not read from a device and cannot unlock application.
+const empty=P.build(E,state,'r','   ');assert.equal(empty.portComparison,null);
+const all=P.build(E,state,'r','ether1,ether2,ether3,SECRET_NOT_A_PORT');assert.equal(all.errors.length,0);
+assert(all.portComparison.length>0 && all.portComparison.every(x=>x.present));
+assert(!JSON.stringify(all).includes('SECRET_NOT_A_PORT'));assert.equal(JSON.stringify(state),before);
+const missing=P.build(E,state,'r','ether1\nether5');assert(missing.portComparison.some(x=>x.port==='ether1'&&x.present));
+assert(missing.portComparison.some(x=>x.port==='ether2'&&!x.present));assert(!JSON.stringify(missing).includes('ether5'));
+assert(P.parsePorts('ether1, ether1').error);assert(P.parsePorts('<script>').error);assert(P.parsePorts('/interface ethernet print').error);
+assert(P.parsePorts('ether1\u202e').error);assert(P.parsePorts('a'.repeat(64)).error);assert(P.parsePorts(Array.from({length:65},(_,i)=>'p'+i).join(',')).error);
+assert(P.build(E,state,'r','ether1,ether1').errors.length);assert.equal(P.build(E,state,'r','ether1,ether1').portComparison,null);
+assert.deepEqual(P.parsePorts('ether1\nпорты 2,ether-3').ports,['ether1','порты 2','ether-3']);
+console.log('Ручное сравнение: совпадения, отсутствующие имена, дубликаты и неразглашение неиспользуемого ввода проверены; без сети.');

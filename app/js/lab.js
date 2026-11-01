@@ -333,8 +333,7 @@ function finishDelete() {
   if (item.kind === 'dev') {
     state.devices = state.devices.filter(function (d) { return d.id !== item.id; });
     state.links = state.links.filter(function (l) { return l.a !== item.id && l.b !== item.id; });
-    modal.hidden = true;
-    editingId = null;
+    closeSettings();
   } else state.links = state.links.filter(function (l) { return l.id !== item.id; });
   selected = null;
   linkFrom = null;
@@ -631,6 +630,10 @@ function renderResults(res) {
 
 /* ---------- Настройки устройства (модальное окно) ---------- */
 var editingId = null;
+function closeSettings() {
+  var manual=$('lm_manual_ports'); if(manual)manual.value='';
+  modal.hidden=true; editingId=null;
+}
 function f(id, label, type, value, attrs) {
   return '<label>' + esc(label) + '<input id="' + id + '" type="' + type + '" value="' + esc(value == null ? '' : value) + '" ' + (attrs || '') + '></label>';
 }
@@ -706,7 +709,9 @@ function openSettings(id) {
       '<label>Сетевой адаптер Windows<select id="lm_physical_if"><option value="">Загрузка…</option></select></label>' +
       '<button type="button" class="btn" id="lm_find_physical">Искать устройства по MAC</button><div id="lm_physical_result" class="fs-hint" style="white-space:pre-wrap;overflow-wrap:anywhere" aria-live="polite"></div>' +
       '<button type="button" class="btn ghost" id="lm_open_winbox">Открыть WinBox отдельно</button><p class="fs-hint">Выберите установленный официальный WinBox и войдите в него вручную по MAC. Лаборатория не получает доступ к устройству и не отправляет настройки.</p><div id="lm_winbox_status" class="fs-hint" aria-live="polite"></div>' +
-      '<button type="button" class="btn ghost" id="lm_preview_physical">Сохранить и оценить схему</button><p class="fs-hint">Черновая сводка по сохранённой схеме, без соединения и изменений роутера. Это не проверка совместимости и не окончательный план применения.</p>';
+      '<label for="lm_manual_ports">Имена Ethernet-портов устройства (необязательно, вручную)</label>' +
+      '<textarea id="lm_manual_ports" rows="3" maxlength="4096" spellcheck="false" placeholder="ether1, ether2, ether3"></textarea><p class="fs-hint">Перепишите имена портов из Interfaces в отдельном WinBox через запятую или с новой строки. Не вставляйте экспорт, команды, пароли или ключи. Список временный и не сохраняется.</p>' +
+      '<button type="button" class="btn ghost" id="lm_preview_physical">Сохранить и оценить схему</button><p class="fs-hint">Черновая сводка по сохранённой схеме без соединения. Сравниваются только введённые имена, не совместимость или состояние устройства.</p>';
     html += sel('lm_router_role', 'Роль MikroTik (для общего LAN / VRRP)', [['primary', 'Основной'], ['backup', 'Резервный']], c.routerRole || 'primary') + '<p class="fs-hint">В двух независимых сетях эта роль не переключает интернет между роутерами.</p>';
     html += '<div class="lm-grid">' + f('lm_lan', 'Подсеть LAN (CIDR)', 'text', c.lan, 'spellcheck="false" list="dl-net"') +
       f('lm_gw', 'IP роутера (шлюз)', 'text', c.gw, 'list="dl-ip" inputmode="decimal"') + '</div>';
@@ -910,10 +915,12 @@ function openSettings(id) {
   }
   var previewPhysical = $('lm_preview_physical');
   if (previewPhysical) previewPhysical.addEventListener('click', function() {
-    var routerId = editingId;
+    var routerId = editingId, manualPorts = $('lm_manual_ports').value;
+    var checkedPorts = PhysicalPreview.parsePorts(manualPorts);
+    if (checkedPorts.error) return lmFail(checkedPorts.error);
     saveSettings(); // Use the same validation and exact saved form values as the diagram.
     if (editingId !== null) return;
-    var preview = PhysicalPreview.build(LabEngine, state, routerId);
+    var preview = PhysicalPreview.build(LabEngine, state, routerId, manualPorts);
     var html = '<div class="res-card" id="physical-preview"><div class="res-head">Черновая оценка схемы для физического MikroTik</div><div class="res-body">' +
       '<div class="note">Ничего не отправлено и не изменено. Это не окончательный список изменений и не проверка физического устройства. Данные, которые будут удалены или заменены, неизвестны.</div>' +
       '<p><strong>Применение недоступно:</strong> нужны проверенное MAC-подключение, идентификация и инвентаризация устройства, сопоставление портов и состояния. Сброс возможен только после отдельного явного подтверждения.</p>';
@@ -923,6 +930,7 @@ function openSettings(id) {
         '<h3>Предполагаемые порты схемы</h3><p class="fs-hint">Назначения учебные — реальные имена и наличие портов не проверены.</p><ul>' +
         preview.ports.map(function(p){return '<li>' + esc(p.port) + ' → ' + esc(p.peer) + ' (' + esc(p.role) + ')</li>';}).join('') + '</ul>' +
         '<h3>Разделы, выбранные в схеме</h3><ul>' + preview.sections.map(function(x){return '<li>' + esc(x) + '</li>';}).join('') + '</ul>';
+      if (preview.portComparison) html += '<h3 id="physical-ports-comparison">Сравнение имён портов с ручным списком</h3><p class="fs-hint">Сверяются только имена, введённые пользователем, а не физическое устройство. Даже полное совпадение не подтверждает модель, работоспособность, свободные порты, роль, настройки или безопасность. Применение недоступно.</p><ul>' + preview.portComparison.map(function(p){return '<li>' + esc(p.port) + ': ' + (p.present?'есть во введённом списке':'нет во введённом списке') + '</li>';}).join('') + '</ul>';
       if (preview.publications.length) html += '<h3>Публикации сервисов</h3><ul>' + preview.publications.map(function(p){return '<li>' + esc(p.protocol) + ' ' + esc(p.external) + ' → ' + esc(p.address) + ':' + esc(p.local) + '</li>';}).join('') + '</ul>';
     }
     if (preview.warnings.length) html += '<h3>Предупреждения модели</h3><ul>' + preview.warnings.map(function(x){return '<li>' + esc(x) + '</li>';}).join('') + '</ul>';
@@ -943,7 +951,7 @@ function openSettings(id) {
       else { status.textContent = 'Виртуальная RouterOS не запущена.'; window.alert((result && result.message) || 'Не удалось открыть виртуальную RouterOS.'); }
     }).catch(function() { status.textContent = 'Виртуальная RouterOS не запущена.'; window.alert('Не удалось связаться с Windows-компонентом RouterOS.'); });
   });
-  ['lm_network_guide', 'lm_routing_guide', 'lm_failover_guide'].forEach(function(id) { var link = $(id); if (link) link.addEventListener('click', function () { modal.hidden = true; editingId = null; }); });
+  ['lm_network_guide', 'lm_routing_guide', 'lm_failover_guide'].forEach(function(id) { var link = $(id); if (link) link.addEventListener('click', function () { closeSettings(); }); });
   var fill = $('lm_fill_gw');
   if (fill) fill.addEventListener('click', function () {
     var rt = LabEngine.isIndependent(state) ? LabEngine.routerForCard(state, d.id, 'nic1') : state.devices.filter(function (x) { return x.type === 'router'; })[0];
@@ -966,7 +974,7 @@ function lmFail(msg) {
 }
 function saveSettings() {
   var d = byId(editingId);
-  if (!d) { modal.hidden = true; return; }
+  if (!d) { closeSettings(); return; }
   var name = ($('lm_name').value || '').trim() || TYPES[d.type].defName(countType(d.type) + 1);
   var c = Object.assign({}, d.cfg);
   var E = (typeof LabEngine !== 'undefined') ? LabEngine : null;
@@ -1073,8 +1081,7 @@ function saveSettings() {
   }
   d.cfg = c;
   d.name = name;
-  modal.hidden = true;
-  editingId = null;
+  closeSettings();
   invalidate();
   renderAll();
 }
@@ -1196,9 +1203,9 @@ function init() {
   $('lm_delete').addEventListener('click', function () { if (editingId) requestDelete('dev', editingId); });
   $('lab-confirm-ok').addEventListener('click', finishDelete);
   $('lab-confirm-cancel').addEventListener('click', function () { pendingDelete = null; $('lab-confirm').hidden = true; });
-  lmCancel.addEventListener('click', function () { modal.hidden = true; editingId = null; });
-  lmClose.addEventListener('click', function () { modal.hidden = true; editingId = null; });
-  modal.addEventListener('click', function (e) { if (e.target === modal) { modal.hidden = true; editingId = null; } });
+  lmCancel.addEventListener('click', closeSettings);
+  lmClose.addEventListener('click', closeSettings);
+  modal.addEventListener('click', function (e) { if (e.target === modal) closeSettings(); });
 
   setMode('select');
   renderAll();

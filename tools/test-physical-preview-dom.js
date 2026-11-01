@@ -12,14 +12,18 @@ const assert=require('assert');const path=require('path');const {JSDOM,VirtualCo
  const isp=w.Lab.place('isp',100,0),rt=w.Lab.place('router',100,120),pc=w.Lab.place('pc',100,250);w.Lab.link(isp,rt);w.Lab.link(rt,pc);
  const provider=w.Lab.state.devices.find(x=>x.id===isp);provider.name='<img src=x onerror=alert(1)>';Object.assign(provider.cfg,{kind:'static',ip:'198.51.100.2/30',gw:'198.51.100.1',dns:'1.1.1.1',pass:'SECRET_ISP'});
  w.Lab.state.devices.find(x=>x.id===pc).cfg.gw='192.168.88.2';
- w.Lab.openSettings(rt);await new Promise(r=>setTimeout(r,20));$('lm_gw').value='192.168.88.2';$('lm_preview_physical').click();
+ w.Lab.openSettings(rt);await new Promise(r=>setTimeout(r,20));$('lm_gw').value='192.168.88.2';
+ $('lm_manual_ports').value='<script>'; $('lm_preview_physical').click();assert(!$('lab-modal').hidden);assert(!$('lm_err').hidden);assert.equal(w.Lab.state.devices.find(x=>x.id===rt).cfg.gw,'192.168.88.1');
+ const manual=$('lm_manual_ports'); manual.value='ether1, ether5, SECRET_MANUAL_NOTE';$('lm_preview_physical').click();assert.equal(manual.value,'');
  assert($('lab-modal').hidden);assert.equal(w.Lab.state.devices.find(x=>x.id===rt).cfg.gw,'192.168.88.2');
  const preview=$('physical-preview');assert(preview&&!$('lab-results').hidden);assert(preview.textContent.includes('192.168.88.2'));assert(preview.textContent.includes('ничего')||preview.textContent.includes('Ничего'));
  assert(preview.textContent.includes('<img src=x'));assert(!preview.querySelector('img,script'));assert(!preview.textContent.includes('SECRET_ISP'));assert(preview.textContent.includes('Применение недоступно'));
+ assert(preview.textContent.includes('ether1: есть во введённом списке'));assert(preview.textContent.includes('ether2: нет во введённом списке'));
+ assert(preview.textContent.includes('не подтверждает модель'));assert(!preview.textContent.includes('SECRET_MANUAL_NOTE'));assert(!JSON.stringify(w.Lab.state).includes('SECRET_MANUAL_NOTE'));
  assert.equal(scans,0);assert.equal(launches,0);
  // An edit invalidates the displayed result, rather than keeping a stale plan.
  w.Lab.togglePower(pc);assert($('lab-results').hidden);assert(!$('physical-preview'));
- w.Lab.openSettings(rt);$('lm_gw').value='192.168.88.3';$('lm_save').click();assert($('lab-results').hidden);assert(!$('physical-preview'));
+ w.Lab.openSettings(rt);assert.equal($('lm_manual_ports').value,'');$('lm_manual_ports').value='ETHER_PRIVATE';const transient=$('lm_manual_ports');$('lm_cancel').click();assert.equal(transient.value,'');w.Lab.openSettings(rt);assert.equal($('lm_manual_ports').value,'');$('lm_gw').value='192.168.88.3';$('lm_save').click();assert($('lab-results').hidden);assert(!$('physical-preview'));
  // Invalid form values must not save or render a misleading preview.
  w.Lab.openSettings(rt);$('lm_gw').value='invalid';$('lm_preview_physical').click();assert(!$('lab-modal').hidden);assert(!$('lm_err').hidden);assert($('lab-results').hidden);$('lm_cancel').click();
  // Invalid topology displays errors, never details of a different device.

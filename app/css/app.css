@@ -124,6 +124,8 @@ h2.sec-sub{font-size:18px;margin:26px 0 8px;padding-left:12px;border-left:4px so
 .btn.primary:hover{background:var(--accent2)}
 .btn.ghost{background:#eef2f7;color:#334155;border:1px solid #cbd5e1}
 .btn.ghost:hover{background:#e2e8f0}
+#lm_manual_ports{display:block;width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;font:inherit;resize:vertical;background:#fff;color:var(--ink)}
+#lm_manual_ports:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(14,165,233,.15)}
 .btn.physical-candidate[aria-pressed="true"]{background:#dbeafe;border-color:#0284c7;box-shadow:inset 4px 0 #0284c7}
 .btn.danger-ghost{background:#fff;color:#dc2626;border:1px solid #fecaca;padding:7px 11px}
 .btn.danger-ghost:hover{background:#fef2f2}
