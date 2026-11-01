@@ -9,6 +9,7 @@ on:
       - 'app/js/lab.js'
       - 'app/js/guide-lab.js'
       - 'app/js/app.js'
+      - 'app/css/app.css'
       - 'app/index.html'
   workflow_dispatch:
 permissions:

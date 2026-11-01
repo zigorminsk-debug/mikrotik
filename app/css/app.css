@@ -254,3 +254,8 @@ figure.shot img{width:auto;max-width:100%;height:auto;object-fit:contain;margin:
 @keyframes lab-traffic{from{stroke-dashoffset:25}to{stroke-dashoffset:0}}
 .lab-flow-status{margin-top:9px;padding:9px 12px;border-radius:8px;background:#ecfdf5;color:#166534;font-size:13px}
 @media(prefers-reduced-motion:reduce){.lab-flow{animation:none}}
+
+/* Чекбоксы в карточке раздела — по одному на строку, включая узкий экран. */
+.guide-lab .row-check{display:flex;align-items:flex-start;line-height:1.45;margin:10px 0}
+.guide-lab .row-check input{flex:0 0 17px;margin:2px 0 0}
+.guide-lab .fs-hint{overflow-wrap:anywhere}
