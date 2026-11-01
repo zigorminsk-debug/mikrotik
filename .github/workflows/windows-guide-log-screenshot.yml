@@ -1,0 +1,45 @@
+name: Windows guide Log screenshot
+on:
+  push:
+    branches: ['**']
+    paths:
+      - '.github/workflows/windows-guide-log-screenshot.yml'
+      - 'tools/capture-guide-log.js'
+      - 'tools/export-guide-lab.py'
+      - 'app/js/guide-lab.js'
+      - 'app/js/sec-z-router-menu.js'
+      - 'app/js/app.js'
+      - 'app/css/app.css'
+      - 'app/index.html'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Electron and copy application
+        shell: pwsh
+        run: |
+          Push-Location windows
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed' }
+          npm run copy
+          if ($LASTEXITCODE -ne 0) { throw 'Copy failed' }
+          Pop-Location
+      - name: Capture Log selection (no CHR launch)
+        shell: pwsh
+        run: |
+          ./windows/node_modules/.bin/electron.cmd tools/capture-guide-log.js
+          if ($LASTEXITCODE -ne 0) { throw 'Electron capture failed' }
+      - name: Export ready 0–9
+        run: python tools/export-guide-lab.py 0 ready
+      - name: Export ready 10–19
+        run: python tools/export-guide-lab.py 10 ready
+      - name: Export ready 20–23
+        run: python tools/export-guide-lab.py 20 ready
