@@ -276,3 +276,21 @@ figure.shot img{width:auto;max-width:100%;height:auto;object-fit:contain;margin:
 .release-summary { cursor: pointer; padding: 16px 20px; font-weight: 700; color: var(--ink); }
 .release-summary:focus-visible { outline: 3px solid #0ea5e9; outline-offset: -3px; }
 .release-entry .step-body { padding-top: 0; }
+
+/* Учебная панель по вкладкам Interfaces WinBox 4; это не окно RouterOS. */
+.wb-guide { margin: 0 0 20px; border: 1px solid #c4cbcd; border-radius: 8px; background: #f0f1f1; color: #253536; overflow: hidden; }
+.wb-guide-header { padding: 13px 16px 8px; font-size: 1.05em; font-weight: 700; }
+.wb-tabs { display: flex; overflow-x: auto; overflow-y: hidden; padding: 0 8px; border-bottom: 1px solid #c4cbcd; scrollbar-width: thin; }
+.wb-tab { flex: 0 0 auto; padding: 9px 12px; color: #203131; background: #e4e7e7; border: 0; border-right: 1px solid #ced3d3; font: inherit; cursor: pointer; }
+.wb-tab[aria-selected="true"] { background: #fff; color: #102c2b; box-shadow: inset 0 -3px #25877d; }
+.wb-tab:focus-visible, .wb-field summary:focus-visible { outline: 3px solid #087a70; outline-offset: -3px; }
+.wb-tab-panel { padding: 15px; background: #fff; }
+.wb-tab-panel[hidden] { display: none; }
+.wb-tab-panel h2 { margin: 0 0 8px; font-size: 1.15em; }
+.wb-tab-summary { margin: 0 0 8px; line-height: 1.5; }
+.wb-field { border: 1px solid #d5dedd; border-radius: 5px; margin: 7px 0; background: #f9fbfa; }
+.wb-field summary { cursor: pointer; padding: 11px 12px; font-weight: 600; overflow-wrap: anywhere; }
+.wb-field p { margin: 0; padding: 7px 12px; line-height: 1.5; }
+.wb-field p:last-child { padding-bottom: 12px; }
+.wb-field .warn { margin: 8px 12px 12px; }
+.wb-coverage { margin: 14px 0 0; font-size: .9em; line-height: 1.45; color: #4b6261; }

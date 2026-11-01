@@ -35,7 +35,7 @@ var catalogs = {
   intro: { choices:['wan-static','wan-dhcp','dhcp-lan','firewall','nat','dns-cache','pppoe','wifi'], defaults:defaults },
   'ros-ip': { choices:['wan-static','wan-dhcp','dhcp-lan','firewall','nat','dns-cache','dns-static','publication'], defaults:defaults },
   'ros-ipv6': {choices:['ipv6-lan','ipv6-dhcp','ipv6-route'],defaults:['ipv6-lan'],base:defaults},
-  'ros-interfaces': {choices:['bridge'],defaults:['bridge'],base:defaults},
+  'ros-interfaces': {choices:['bridge','guest-vlan','guest-dhcp'],defaults:['bridge'],base:defaults},
   'ros-bridge': {choices:['bridge','firewall','guest-vlan','guest-dhcp'],defaults:['bridge','firewall'],base:['wan-static','dhcp-lan','nat','dns-cache']},
   'ros-log': {choices:['log-system','log-interface','log-remote'],defaults:['log-system'],base:defaults},
   'ros-queues': {choices:['simple-queue','queue-tree'],defaults:['simple-queue'],base:defaults},

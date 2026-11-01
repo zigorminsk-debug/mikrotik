@@ -17,6 +17,6 @@ const {JSDOM,VirtualConsole}=require('jsdom');
  assert(doc.getElementById('content').textContent.includes('версия '+current));assert.equal(doc.querySelectorAll('.release-entry').length,files.length);
  const active=doc.querySelector('.release-entry[open]');assert(active);assert(active.querySelector('summary').textContent.includes(current));assert(active.textContent.includes('тест'));assert(!active.querySelector('img'));
  assert(doc.querySelector('.release-history').textContent.includes('1.19.2'));assert(doc.getElementById('content').textContent.includes('без интернета'));assert.equal(requests,0);
- const old=Array.from(doc.querySelectorAll('.release-entry')).find(x=>x.querySelector('summary').textContent.includes('1.19.2'));assert(old&&!old.open);old.open=true;assert(old.textContent.includes('MAC'));
+ const old=Array.from(doc.querySelectorAll('.release-entry')).find(x=>x.querySelector('summary').textContent === 'Версия 1.19.2');assert(old&&!old.open);old.open=true;assert(old.textContent.includes('MAC'));
  assert(!errors.length,errors.join('; '));dom.window.close();console.log('О программе: офлайн-история версий, навигация и безопасный рендер проверены.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

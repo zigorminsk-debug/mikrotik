@@ -188,12 +188,47 @@ function renderAbout() {
   contentEl.appendChild(list);
 }
 
+// Первая вкладочная страница учебника следует порядку Interfaces WinBox 4.
+// Это справочник, не действительный интерфейс WinBox и не настройка устройства.
+function renderInterfacesGuide() {
+  var root=el('section','wb-guide'); root.setAttribute('aria-label','Вкладки Interfaces');
+  var header=el('div','wb-guide-header');header.textContent='Interfaces';root.appendChild(header);
+  var tabs=el('div','wb-tabs');tabs.setAttribute('role','tablist');tabs.setAttribute('aria-label','Вкладки Interfaces');root.appendChild(tabs);
+  var body=el('div','wb-tab-panels');root.appendChild(body);
+  var buttons=[],panels=[];
+  function select(i,focus) {
+    buttons.forEach(function(b,j){var on=i===j;b.setAttribute('aria-selected',String(on));b.tabIndex=on?0:-1;panels[j].hidden=!on;});
+    if(focus){buttons[i].focus();if(buttons[i].scrollIntoView)buttons[i].scrollIntoView({block:'nearest',inline:'nearest'});}
+  }
+  window.INTERFACES_GUIDE.forEach(function(tab,i){
+    var button=document.createElement('button');button.type='button';button.className='wb-tab';button.id='wb-tab-'+i;button.textContent=tab.name;
+    button.setAttribute('role','tab');button.setAttribute('aria-controls','wb-panel-'+i);tabs.appendChild(button);buttons.push(button);
+    var panel=el('div','wb-tab-panel');panel.id='wb-panel-'+i;panel.setAttribute('role','tabpanel');panel.setAttribute('aria-labelledby',button.id);
+    var h=document.createElement('h2');h.textContent=tab.name;panel.appendChild(h);
+    var summary=el('p','wb-tab-summary');summary.textContent=tab.summary;panel.appendChild(summary);
+    var hint=el('p','fs-hint');hint.textContent='Нажмите параметр, чтобы узнать его назначение и порядок настройки. Перечень дополняется: поля могут отличаться в зависимости от версии, модели и типа интерфейса.';panel.appendChild(hint);
+    tab.fields.forEach(function(item){
+      var d=document.createElement('details');d.className='wb-field';var title=document.createElement('summary');title.textContent=item.name;d.appendChild(title);
+      var p=el('p','wb-field-purpose');p.textContent='Для чего: '+item.purpose;d.appendChild(p);
+      var how=el('p','wb-field-setup');how.textContent='Как настраивать: '+item.setup;d.appendChild(how);
+      if(item.warning){var warn=el('p','warn');warn.textContent=item.warning;d.appendChild(warn);}
+      panel.appendChild(d);
+    });
+    var footer=el('p','wb-coverage');footer.textContent='Учебное описание; эта вкладка не изменяет RouterOS. Лаборатория поддерживает только функции, явно доступные в карточке ниже; остальные ещё не реализованы.';panel.appendChild(footer);
+    body.appendChild(panel);panels.push(panel);
+    button.addEventListener('click',function(){select(i,false);});
+    button.addEventListener('keydown',function(e){var n=buttons.length,j;if(e.key==='ArrowRight')j=(i+1)%n;else if(e.key==='ArrowLeft')j=(i+n-1)%n;else if(e.key==='Home')j=0;else if(e.key==='End')j=n-1;else return;e.preventDefault();select(j,true);});
+  });
+  select(0,false);return root;
+}
+
 function renderSection(sec) {
   var head = el('div', 'sec-header',
     '<div class="sec-icon">' + esc(sec.icon || '📘') + '</div><div>' +
     '<h1>' + esc(sec.title) + '</h1>' +
     (sec.lead ? '<p class="sec-lead">' + fmt(sec.lead) + '</p>' : '') + '</div>');
   contentEl.appendChild(head);
+  if (sec.id === 'ros-interfaces' && window.INTERFACES_GUIDE) contentEl.appendChild(renderInterfacesGuide());
   contentEl.appendChild(renderGuideLab(sec));
   (sec.steps || []).forEach(function (st, i) { contentEl.appendChild(renderStep(st, i)); });
 }
