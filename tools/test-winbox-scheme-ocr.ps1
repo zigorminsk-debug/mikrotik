@@ -131,6 +131,12 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -PassThru -RedirectStandardError
   $stage='address-row-ocr'
   . (Join-Path $PSScriptRoot 'winbox-ocr-ci.ps1')
   $result=Read-CiOcr (Join-Path $env:RUNNER_TEMP 'lab-scheme-winbox.jpg')
+  # Fixed-fixture counts only. Never emit OCR text or window contents to logs.
+  $addressLines=@($result.Lines | Where-Object { $_.Text.Contains('192.168.88.1/24') }).Count
+  $interfaceLines=@($result.Lines | Where-Object { $_.Text.Contains('bridge-lan') }).Count
+  $sharedLines=@($result.Lines | Where-Object { $_.Text.Contains('192.168.88.1/24') -and $_.Text.Contains('bridge-lan') }).Count
+  $addressWords=@($result.Lines | ForEach-Object { $_.Words } | Where-Object { $_.Text -eq '192.168.88.1/24' }).Count
+  Write-Output ('CI_OCR_COUNTS='+$addressLines+','+$interfaceLines+','+$sharedLines+','+$addressWords)
   $wrong=@(Find-CiAddressRows $result '192.168.88.99/24' 'bridge-lan')
   if($wrong.Count -ne 0){throw 'Negative OCR target unexpectedly matched'}
   $rows=@(Find-CiAddressRows $result '192.168.88.1/24' 'bridge-lan')

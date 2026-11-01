@@ -99,6 +99,23 @@ jobs:
           $dir = Join-Path $env:RUNNER_TEMP 'qemu-candidate'
           node tools/test-winbox-scheme-ocr.js "$env:QEMU_EXE" "$env:CHR_IMAGE" (Join-Path $dir 'scheme-sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe') "$env:WINBOX_EXE"
           if ($LASTEXITCODE -ne 0) { throw 'Scheme WinBox research failed' }
+      # On OCR failure export only the disposable, authenticated fixture's
+      # address-list screenshot, not the login screen or arbitrary user data.
+      - name: Export fixture address screenshot after failure 0–9
+        if: failure()
+        shell: pwsh
+        run: |
+          if (Test-Path (Join-Path $env:RUNNER_TEMP 'lab-scheme-winbox.jpg')) { python tools/export-lab-scheme-winbox.py 0 address; if ($LASTEXITCODE -ne 0) { throw 'Address export failed' } }
+      - name: Export fixture address screenshot after failure 10–19
+        if: failure()
+        shell: pwsh
+        run: |
+          if (Test-Path (Join-Path $env:RUNNER_TEMP 'lab-scheme-winbox.jpg')) { python tools/export-lab-scheme-winbox.py 10 address; if ($LASTEXITCODE -ne 0) { throw 'Address export failed' } }
+      - name: Export fixture address screenshot after failure 20–23
+        if: failure()
+        shell: pwsh
+        run: |
+          if (Test-Path (Join-Path $env:RUNNER_TEMP 'lab-scheme-winbox.jpg')) { python tools/export-lab-scheme-winbox.py 20 address; if ($LASTEXITCODE -ne 0) { throw 'Address export failed' } }
       - name: Export detail screenshot 0–9
         run: python tools/export-lab-scheme-winbox.py 0 detail
       - name: Export detail screenshot 10–19
