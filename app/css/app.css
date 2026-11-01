@@ -327,3 +327,5 @@ figure.shot img{width:auto;max-width:100%;height:auto;object-fit:contain;margin:
 .lab-ping-controls label { display: flex; flex-direction: column; gap: 4px; flex: 1 1 180px; min-width: 0; }
 .lab-ping-controls input, .lab-ping-controls select { width: 100%; min-width: 0; padding: 8px; border: 1px solid #9caead; border-radius: 6px; background: #fff; color: #193735; }
 .lab-ping-controls button { min-height: 38px; }
+
+.lab-ping-availability { margin: 10px 0 14px; padding: 10px 12px; border: 1px solid #e0be72; border-radius: 10px; background: #fff8e6; color: #523c13; line-height: 1.45; font-size: calc(13px * var(--font-scale)); }

@@ -597,16 +597,18 @@ function renderResults(res) {
     html += '<div class="res-summary"><h3>✅ Проверка учебной модели пройдена</h3>' +
       '<p>Показан предполагаемый путь, реальные пакеты не отправлялись. DHCP-адреса на карте — примеры. ' + (res.dual ? 'Для двух роутеров ниже приведён только план VRRP, настройка выполняется вручную.' : res.independent ? 'Две независимые сети: команды каждого роутера выполняются отдельно; ВМ и гипервизор не моделируются.' : 'Ниже — проект настроек для проверки на реальном оборудовании.') + '</p></div>';
     var resultRouters = state.devices.filter(function(d) { return d.type === 'router'; });
+    var pingTargets = state.devices.filter(function(d) { return d.type === 'router' || (['pc','server','printer'].indexOf(d.type)>=0 && d.cfg && d.cfg.mode === 'static'); }).map(function(d) { var a=res.model.assignments[d.id],ip=a && a.ip && a.ip.split('/')[0]; return {device:d,ip:ip}; }).filter(function(x) {return x.ip && LabEngine.validIp(x.ip);});
     html += '<div class="res-card" id="lab-checked-chr"><div class="res-head">🖥 Виртуальная RouterOS для проверенной схемы</div><div class="res-body">' +
       '<p>В Windows можно отдельно запустить настоящую CHR с поддерживаемыми настройками этой схемы. Проверка модели сама не запускает CHR. Физический MikroTik не меняется. На Android запуск CHR пока недоступен.</p>' +
       '<p class="fs-hint">Откроется WebFig, а не WinBox. Автоматические снимки всех настроек этой схемы ещё не создаются. Неподдерживаемые настройки блокируют запуск; интернет-режим требует отдельного согласия.</p>' +
       (window.routerOS && typeof window.routerOS.launch === 'function' ? resultRouters.map(function(d) { return '<button type="button" class="btn lab-checked-launch" data-router-id="' + esc(d.id) + '">Открыть CHR: ' + esc(d.name) + '</button> '; }).join('') : '') +
       '<div id="lab-checked-chr-status" class="fs-hint" aria-live="polite"></div>' +
       '<div class="lab-ping"><h3>Реальный ping из виртуального MikroTik</h3>' +
-      '<p>После запуска CHR выберите этот MikroTik и IPv4-адрес. По отдельному подтверждению CHR отправит три ICMP-запроса; модель и Windows-хост пакеты не отправляют. Имя сайта пока нужно заранее преобразовать в IPv4 отдельно. Изменения в открытой WebFig не сверяются с моделью.</p>' +
+      '<p>После запуска CHR выберите этот MikroTik и IPv4-адрес или DNS-имя. По отдельному подтверждению CHR отправит три ICMP-запроса; модель и Windows-хост пакеты не отправляют. Для DNS-имени сначала потребуется разрешение на DNS-запрос, затем — отдельное подтверждение полученного адреса. Изменения в открытой WebFig не сверяются с моделью.</p>' +
       '<p class="fs-hint">Нарисованные ПК, серверы, принтеры и провайдеры не запускаются как виртуальные узлы. Ping с них или между офисами через VPN пока не реализован. Изолированная CHR не подключена к интернету; в разрешённом интернет-режиме доступны сети Windows, но QEMU может не передавать ICMP.</p>' +
       '<div class="lab-ping-controls"><label>Источник <select id="lab-ping-source">' + resultRouters.map(function(d){return '<option value="'+esc(d.id)+'">'+esc(d.name)+' (виртуальная CHR)</option>';}).join('') + '</select></label>' +
-      '<label>Адрес назначения IPv4 <input id="lab-ping-target" type="text" inputmode="decimal" autocomplete="off" placeholder="например 192.168.88.1"></label>' +
+      '<label>Адрес из схемы <select id="lab-ping-preset"><option value="">Ввести вручную</option>' + pingTargets.map(function(x) {return '<option value="'+esc(x.ip)+'">'+esc(x.device.name)+' — '+esc(x.ip)+(x.device.type==='router'?' (адрес CHR)':' (только адрес; узел не запущен)')+'</option>';}).join('') + '</select></label>' +
+      '<label>IPv4 или DNS-имя <input id="lab-ping-target" type="text" autocomplete="off" placeholder="например 192.168.88.1 или example.com"></label>' +
       '<button type="button" class="btn" id="lab-ping-run"' + (!(window.routerOS && typeof window.routerOS.ping === 'function') ? ' disabled' : '') + '>Отправить ping</button></div>' +
       '<div id="lab-ping-result" class="fs-hint" role="status" aria-live="polite">' + (!(window.routerOS && typeof window.routerOS.ping === 'function') ? 'Доступно только в установленном Windows-приложении после запуска CHR.' : 'Сначала запустите выбранную CHR и оставьте её окно открытым.') + '</div></div>' +
       '</div></div>';
@@ -647,17 +649,20 @@ function renderResults(res) {
   }
   resultsEl.innerHTML = html;
   resultsEl.hidden = false;
+  var pingPreset=$('lab-ping-preset');
+  if(pingPreset) pingPreset.addEventListener('change',function(){if(pingPreset.value)$('lab-ping-target').value=pingPreset.value;});
   var pingButton=$('lab-ping-run');
   if(pingButton && window.routerOS && typeof window.routerOS.ping === 'function') pingButton.addEventListener('click',function(){
     var status=$('lab-ping-result'),source=$('lab-ping-source').value,target=$('lab-ping-target').value.trim();
     if(!checkedStateJson || JSON.stringify(state)!==checkedStateJson || !currentRes || currentRes.errors.length){status.textContent='Схема изменилась; снова запустите проверку и виртуальную CHR.';return;}
-    if(!LabEngine.validIp(target)){status.textContent='Укажите IPv4-адрес одного узла, например 192.168.88.1.';return;}
+    var nameOk=target.length>0 && target.length<=253 && !/^(?:\d+\.){3}\d+$/.test(target) && target.split('.').every(function(part){return part.length>0 && part.length<=63 && /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$/.test(part);});
+    if(!LabEngine.validIp(target) && !nameOk){status.textContent='Укажите IPv4 или DNS-имя без URL и пробелов, например 192.168.88.1 или example.com.';return;}
     pingButton.disabled=true;status.textContent='Ожидание подтверждения и ответа виртуальной CHR…';
     Promise.resolve().then(function(){return window.routerOS.ping(source,JSON.parse(checkedStateJson),target);}).then(function(result){
       if(!status.isConnected)return;
       if(result && result.ok && result.sent===3 && Number.isInteger(result.received) && result.received>=0 && result.received<=3){
-        status.textContent='Виртуальная CHR: отправлено 3, получено '+result.received+'. '+(result.received===0?'Ответов нет; ICMP может блокироваться, а виртуальные клиенты не запущены.':result.received<3?'Часть запросов осталась без ответа.':'Получены ответы на все три запроса.')+' Это не проверка устройств, которых нет в виртуальной сети.';
-      } else if(result && result.cancelled)status.textContent='Проверка отменена; запросы не отправлялись.';
+        status.textContent='Виртуальная CHR'+(result.address?' → '+result.address:'')+': отправлено 3, получено '+result.received+'. '+(result.received===0?'Ответов нет; ICMP может блокироваться, а виртуальные клиенты не запущены.':result.received<3?'Часть запросов осталась без ответа.':'Получены ответы на все три запроса.')+' Это не проверка устройств, которых нет в виртуальной сети.';
+      } else if(result && result.cancelled)status.textContent='Проверка отменена; ping не отправлялся. Если имя уже разрешено, DNS-запрос мог быть выполнен.';
       else status.textContent=(result && result.message)||'Результат проверки неизвестен.';
     }).catch(function(){if(status.isConnected)status.textContent='Связь с Windows-компонентом прервалась; результат неизвестен.';}).finally(function(){if(pingButton.isConnected)pingButton.disabled=false;});
   });

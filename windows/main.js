@@ -11,6 +11,7 @@ const { networkWarning } = require('./chr/network-warning');
 const { ensureImage } = require('./chr/download');
 const { ChrSession } = require('./chr/session');
 const {validTarget} = require('./chr/ping');
+const {validName} = require('./chr/resolve');
 const physicalDiscovery = require('./physical/mndp');
 const {openWinbox} = require('./physical/open-winbox');
 const {spawn} = require('child_process');
@@ -128,22 +129,34 @@ ipcMain.handle('chr:launch', async (event, routerId, state) => {
 ipcMain.handle('chr:ping', async (event, routerId, state, target) => {
   if (!trustedMain(event) || !app.isPackaged) return {ok:false,message:'Проверка доступна только в окне установленного приложения Windows.'};
   if (pingBusy) return {ok:false,message:'Проверка уже выполняется.'};
-  if (!validTarget(target)) return {ok:false,message:'Укажите одиночный IPv4-адрес узла. Имена, IPv6, специальные и широковещательные адреса пока не поддерживаются.'};
+  if (!validTarget(target) && !validName(target)) return {ok:false,message:'Укажите одиночный IPv4 или DNS-имя без URL. IPv6 и специальные адреса пока не поддерживаются.'};
   const vm=active, meta=activeMeta;
   if (!vm || !meta || routerId!==meta.routerId) return {ok:false,message:'Запустите CHR именно для выбранного MikroTik и оставьте её окно открытым.'};
   try { if(stateHash(state)!==meta.digest) return {ok:false,message:'Схема изменилась после запуска CHR. Проверьте её и запустите новую CHR.'}; }
   catch (_) { return {ok:false,message:'Недопустимая схема.'}; }
   pingBusy=true;
   try {
+    let address=target;
+    if(!validTarget(target)) {
+      const lookup=await dialog.showMessageBox(mainWindow,{type:'warning',title:'Разрешение DNS в виртуальной CHR',
+        message:'Запросить IPv4 для имени «'+target+'»?',
+        detail:'DNS-запрос будет выполнен виртуальной RouterOS с её текущими DNS-настройками. В интернет-режиме запрос может выйти в интернет или локальную сеть через Windows. После получения адреса потребуется отдельно подтвердить ping. Модель и нарисованные ПК ничего не отправляют.',
+        buttons:['Отмена','Разрешить DNS'],defaultId:0,cancelId:0,noLink:true});
+      if(lookup.response!==1 || active!==vm || activeMeta!==meta || quitting) return {ok:false,cancelled:true};
+      const resolved=await vm.resolve(target);
+      if(active!==vm || activeMeta!==meta || quitting) return {ok:false,message:'CHR закрылась во время DNS-запроса; результат неизвестен.'};
+      if(!resolved || !resolved.ok || !validTarget(resolved.address)) return {ok:false,message:resolved && (resolved.reason==='address' || resolved.ok)?'DNS вернул специальный или неподдерживаемый адрес; ping не отправлен.':'DNS в виртуальной CHR не вернул IPv4. Проверьте имя, сервер DNS и подключение; ping не отправлен.'};
+      address=resolved.address;
+    }
     const answer=await dialog.showMessageBox(mainWindow,{type:'warning',title:'Реальная проверка из виртуальной CHR',
-      message:'Отправить три ICMP-запроса на '+target+'?',
+      message:'Отправить три ICMP-запроса на '+address+(address===target?'':' (имя '+target+')')+'?',
       detail:'Источник — запущенная виртуальная RouterOS, не нарисованный ПК и не физический MikroTik. В изолированном режиме внешняя сеть недоступна; в интернет-режиме запрос может попасть в локальную сеть или интернет через Windows. Виртуальные ПК, серверы, принтеры, провайдеры и VPN между офисами пока не запускаются. Ноль ответов не доказывает отсутствие сети: ICMP может быть заблокирован.',
       buttons:['Отмена','Отправить'],defaultId:0,cancelId:0,noLink:true});
     if(answer.response!==1 || active!==vm || activeMeta!==meta || quitting) return {ok:false,cancelled:true};
-    const result=await vm.ping(target);
+    const result=await vm.ping(address);
     if(active!==vm || activeMeta!==meta) return {ok:false,message:'CHR закрылась во время проверки; результат неизвестен.'};
-    return {ok:true,sent:result.sent,received:result.received};
-  } catch (_) { return {ok:false,message:'Не удалось выполнить ping в виртуальной CHR; результат неизвестен.'}; }
+    return {ok:true,address,sent:result.sent,received:result.received};
+  } catch (_) { return {ok:false,message:'Ошибка или тайм-аут проверки в виртуальной CHR; результат неизвестен. Закройте окно и запустите CHR заново.'}; }
   finally { pingBusy=false; }
 });
 // Local read-only MNDP discovery. MAC and identity advertisements are unauthenticated.

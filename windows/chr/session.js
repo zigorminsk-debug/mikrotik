@@ -7,7 +7,8 @@ const net = require('net');
 const { spawn } = require('child_process');
 const { randomBytes } = require('crypto');
 const { ChrConsole } = require('./console');
-const {pingConsole} = require('./ping');
+const {pingConsole,validTarget} = require('./ping');
+const {resolveConsole,validName} = require('./resolve');
 const { makeReader, verifyConfiguration } = require('./verify');
 const { validateDualInternet } = require('./online');
 
@@ -34,7 +35,7 @@ class ChrSession {
     if (this.internetConsent && (this.testInternet || this.testBackupInternet)) throw new Error('Несовместимые режимы интернет-сети');
     if (this.testBackupInternet && !this.testInternet) throw new Error('Резервный сетевой тест требует основной сетевой тест');
     this.proc = null; this.server = null; this.console = null; this.socket = null; this.directory = null;
-    this.pinging = false; this.closed = false; this.started = false; this.exitPromise = null; this.acceptTimer = null; this.stopPromise = null;
+    this.pinging = false; this.probeFailed = false; this.closed = false; this.started = false; this.exitPromise = null; this.acceptTimer = null; this.stopPromise = null;
   }
   async start(plan) {
     if (this.started || this.closed) throw new Error('Сессия CHR уже использована');
@@ -135,11 +136,24 @@ class ChrSession {
       throw new Error('Не удалось запустить или настроить виртуальную CHR: ' + error.message);
     }
   }
+  async resolve(name) {
+    if (!this.started || this.closed || !this.console) throw new Error('Виртуальная CHR не запущена.');
+    if (!validName(name)) throw new Error('Укажите корректное DNS-имя.');
+    if (this.probeFailed) throw new Error('Перезапустите CHR после ошибки проверки.');
+    if (this.pinging) throw new Error('Проверка уже выполняется.');
+    this.pinging = true;
+    try { return await resolveConsole(this.console, name); }
+    catch (error) { this.probeFailed = true; throw error; }
+    finally { this.pinging = false; }
+  }
   async ping(address) {
     if (!this.started || this.closed || !this.console) throw new Error('Виртуальная CHR не запущена.');
+    if (!validTarget(address)) throw new Error('Укажите допустимый IPv4-адрес.');
+    if (this.probeFailed) throw new Error('Перезапустите CHR после ошибки проверки.');
     if (this.pinging) throw new Error('Проверка уже выполняется.');
     this.pinging = true;
     try { return await pingConsole(this.console, address); }
+    catch (error) { this.probeFailed = true; throw error; }
     finally { this.pinging = false; }
   }
   stop() {

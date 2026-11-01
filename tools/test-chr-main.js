@@ -28,6 +28,7 @@ class Session {
   async start(p){this.plan=p;return {url:'http://127.0.0.1:18765/',user:'admin',password:'TEMPORARY_TEST_PASSWORD'};}
   async stop(){this.stopped=true;}
   async ping(target){this.pingCalls=(this.pingCalls||[]).concat(target);return {sent:3,received:2};}
+  async resolve(name){this.resolveCalls=(this.resolveCalls||[]).concat(name);return {ok:true,address:'192.168.88.20'};}
 }
 const app=new EventEmitter();Object.assign(app,{isPackaged:true,getPath:()=>'/test-data',requestSingleInstanceLock:()=>true,whenReady:()=>Promise.resolve(),quit:()=>{}});
 const electron={app,BrowserWindow:Window,shell:{openExternal:async url=>opened.push(url)},
@@ -43,6 +44,7 @@ const req=name=>{
   if(name==='./chr/download')return {ensureImage:async(root,consent)=>{downloads.push({root,consent});return '/image/chr-7.23.8.img';}};
   if(name==='./chr/session')return {ChrSession:Session};
   if(name==='./chr/ping')return require('../windows/chr/ping');
+  if(name==='./chr/resolve')return require('../windows/chr/resolve');
   if(name==='child_process')return {spawn:mockSpawn};
   if(name==='./physical/open-winbox')return require('../windows/physical/open-winbox');
   if(name==='./physical/mndp')return {interfaces:()=>[physicalNic],discover:async()=>{physicalCalls++;return [{mac:'02:11:22:33:44:55'}];}};
@@ -100,6 +102,13 @@ vm.runInNewContext(source,{require:req,process:{platform:'win32',resourcesPath:'
   choices.push(0);assert((await ping(good,'r',{},'192.168.88.1')).cancelled);assert(!created[0].pingCalls);
   assert(dialogs.at(-1).defaultId===0 && dialogs.at(-1).detail.includes('локальную сеть'));
   choices.push(1);const pingResult=await ping(good,'r',{},'192.168.88.1');assert.equal(pingResult.received,2);assert.equal(pingResult.sent,3);assert.equal(created[0].pingCalls[0],'192.168.88.1');
+  choices.push(0);assert((await ping(good,'r',{},'lab.example')).cancelled);assert(!created[0].resolveCalls);
+  choices.push(1,0);assert((await ping(good,'r',{},'lab.example')).cancelled);assert.equal(created[0].resolveCalls.length,1);assert.equal(created[0].pingCalls.length,1);
+  choices.push(1,1);const named=await ping(good,'r',{},'lab.example');assert.equal(named.address,'192.168.88.20');assert.equal(named.received,2);assert.equal(created[0].pingCalls.at(-1),'192.168.88.20');
+  assert(dialogs.at(-1).message.includes('192.168.88.20') && dialogs.at(-1).message.includes('lab.example'));
+  created[0].resolve=async()=>({ok:false,reason:'dns'});choices.push(1);assert((await ping(good,'r',{},'bad.example')).message.includes('DNS'));assert.equal(created[0].pingCalls.length,2);
+  created[0].resolve=async()=>({ok:true,address:'127.0.0.1'});choices.push(1);assert((await ping(good,'r',{},'special.example')).message.includes('специальный'));assert.equal(created[0].pingCalls.length,2);
+
   assert(!JSON.stringify(main.events).includes('TEMPORARY_TEST_PASSWORD'));
   let finishPing;created[0].ping=()=>new Promise(resolve=>{finishPing=resolve;});choices.push(1);
   const pending=ping(good,'r',{},'192.168.88.1');await new Promise(resolve=>setImmediate(resolve));assert(finishPing);
