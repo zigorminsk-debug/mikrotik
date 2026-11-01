@@ -69,3 +69,5 @@
 `guide-lab-ipv6-windows.jpg` — оригинальный снимок Windows Electron из [CI 41314878732](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41314878732): выбран учебный адрес, DHCPv6 и IPv6-маршрутизация недоступны. Кадр визуально проверен; CHR и WinBox при съёмке не запускались.
 
 `about-history-windows.jpg` — оригинальный снимок меню «О программе» в Windows Electron, [CI 41315808020](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41315808020). Проверен визуально, отображает версию и сохранённые заметки. Это не WinBox, CHR не запускалась.
+
+`android-font-reading.jpg`, `android-font-menu.jpg` — оригинальные снимки Android-приложения из [CI 41322169380](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41322169380), одноразовый эмулятор 320×640: текст 150%, затем прокрученное меню. Визуально проверены; это не WinBox и не физический телефон.
