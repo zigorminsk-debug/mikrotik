@@ -294,3 +294,19 @@ figure.shot img{width:auto;max-width:100%;height:auto;object-fit:contain;margin:
 .wb-field p:last-child { padding-bottom: 12px; }
 .wb-field .warn { margin: 8px 12px 12px; }
 .wb-coverage { margin: 14px 0 0; font-size: .9em; line-height: 1.45; color: #4b6261; }
+/* Светлая навигация в духе WinBox; значки нарисованы для учебника. */
+.sidebar { background: #e6e8e7; color: #183e3b; border-right: 1px solid #c8d0ce; }
+@media (min-width:821px) { .sidebar { width: 230px; flex-basis: 230px; } }
+.brand-logo { background: #dce7e5; border-color: #c4d2cf; }
+.brand-title { color: #163e3a; }
+.brand-sub { color: #4e6865; }
+.nav-search { background: #f8f9f8; color: #203c39; border-color: #c2cecb; }
+.nav-search::placeholder { color: #536c69; }
+.nav-item { color: #243b39; border: 0; border-radius: 6px; padding: 8px 9px; }
+.nav-item:hover { background: #d5dfdd; color: #163e3a; }
+.nav-item.active { background: #fff; color: #143d39; }
+.nav-item:focus-visible { outline: 3px solid #087a70; outline-offset: -3px; }
+.nav-item .ni-ico { color: #176a61; display: inline-flex; align-items: center; justify-content: center; }
+.nav-item .ni-ico svg { width: 20px; height: 20px; flex: 0 0 auto; }
+.nav-item .ni-badge { background: #d4e2df; color: #285751; }
+.sidebar-foot { color: #536c69; border-color: #c9d3d1; }

@@ -234,12 +234,36 @@ function renderSection(sec) {
 }
 
 /* ---------- навигация ---------- */
+// Небольшие собственные контурные значки навигации: не скриншоты и не ресурсы WinBox.
+function navIcon(sec) {
+  var paths={
+    'ros-wifi':'<path d="M2 8c6-5 14-5 20 0M5 11c4-3 10-3 14 0M8 14c2-2 6-2 8 0"/><circle cx="12" cy="18" r="1"/>',
+    'ros-interfaces':'<rect x="3" y="5" width="18" height="13" rx="1"/><path d="M7 9v4m3-4v4m3-4v4m3-4v4M7 18v3m10-3v3"/>',
+    'ros-wireguard':'<path d="M12 2l8 3v6c0 5-3 8-8 11-5-3-8-6-8-11V5z"/><path d="M9 12l2 2 4-5"/>',
+    'ros-ppp':'<path d="M9 15l6-6M7 17l-1 1a4 4 0 01-6-6l4-4a4 4 0 016 0M17 7l1-1a4 4 0 016 6l-4 4a4 4 0 01-6 0"/>',
+    'ros-bridge':'<path d="M2 18V9m20 9V9M2 13c4 0 5-5 10-5s6 5 10 5M2 18h20M7 12v6m5-10v10m5-6v6"/>',
+    'ros-switch':'<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M5 10h3m2 0h3m2 0h3M5 14h3m2 0h3m2 0h3"/>',
+    'ros-ip':'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c-5 5-5 13 0 18M12 3c5 5 5 13 0 18"/>',
+    'ros-ipv6':'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c-5 5-5 13 0 18M12 3c5 5 5 13 0 18"/>',
+    'ros-routing':'<path d="M4 7h14m-3-3l3 3-3 3M20 17H6m3-3l-3 3 3 3"/>',
+    'ros-system':'<circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10l2 2M19 5l-2 2M7 17l-2 2"/>',
+    'ros-queues':'<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="7" cy="6" r="1"/><circle cx="7" cy="12" r="1"/><circle cx="7" cy="18" r="1"/>',
+    'ros-files':'<path d="M3 5h7l2 2h9v12H3z"/>',
+    'ros-log':'<path d="M5 3h14v18H5zM8 7h8M8 11h8M8 15h8"/>',
+    'ros-tools':'<path d="M13 6a5 5 0 006 6l-8 8a3 3 0 01-4-4l8-8z"/>',
+    'ros-supout':'<path d="M5 3h14v18H5zM12 7v9m-3-3l3 3 3-3"/>'
+  };
+  var shape=paths[sec.id];
+  if(!shape && sec.id.indexOf('ros-')===0)shape='<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 12h8M12 8v8"/>';
+  return shape ? '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+shape+'</svg>' : esc(sec.icon || '📘');
+}
+
 function buildNav() {
   navEl.innerHTML = '';
   GUIDE.sections.forEach(function (sec) {
     if (sec.hiddenNav) return;
     var a = el('a', 'nav-item',
-      '<span class="ni-ico">' + esc(sec.icon || '📘') + '</span>' +
+      '<span class="ni-ico">' + navIcon(sec) + '</span>' +
       '<span class="ni-t">' + esc(sec.title) + '</span>' +
       (sec.badge ? '<span class="ni-badge">' + esc(sec.badge) + '</span>' : ''));
     a.href = '#' + sec.id;
