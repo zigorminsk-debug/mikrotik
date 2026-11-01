@@ -139,6 +139,11 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -PassThru -RedirectStandardError
   $sharedLines=@($result.Lines | Where-Object { $_.Text.Contains('192.168.88.1/24') -and $_.Text.Contains('bridge-lan') }).Count
   $addressWords=@($result.Lines | ForEach-Object { $_.Words } | Where-Object { $_.Text -eq '192.168.88.1/24' }).Count
   Write-Output ('CI_OCR_COUNTS='+$addressLines+','+$interfaceLines+','+$sharedLines+','+$addressWords)
+  # Counts of fixed tokens only, no recognized text or coordinates logged.
+  $bridgeLines=@($result.Lines | Where-Object { $_.Text -match '(?i)bridge' }).Count
+  $lanLines=@($result.Lines | Where-Object { $_.Text -match '(?i)lan' }).Count
+  $bothLines=@($result.Lines | Where-Object { $_.Text -match '(?i)bridge' -and $_.Text -match '(?i)lan' }).Count
+  Write-Output ('CI_OCR_PARTIAL='+$bridgeLines+','+$lanLines+','+$bothLines)
   $wrong=@(Find-CiAddressRows $result '192.168.88.99/24' 'bridge-lan')
   if($wrong.Count -ne 0){throw 'Negative OCR target unexpectedly matched'}
   $rows=@(Find-CiAddressRows $result '192.168.88.1/24' 'bridge-lan')

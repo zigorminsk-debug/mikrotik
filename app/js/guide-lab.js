@@ -36,7 +36,7 @@ var catalogs = {
   'ros-log': {choices:['log-system','log-interface','log-remote'],defaults:['log-system'],base:defaults},
   'ros-queues': {choices:['simple-queue','queue-tree'],defaults:['simple-queue'],base:defaults},
   'ros-routing': {choices:['route','dynamic-routing'],defaults:['route'],base:defaults},
-  'ros-system': {choices:['identity','ntp','cloud'],defaults:['identity'],base:defaults},
+  'ros-system': {choices:['identity','ntp','log-system','log-interface','cloud'],defaults:['identity'],base:defaults},
   'ros-wifi': {choices:['wifi'],defaults:[]},
   'ros-wireguard': {choices:['vpn'],defaults:[]},
   'ros-ppp': {choices:['pppoe','vpn'],defaults:[]}

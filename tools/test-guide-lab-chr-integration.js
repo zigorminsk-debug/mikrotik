@@ -19,7 +19,7 @@ let session,dom;const errors=[];
  if(kind==='dhcp'){const input=root.querySelector('input[value="wan-static"]');input.checked=false;input.dispatchEvent(new w.Event('change'));enable('wan-dhcp');}
  if(kind==='ip'){enable('dns-static');enable('publication');}
  if(kind==='bridge'){enable('guest-vlan');enable('guest-dhcp');}
- if(kind==='system')enable('ntp');
+ if(kind==='system'){enable('ntp');enable('log-system');enable('log-interface');}
  if(kind==='log')enable('log-interface');
  const button=root.querySelector('.guide-lab-start');assert(button&&!button.disabled);button.click();await new Promise(r=>setTimeout(r,50));
  assert.equal(w.location.hash,'#lab');assert(w.document.getElementById('lab-results').textContent.includes('Проверка учебной модели пройдена'));
@@ -28,7 +28,7 @@ let session,dom;const errors=[];
  if(kind==='dhcp')assert.equal(plan.expected.wans[0].kind,'dhcp');
  if(kind==='ip'){assert(plan.expected.dnsStatic);assert(plan.expected.natRules.some(x=>x.chain==='dstnat'&&x['dst-port']==='8443'&&x['to-addresses']==='192.168.88.20'&&x['to-ports']==='443'));assert(plan.expected.filterRules.some(x=>x['connection-nat-state']==='dstnat'&&x['dst-port']==='443'));}
  if(kind==='bridge')assert(plan.expected.vlan&&plan.expected.guestDhcp);
- if(kind==='system')assert(plan.expected.ntp&&plan.expected.identity);
+ if(kind==='system'){assert(plan.expected.ntp&&plan.expected.identity);assert.deepStrictEqual(plan.expected.logTopics,['system','interface']);}
  if(kind==='routing')assert(plan.expected.staticRoute);
  if(kind==='log')assert.deepStrictEqual(plan.expected.logTopics,['system','interface']);
  if(kind==='queues'){assert.deepStrictEqual(plan.expected.simpleQueue,{target:'192.168.88.10/32',rate:'10000000'});assert(!plan.expected.filterRules.some(x=>x.action==='fasttrack-connection'));}

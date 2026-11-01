@@ -35,6 +35,8 @@ const engine=require('../app/js/lab-sim'),{makePlan}=require('../windows/chr/pla
  assert(w.GuideLab.validate('ros-ip',['wan-static','firewall','nat','dns-static']).errors.some(x=>x.includes('DNS-кэша')));
  assert(w.GuideLab.validate('ros-ip',['wan-static','firewall']).errors.some(x=>x.includes('NAT')));
  assert(w.GuideLab.validate('ros-ip',['wan-static','nat','publication']).errors.some(x=>x.includes('Публикация')));
+ assert(w.GuideLab.catalog('ros-system').choices.some(x=>x.id==='log-system'&&!x.unavailable));
+ assert(w.GuideLab.catalog('ros-system').choices.some(x=>x.id==='log-interface'&&!x.unavailable));
  assert(w.GuideLab.validate('ros-log',['log-remote']).errors.some(x=>x.includes('syslog')));
  assert(w.GuideLab.validate('ros-queues',['queue-tree']).errors.some(x=>x.includes('Queue Tree')));
  assert(w.GuideLab.validate('ros-wifi',['wifi']).errors.some(x=>x.includes('Wi-Fi')));

@@ -136,7 +136,7 @@ function renderGuideLab(sec) {
   var cat=GuideLab.catalog(sec.id);
   if(cat.reason) panel.appendChild(el('div','note',esc(cat.reason)));
   else {
-    panel.appendChild(el('p','fs-hint','Выберите функции этого раздела. В качестве основы используются один изолированный WAN, мост, основная LAN и учебный ПК. Для разделов Bridge, Interfaces, Routing и System также заранее включены DHCP LAN, Firewall, NAT и DNS-кэш. Поставщики и компьютеры не эмулируются как отдельные ВМ.'));
+    panel.appendChild(el('p','fs-hint','Выберите функции этого раздела. В качестве основы используются один изолированный WAN, мост, основная LAN и учебный ПК. Для разделов Bridge, Interfaces, Routing, System, Queues и Log также заранее включены DHCP LAN, Firewall, NAT и DNS-кэш. Поставщики и компьютеры не эмулируются как отдельные ВМ.'));
     var inputs=[];
     cat.choices.forEach(function(item) {
       var label=el('label','row-check'), input=document.createElement('input');
