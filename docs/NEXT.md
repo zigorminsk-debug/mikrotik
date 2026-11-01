@@ -27,7 +27,7 @@
 
 ## Доступные сведения
 
-- Последний проверенный выпуск: 1.19.7, Android versionCode 33; [релиз](https://github.com/zigorminsk-debug/mikrotik/releases/tag/v1.19.7). Релиз и тег 1.19.2 сохранены; 1.19.6 удалены после проверки обновления.
+- Последний проверенный выпуск: 1.19.8, Android versionCode 34; [релиз](https://github.com/zigorminsk-debug/mikrotik/releases/tag/v1.19.8). Релиз и тег 1.19.2 сохранены; 1.19.7 удалены после проверки обновления.
 - Учебник: `app/js/sec-initial.js`, `sec-networks.js`, `sec-z-router-menu.js`.
 - Лаборатория и изолированный пример CHR: `app/js/lab.js`, `lab-sim.js`,
   `windows/chr/plan.js`, `session.js`, `verify.js`; типы тестов в `ARCHITECTURE.md`.
@@ -44,7 +44,7 @@
 
 ## В работе: DHCP WAN в виртуальной CHR
 
-Готовится 1.19.8/code 34: изолированный DHCP WAN добавлен в Windows CHR. [CI 41293944827](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41293944827) проверил выбранную в UI схему на настоящей одноразовой CHR: единственный клиент, Use Peer DNS = no, адрес и bound. LAN/гостевая сеть не должны пересекаться с 10.0.2.0/24. Аренда QEMU не доказывает физический интернет или маршрут по умолчанию. Снимки двух учебных схем в [CI 41294462623](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41294462623) проверены визуально; это не автоматические снимки пользовательской схемы.
+Выпущен 1.19.8/code 34: изолированный DHCP WAN добавлен в Windows CHR. [CI 41293944827](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41293944827) проверил выбранную в UI схему на настоящей одноразовой CHR: единственный клиент, Use Peer DNS = no, адрес и bound. LAN/гостевая сеть не должны пересекаться с 10.0.2.0/24. Аренда QEMU не доказывает физический интернет или маршрут по умолчанию. Снимки двух учебных схем в [CI 41294462623](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41294462623) проверены визуально; это не автоматические снимки пользовательской схемы.
 
 ## Отдельная задача: физический MikroTik
 
