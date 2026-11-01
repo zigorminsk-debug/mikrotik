@@ -48,9 +48,9 @@ let session,dom;const errors=[];
  session=new ChrSession({qemu:path.resolve(qemu),image:path.resolve(image),tempRoot:path.resolve(work),supervisor:path.resolve(supervisor),diagnostic:record=>{if(record.ipv6Filter)console.log('::notice title=Disposable IPv6 filter shape::'+JSON.stringify({count:record.count,rules:record.ipv6Filter}));}});
  assert.equal(session.internetConsent,false);const info=await session.start(plan);assert.equal(new URL(info.url).hostname,'127.0.0.1');
  if(kind==='ip'){
-  assert.deepStrictEqual(await session.resolve('lab.example'),{ok:true,address:'192.168.88.20'},'CHR static DNS lookup failed');
+  assert.deepStrictEqual(await session.resolve(plan.expected.dnsStatic.name),{ok:true,address:plan.expected.dnsStatic.address},'CHR selected static DNS lookup failed');
   await assert.rejects(session.resolve('lab.example;bad'),/DNS/);
-  console.log('::notice title=Actual isolated CHR DNS::RouterOS resolved its configured static lab.example record to 192.168.88.20; this does not test public DNS or a client VM.');
+  console.log('::notice title=Actual isolated CHR DNS::RouterOS resolved the static record actually selected in the guide fixture; this does not test public DNS or a client VM.');
   const self=await session.ping(plan.expected.lanAddress.split('/')[0]);assert.deepStrictEqual(self,{sent:3,received:3},'Actual CHR local address did not reply to ping');
   const absent=await session.ping('192.168.88.254');assert.deepStrictEqual(absent,{sent:3,received:0},'Absent isolated fixture should not respond');
   await assert.rejects(session.ping('192.168.88.1;bad'),/IPv4/);
