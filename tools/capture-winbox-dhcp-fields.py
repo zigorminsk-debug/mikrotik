@@ -23,7 +23,7 @@ args = [
     '-drive', f'file={images[0]},format=raw,if=ide',
     '-netdev', 'user,id=net0,restrict=on,hostfwd=tcp:127.0.0.1:18291-:8291',
     '-device', 'e1000,netdev=net0',
-    # Extra isolated test interfaces; no real ISP or credentials.
+    # Extra isolated test interfaces; no real ISP or user credentials.
     '-netdev', 'user,id=net1,restrict=on', '-device', 'e1000,netdev=net1',
     '-netdev', 'user,id=net2,restrict=on', '-device', 'e1000,netdev=net2',
 ]
