@@ -45,6 +45,7 @@ done
 if [[ $ready != 1 ]]; then echo '::error::Android WebView accessibility tree did not become ready'; exit 1; fi
 for i in 1 2 3; do tap 'Увеличить шрифт'; done
 snapshot; coords '150%' >/dev/null || { echo '::error::Font level 150% not visible'; exit 1; }
+adb exec-out screencap -p > "$RUNNER_TEMP/android-font-reading.png"
 tap 'Открыть меню'
 # Scroll inside the actual sidebar to its last item, not the content behind it.
 for i in 1 2 3 4 5 6; do
@@ -60,7 +61,13 @@ snapshot; coords 'О программе' >/dev/null || { echo '::error::About pa
 adb shell am force-stop by.mikrotik.tutor
 adb shell am start -n by.mikrotik.tutor/.MainActivity >/dev/null
 sleep 8
-snapshot; coords '150%' >/dev/null || { echo '::error::Font setting did not survive restart'; exit 1; }
+restored=0
+for attempt in $(seq 1 20); do
+ snapshot
+ if coords '150%' >/dev/null; then restored=1; break; fi
+ sleep 3
+done
+if [[ $restored != 1 ]]; then echo '::error::Font setting did not survive restart or accessibility tree did not load'; exit 1; fi
 tap 'Уменьшить шрифт'
 snapshot; coords '130%' >/dev/null || { echo '::error::Font reduction not reachable'; exit 1; }
 echo '::notice title=Android text size::On a disposable 320x640 emulator, the real release WebView reached 150%, opened and scrolled the menu to About, persisted across restart, and reduced to 130%. No physical phone tested.'

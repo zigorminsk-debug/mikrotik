@@ -56,15 +56,27 @@ jobs:
       - name: Prepare screenshot encoder
         if: always()
         run: python3 -m pip install pillow
-      - name: Export disposable Android screenshot 0–9
+      - name: Export Android failure screenshot 0–9
         if: always()
-        run: |
-          python3 tools/export-android-font.py failure 0
-          python3 tools/export-android-font.py menu 0
-          python3 tools/export-android-font.py about 0
-      - name: Export disposable Android screenshot 10–19
+        run: python3 tools/export-android-font.py failure 0
+      - name: Export Android failure screenshot 10–19
         if: always()
-        run: |
-          python3 tools/export-android-font.py failure 10
-          python3 tools/export-android-font.py menu 10
-          python3 tools/export-android-font.py about 10
+        run: python3 tools/export-android-font.py failure 10
+      - name: Export Android menu screenshot 0–9
+        if: always()
+        run: python3 tools/export-android-font.py menu 0
+      - name: Export Android menu screenshot 10–19
+        if: always()
+        run: python3 tools/export-android-font.py menu 10
+      - name: Export Android about screenshot 0–9
+        if: always()
+        run: python3 tools/export-android-font.py about 0
+      - name: Export Android about screenshot 10–19
+        if: always()
+        run: python3 tools/export-android-font.py about 10
+      - name: Export Android reading screenshot 0–9
+        if: always()
+        run: python3 tools/export-android-font.py reading 0
+      - name: Export Android reading screenshot 10–19
+        if: always()
+        run: python3 tools/export-android-font.py reading 10
