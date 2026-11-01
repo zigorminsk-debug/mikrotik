@@ -2,7 +2,7 @@
 'use strict';
 // Windows CI research only: selected UI example -> isolated CHR -> original WinBox.
 // The temporary runner uses throwaway credentials and a loopback-only management
-// forward. Do not copy the test-only process argument approach into production.
+// forward. Test credentials are provided over stdin, never as arguments or environment.
 const assert=require('assert'),fs=require('fs'),path=require('path'),Module=require('module'),{spawn}=require('child_process');
 const {JSDOM,VirtualConsole}=require('jsdom');
 const E=require('../app/js/lab-sim'),{makePlan}=require('../windows/chr/plan');
@@ -30,9 +30,10 @@ const {ChrSession}=mod.exports;let session,dom;
  session=new ChrSession({qemu:path.resolve(qemu),image:path.resolve(image),tempRoot:path.resolve(work),supervisor:path.resolve(supervisor)});
  const info=await session.start(plan);assert.equal(new URL(info.url).hostname,'127.0.0.1');assert(Number.isInteger(info.ciWinboxPort));
  await new Promise((resolve,reject)=>{
-  const env={...process.env,CI_WINBOX_PORT:String(info.ciWinboxPort),CI_WINBOX_PASSWORD:info.password,CI_WINBOX_EXE:path.resolve(winbox)};
-  const p=spawn('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'test-winbox-scheme-capture.ps1')],{env,stdio:['ignore','pipe','ignore'],windowsHide:true});
-  let stage='unknown';p.stdout.on('data',data=>{const m=String(data).match(/CI_STAGE=(start|window|workspace|ip-menu|addresses-menu|screenshot|verified-workspace-no-uia|authentication-unconfirmed)/);if(m)stage=m[1];});
+  const env={...process.env,CI_WINBOX_EXE:path.resolve(winbox)};
+  const p=spawn('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'test-winbox-scheme-capture.ps1')],{env,stdio:['pipe','pipe','ignore'],windowsHide:true});
+  p.stdin.on('error',()=>{});p.stdin.end(JSON.stringify({port:info.ciWinboxPort,password:info.password})+'\n');
+  let stage='unknown';p.stdout.on('data',data=>{const m=String(data).match(/CI_STAGE=(start|window|login-input|workspace|ip-menu|addresses-menu|screenshot|verified-workspace-no-uia|authentication-unconfirmed)/);if(m)stage=m[1];});
   const timer=setTimeout(()=>{p.kill();reject(Error('WinBox GUI timeout at '+stage));},120000);
   p.once('error',()=>{clearTimeout(timer);reject(Error('WinBox GUI automation failed'));});
   p.once('exit',code=>{clearTimeout(timer);code===0?resolve():reject(Error('WinBox GUI did not complete at '+stage+'; no screenshot exported'));});

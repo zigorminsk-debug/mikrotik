@@ -12,22 +12,42 @@ public static class CiMouse {
  [DllImport("user32.dll")] public static extern bool SetCursorPos(int X,int Y);
  [DllImport("user32.dll")] public static extern void mouse_event(uint flags,uint dx,uint dy,uint data,UIntPtr extra);
  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
+ [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
 }
 '@
-# This process-argument login is a disposable CI experiment only; never use
-# it for a user's credentials. We intentionally discard all WinBox output.
+# CI-only: read disposable credentials from stdin, never arguments or env.
+# Input simulation is NOT safe for production (foreground focus can change).
+$record=([Console]::In.ReadLine() | ConvertFrom-Json)
+if(!$record -or $record.port -lt 1 -or $record.port -gt 65535 -or $record.password -notmatch '^Lab_[0-9a-f]{40}$'){exit 1}
 $stage='start'
 $p=$null
 $errLog=Join-Path $env:RUNNER_TEMP 'winbox-ci.stderr'
 $outLog=Join-Path $env:RUNNER_TEMP 'winbox-ci.stdout'
 try {
-$p = Start-Process -FilePath $env:CI_WINBOX_EXE -ArgumentList @("127.0.0.1:$env:CI_WINBOX_PORT",'admin',$env:CI_WINBOX_PASSWORD) -PassThru -RedirectStandardError $errLog -RedirectStandardOutput $outLog
+$p = Start-Process -FilePath $env:CI_WINBOX_EXE -PassThru -RedirectStandardError $errLog -RedirectStandardOutput $outLog
  $stage='window'
  $handle=[IntPtr]::Zero
  for($i=0;$i -lt 90;$i++){ $p.Refresh();if($p.HasExited){throw 'WinBox exited'};if($p.MainWindowHandle -ne [IntPtr]::Zero){$handle=$p.MainWindowHandle;break};Start-Sleep -Seconds 1 }
  if($handle -eq [IntPtr]::Zero){throw 'WinBox window missing'}
+ Start-Sleep -Seconds 5
+ $element=[System.Windows.Automation.AutomationElement]::FromHandle($handle)
+ $rect=$element.Current.BoundingRectangle
+ if($rect.Width -lt 1000 -or $rect.Height -lt 700 -or $rect.Width -gt 1100 -or $rect.Height -gt 800){throw 'Unexpected CI login size'}
+ $stage='login-input'
+ [void][CiMouse]::SetForegroundWindow($handle);Start-Sleep -Milliseconds 500
+ if([CiMouse]::GetForegroundWindow() -ne $handle){throw 'WinBox not focused'}
+ # Coordinates apply only to the visually inspected, disposable CI runner.
+ [void][CiMouse]::SetCursorPos([int]$rect.X+230,[int]$rect.Y+318);[CiMouse]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[CiMouse]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
+ [System.Windows.Forms.SendKeys]::SendWait('^a');[System.Windows.Forms.SendKeys]::SendWait(('127.0.0.1:'+ $record.port))
+ if([CiMouse]::GetForegroundWindow() -ne $handle){throw 'WinBox not focused'}
+ [void][CiMouse]::SetCursorPos([int]$rect.X+230,[int]$rect.Y+367);[CiMouse]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[CiMouse]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
+ if([CiMouse]::GetForegroundWindow() -ne $handle){throw 'WinBox not focused'}
+ [System.Windows.Forms.SendKeys]::SendWait($record.password)
+ [void][CiMouse]::SetCursorPos([int]$rect.X+198,[int]$rect.Y+471);[CiMouse]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[CiMouse]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
+ $record.password=$null
  $stage='workspace'
  Start-Sleep -Seconds 35
+ $p.Refresh();if($p.HasExited){throw 'WinBox exited during login'}
  $element=[System.Windows.Automation.AutomationElement]::FromHandle($handle)
  $rect=$element.Current.BoundingRectangle
  if($rect.Width -lt 700 -or $rect.Height -lt 500 -or $rect.Width -gt 3000 -or $rect.Height -gt 2000){throw 'Unexpected WinBox dimensions'}
