@@ -44,7 +44,7 @@ function makePlan(engine, state, routerId, options = {}) {
   if (groups.reduce((n, group) => n + group.commands.length, 0) > 100) return {blockers:['Слишком много команд для одного запуска CHR (максимум 100); уменьшите число правил.'], notices:initial.notices, groups:[]};
   const r = result.model.router, wan = result.model.primaryIsp;
   const expected = {
-    lanAddress: r.gw + '/24', wanAddress: wan.cfg.ip, wanPort: wan.phys, wanGateway: wan.cfg.gw,
+    lanAddress: r.gw + '/24', wanAddress: wan.kind === 'static' ? wan.cfg.ip : null, wanPort: wan.phys, wanGateway: wan.kind === 'static' ? wan.cfg.gw : null,
     wans: result.model.isps.map(i => ({kind:i.kind, address:i.kind === 'static' ? i.cfg.ip : null, port:i.phys, gateway:i.kind === 'static' ? i.cfg.gw : null, distance:i.priority === 'primary' ? '1' : '2'})),
     dns: r.dns, dnsCache: r.cfg.dnsCache !== false,
     staticRoute: r.cfg.staticRoute ? {destination:r.cfg.routeDst, gateway:r.cfg.routeGw, distance:String(r.cfg.routeDistance)} : null,
