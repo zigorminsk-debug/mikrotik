@@ -56,8 +56,14 @@ jobs:
               print('::error title=RouterOS serial diagnostics::' + data)
           PYDIAG
       - name: Export IP menu screenshot 0–9
-        run: /usr/bin/python3 tools/export-winbox-ip-menu.py 0
+        run: /usr/bin/python3 tools/export-winbox-ip-menu.py 0 menu
       - name: Export IP menu screenshot 10–19
-        run: /usr/bin/python3 tools/export-winbox-ip-menu.py 10
+        run: /usr/bin/python3 tools/export-winbox-ip-menu.py 10 menu
       - name: Export IP menu screenshot 20–29
-        run: /usr/bin/python3 tools/export-winbox-ip-menu.py 20
+        run: /usr/bin/python3 tools/export-winbox-ip-menu.py 20 menu
+      - name: Export DHCP Client list 0–9
+        run: /usr/bin/python3 tools/export-winbox-ip-menu.py 0 dhcp
+      - name: Export DHCP Client list 10–19
+        run: /usr/bin/python3 tools/export-winbox-ip-menu.py 10 dhcp
+      - name: Export DHCP Client list 20–29
+        run: /usr/bin/python3 tools/export-winbox-ip-menu.py 20 dhcp

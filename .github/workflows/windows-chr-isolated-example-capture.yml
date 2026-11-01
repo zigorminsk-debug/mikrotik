@@ -33,6 +33,12 @@ jobs:
         run: |
           ./windows/node_modules/.bin/electron.cmd tools/capture-chr-isolated.js
           if ($LASTEXITCODE -ne 0) { throw 'Electron capture failed' }
+      - name: Export button 0–9
+        run: python tools/export-chr-isolated.py 0 button
+      - name: Export button 10–19
+        run: python tools/export-chr-isolated.py 10 button
+      - name: Export button 20–23
+        run: python tools/export-chr-isolated.py 20 button
       - name: Export diagram 0–9
         run: python tools/export-chr-isolated.py 0 diagram
       - name: Export diagram 10–19

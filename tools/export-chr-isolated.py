@@ -2,7 +2,7 @@
 # Synthetic Electron images only; never use with real configurations/secrets.
 import base64, os, pathlib, sys
 kind=sys.argv[2]
-if kind not in ('diagram','settings'): raise SystemExit('Invalid screenshot kind')
+if kind not in ('button','diagram','settings'): raise SystemExit('Invalid screenshot kind')
 f=pathlib.Path(os.environ['RUNNER_TEMP']) / f'chr-isolated-{kind}.jpg'
 if not f.is_file(): raise SystemExit('Missing screenshot')
 data=base64.b64encode(f.read_bytes()).decode('ascii')

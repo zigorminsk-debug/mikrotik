@@ -116,6 +116,11 @@ xdotool mousemove --sync 175 347
 xdotool click 1
 sleep 3
 scrot -q 40 "$3/ip-menu.jpg"
+# Open DHCP Client list; this is a test CHR, not an actual ISP.
+xdotool mousemove --sync 305 202
+xdotool click 1
+sleep 6
+scrot -q 40 "$3/dhcp-client-list.jpg"
 kill "$pid" 2>/dev/null || true
 '''
     env = os.environ.copy()

@@ -10,10 +10,16 @@ app.whenReady().then(async()=>{
   await win.webContents.executeJavaScript(`(async()=>{
    location.hash='lab';await new Promise(r=>setTimeout(r,300));
    const btn=document.getElementById('lab_example_chr_isolated');if(!btn)throw Error('Example button missing');
-   btn.click();if(Lab.state.devices.length!==3||Lab.state.links.length!==2)throw Error('Unexpected diagram');
+   btn.scrollIntoView({block:'center'});await new Promise(r=>setTimeout(r,600));
+  })()`);
+  let img=await win.webContents.capturePage();if(img.isEmpty())throw Error('Empty button screenshot');
+  fs.writeFileSync(path.join(process.env.RUNNER_TEMP,'chr-isolated-button.jpg'),img.toJPEG(35));
+  await win.webContents.executeJavaScript(`(async()=>{
+   const btn=document.getElementById('lab_example_chr_isolated');btn.click();
+   if(Lab.state.devices.length!==3||Lab.state.links.length!==2)throw Error('Unexpected diagram');
    btn.scrollIntoView({block:'start'});await new Promise(r=>setTimeout(r,600));
   })()`);
-  let img=await win.webContents.capturePage();if(img.isEmpty())throw Error('Empty diagram screenshot');
+  img=await win.webContents.capturePage();if(img.isEmpty())throw Error('Empty diagram screenshot');
   fs.writeFileSync(path.join(process.env.RUNNER_TEMP,'chr-isolated-diagram.jpg'),img.toJPEG(40));
   await win.webContents.executeJavaScript(`(async()=>{
    const router=Lab.state.devices.find(x=>x.type==='router');if(!router)throw Error('No router');
