@@ -87,4 +87,14 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -PassThru -RedirectStandardError
   $jpeg=[System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object {$_.MimeType -eq 'image/jpeg'} | Select-Object -First 1
   $bitmap.Save((Join-Path $env:RUNNER_TEMP 'lab-scheme-winbox.jpg'),$jpeg,$params)
  }finally{$params.Dispose();$graphics.Dispose();$bitmap.Dispose()}
+ if($env:CI_CAPTURE_DHCP -eq '1'){
+  $stage='dhcp-client'
+  [void][CiMouse]::SetCursorPos([int]$rect.X+55,[int]$rect.Y+280);[CiMouse]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[CiMouse]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
+  Start-Sleep -Seconds 3
+  [void][CiMouse]::SetCursorPos([int]$rect.X+185,[int]$rect.Y+121);[CiMouse]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[CiMouse]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
+  Start-Sleep -Seconds 5
+  $bitmap=[System.Drawing.Bitmap]::new([int]$rect.Width,[int]$rect.Height);$graphics=[System.Drawing.Graphics]::FromImage($bitmap)
+  $params=New-Object System.Drawing.Imaging.EncoderParameters(1);$params.Param[0]=New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality,[long]40)
+  try{$graphics.CopyFromScreen([int]$rect.X,[int]$rect.Y,0,0,$bitmap.Size);$bitmap.Save((Join-Path $env:RUNNER_TEMP 'lab-scheme-dhcp.jpg'),$jpeg,$params)}finally{$params.Dispose();$graphics.Dispose();$bitmap.Dispose()}
+ }
 }catch{Write-Output ('CI_STAGE='+$stage);exit 1}finally{if($p){$p.Refresh();if(!$p.HasExited){Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue}};Remove-Item $errLog,$outLog -Force -ErrorAction SilentlyContinue}

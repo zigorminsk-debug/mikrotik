@@ -25,20 +25,22 @@ const {ChrSession}=mod.exports;let session,dom;
  const errors=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));
  dom=await JSDOM.fromFile(path.join(__dirname,'../app/index.html'),{runScripts:'dangerously',resources:'usable',pretendToBeVisual:true,virtualConsole:vc,beforeParse(w){w.scrollTo=()=>{};w.HTMLElement.prototype.scrollIntoView=()=>{};}});
  const w=dom.window;await new Promise(r=>w.addEventListener('load',r));w.location.hash='lab';await new Promise(r=>setTimeout(r,50));w.document.getElementById('lab_example_chr_isolated').click();
+ const kind=process.env.CI_SCHEME_KIND||'static';if(!['static','dhcp'].includes(kind))throw Error('Invalid CI scheme kind');
+ if(kind==='dhcp') {const isp=w.Lab.state.devices.find(d=>d.type==='isp');assert(isp);w.Lab.openSettings(isp.id);const kindSelect=w.document.getElementById('lm_kind');kindSelect.value='dhcp';kindSelect.dispatchEvent(new w.Event('change'));w.document.getElementById('lm_save').click();assert(w.document.getElementById('lab-modal').hidden);}
  const state=JSON.parse(JSON.stringify(w.Lab.state)),router=state.devices.find(d=>d.type==='router');assert(router&&!errors.length);
- const plan=makePlan(E,state,router.id);assert.deepStrictEqual(plan.blockers,[]);assert.equal(plan.expected.wanAddress,'198.51.100.2/30');assert.equal(plan.expected.wanPort,'ether1');
+ const plan=makePlan(E,state,router.id);assert.deepStrictEqual(plan.blockers,[]);if(kind==='static')assert.equal(plan.expected.wanAddress,'198.51.100.2/30');else assert.equal(plan.expected.wans[0].kind,'dhcp');assert.equal(plan.expected.wanPort,'ether1');
  session=new ChrSession({qemu:path.resolve(qemu),image:path.resolve(image),tempRoot:path.resolve(work),supervisor:path.resolve(supervisor)});
  const info=await session.start(plan);assert.equal(new URL(info.url).hostname,'127.0.0.1');assert(Number.isInteger(info.ciWinboxPort));
  await new Promise((resolve,reject)=>{
-  const env={...process.env,CI_WINBOX_EXE:path.resolve(winbox)};
+  const env={...process.env,CI_WINBOX_EXE:path.resolve(winbox),CI_CAPTURE_DHCP:kind==='dhcp'?'1':'0'};
   const p=spawn('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'test-winbox-scheme-capture.ps1')],{env,stdio:['pipe','pipe','ignore'],windowsHide:true});
   p.stdin.on('error',()=>{});p.stdin.end(JSON.stringify({port:info.ciWinboxPort,password:info.password})+'\n');
-  let stage='unknown';p.stdout.on('data',data=>{const m=String(data).match(/CI_STAGE=(start|window|login-input|workspace|ip-menu|addresses-menu|screenshot|verified-workspace-no-uia|authentication-unconfirmed)/);if(m)stage=m[1];});
+  let stage='unknown';p.stdout.on('data',data=>{const m=String(data).match(/CI_STAGE=(start|window|login-input|workspace|ip-menu|addresses-menu|screenshot|dhcp-client|verified-workspace-no-uia|authentication-unconfirmed)/);if(m)stage=m[1];});
   const timer=setTimeout(()=>{p.kill();reject(Error('WinBox GUI timeout at '+stage));},120000);
   p.once('error',()=>{clearTimeout(timer);reject(Error('WinBox GUI automation failed'));});
   p.once('exit',code=>{clearTimeout(timer);code===0?resolve():reject(Error('WinBox GUI did not complete at '+stage+'; no screenshot exported'));});
  });
- const picture=path.join(process.env.RUNNER_TEMP,'lab-scheme-winbox.jpg');assert(fs.existsSync(picture)&&fs.statSync(picture).size>5000);
+ const picture=path.join(process.env.RUNNER_TEMP,'lab-scheme-winbox.jpg');assert(fs.existsSync(picture)&&fs.statSync(picture).size>5000);if(kind==='dhcp'){const p=path.join(process.env.RUNNER_TEMP,'lab-scheme-dhcp.jpg');assert(fs.existsSync(p)&&fs.statSync(p).size>5000);}
  const dir=session.directory;await session.stop();assert(!fs.existsSync(dir));
  console.log('::notice title=Scheme WinBox research::Disposable Windows CHR received the exact UI preset and passed REST verification; WinBox GUI capture completed. The image needs visual inspection. No physical router, user credentials, internet, or production GUI integration.');
 })().catch(e=>{console.log('::error title=Scheme WinBox research::'+String(e.message).replace(/[\r\n%]/g,' '));process.exitCode=1;}).finally(async()=>{if(dom)dom.window.close();if(session)try{await session.stop();}catch(_){process.exitCode=1;}});
