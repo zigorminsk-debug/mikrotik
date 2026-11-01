@@ -10,6 +10,9 @@ on:
       - 'tools/export-lab-scheme-winbox.py'
       - 'tools/winbox-ocr-ci.ps1'
       - 'tools/test-winbox-ocr-geometry.ps1'
+      - 'tools/winbox-tesseract-ci.js'
+      - 'tools/test-winbox-tesseract-ci.js'
+      - 'tools/winbox-ocr-deps/**'
       - 'tools/test-chr-isolated-example-dom.js'
       - 'tools/package*.json'
       - 'app/js/lab.js'
@@ -89,6 +92,20 @@ jobs:
           $exe=@(Get-ChildItem -Recurse -File -Path $dir -Filter 'WinBox.exe')
           if ($exe.Count -ne 1) { throw 'Expected one official WinBox executable' }
           "WINBOX_EXE=$($exe[0].FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Prepare pinned independent OCR for disposable fixture only
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm ci --prefix tools/winbox-ocr-deps --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'OCR dependency install failed' }
+          node tools/test-winbox-tesseract-ci.js
+          if ($LASTEXITCODE -ne 0) { throw 'OCR negative tests failed' }
+          $dir=Join-Path $env:RUNNER_TEMP 'tessdata-ci'
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          $language=Join-Path $dir 'eng.traineddata.gz'
+          Invoke-WebRequest -Uri 'https://github.com/naptha/tessdata/raw/806cd9adc8c6e8abc11c782db1818c990576bebc/4.0.0_best_int/eng.traineddata.gz' -OutFile $language
+          if ((Get-FileHash -Algorithm SHA256 $language).Hash.ToLowerInvariant() -ne '45b4cb346724ac1774f1c36f42f182b887bcdb28ebe63e6fff90ac41f3fcff91') { throw 'OCR language hash mismatch' }
+          "CI_TESS_LANG=$dir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Test OCR selector against synthetic positive and negative cases
         shell: powershell
         run: ./tools/test-winbox-ocr-geometry.ps1

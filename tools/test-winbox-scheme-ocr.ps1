@@ -166,7 +166,11 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -PassThru -RedirectStandardError
    # the dialog so OCR cannot mistake the list for a confirmed detail view.
    if($bitmap.Width -lt 800 -or $bitmap.Height -lt 500){throw 'Unexpected detail bounds'}
    $crop=$bitmap.Clone([System.Drawing.Rectangle]::new(400,280,380,180),[System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
-   try{$crop.Save((Join-Path $env:RUNNER_TEMP 'lab-scheme-detail-fields.png'),[System.Drawing.Imaging.ImageFormat]::Png)}finally{$crop.Dispose()}
+   try{
+    $crop.Save((Join-Path $env:RUNNER_TEMP 'lab-scheme-detail-fields.png'),[System.Drawing.Imaging.ImageFormat]::Png)
+    $large=[System.Drawing.Bitmap]::new($crop.Width*4,$crop.Height*4);$g=[System.Drawing.Graphics]::FromImage($large)
+    try{$g.InterpolationMode=[System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic;$g.DrawImage($crop,0,0,$large.Width,$large.Height);$large.Save((Join-Path $env:RUNNER_TEMP 'lab-scheme-detail-tess.png'),[System.Drawing.Imaging.ImageFormat]::Png)}finally{$g.Dispose();$large.Dispose()}
+   }finally{$crop.Dispose()}
   }finally{$params.Dispose();$graphics.Dispose();$bitmap.Dispose()}
   $stage='address-detail-ocr'
   $detail=Read-CiOcr (Join-Path $env:RUNNER_TEMP 'lab-scheme-detail-fields.png')
@@ -174,7 +178,12 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -PassThru -RedirectStandardError
   $networkOk=Test-CiDetailField $detail 'Network' '192.168.88.0'
   $interfaceOk=Test-CiDetailField $detail 'Interface' 'bridge-lan'
   Write-Output ('CI_DETAIL_FIELDS='+[int]$addressOk+','+[int]$networkOk+','+[int]$interfaceOk)
-  if(!$addressOk -or !$networkOk -or !$interfaceOk){throw 'OCR did not confirm address and interface fields'}
+  # Independent exact OCR of the same isolated fixture; neither OCR engine
+  # proves authenticity or that arbitrary user screenshots are safe.
+  $tessOutput=& node (Join-Path $PSScriptRoot 'winbox-tesseract-ci.js') (Join-Path $env:RUNNER_TEMP 'lab-scheme-detail-tess.png')
+  $tessExit=$LASTEXITCODE
+  foreach($line in $tessOutput){if($line -match '^CI_TESS_FIELDS=(?:[01],[01],[01]|error)$'){Write-Output $line}}
+  if(!$addressOk -or !$networkOk -or $tessExit -ne 0){throw 'OCR did not confirm address and interface fields'}
  }
  if($env:CI_CAPTURE_PRINT -eq '1'){
   $stage='print-window'

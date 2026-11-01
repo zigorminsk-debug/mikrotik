@@ -1,0 +1,8 @@
+{
+  "name": "winbox-ocr-ci-only",
+  "private": true,
+  "description": "CI-only OCR research, not packaged in the application",
+  "dependencies": {
+    "tesseract.js": "5.1.1"
+  }
+}
