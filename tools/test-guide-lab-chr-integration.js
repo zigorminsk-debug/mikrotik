@@ -17,7 +17,7 @@ let session,dom;const errors=[];
  const root=w.document.querySelector('.guide-lab');assert(root);root.querySelector('button').click();
  const enable=id=>{const input=root.querySelector('input[value="'+id+'"]');assert(input&&!input.disabled);input.checked=true;input.dispatchEvent(new w.Event('change'));};
  if(kind==='dhcp'){const input=root.querySelector('input[value="wan-static"]');input.checked=false;input.dispatchEvent(new w.Event('change'));enable('wan-dhcp');}
- if(kind==='ip')enable('dns-static');
+ if(kind==='ip'){enable('dns-static');enable('publication');}
  if(kind==='bridge'){enable('guest-vlan');enable('guest-dhcp');}
  if(kind==='system')enable('ntp');
  const button=root.querySelector('.guide-lab-start');assert(button&&!button.disabled);button.click();await new Promise(r=>setTimeout(r,50));
@@ -25,7 +25,7 @@ let session,dom;const errors=[];
  const state=JSON.parse(JSON.stringify(w.Lab.state)),router=state.devices.find(x=>x.type==='router');assert(router&&!errors.length);
  const plan=makePlan(engine,state,router.id);assert.deepStrictEqual(plan.blockers,[]);
  if(kind==='dhcp')assert.equal(plan.expected.wans[0].kind,'dhcp');
- if(kind==='ip')assert(plan.expected.dnsStatic);
+ if(kind==='ip'){assert(plan.expected.dnsStatic);assert(plan.expected.natRules.some(x=>x.chain==='dstnat'&&x['dst-port']==='8443'&&x['to-addresses']==='192.168.88.20'&&x['to-ports']==='443'));assert(plan.expected.filterRules.some(x=>x['connection-nat-state']==='dstnat'&&x['dst-port']==='443'));}
  if(kind==='bridge')assert(plan.expected.vlan&&plan.expected.guestDhcp);
  if(kind==='system')assert(plan.expected.ntp&&plan.expected.identity);
  if(kind==='routing')assert(plan.expected.staticRoute);

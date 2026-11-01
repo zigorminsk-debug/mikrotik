@@ -9,6 +9,7 @@ var features = {
   'nat': {label:'NAT masquerade для выхода в WAN'},
   'dns-cache': {label:'DNS-кэш роутера'},
   'dns-static': {label:'Локальная DNS-запись A', detail:'Требует DNS-кэш.'},
+  'publication': {label:'NAT: доступ извне к учебному серверу', detail:'Пример TCP 8443 → 192.168.88.20:443. Правило открывает сервис; в изолированной CHR порт хоста не пробрасывается, сервер и доступ извне не проверяются.'},
   'bridge': {label:'Мост и Ethernet-порты LAN'},
   'guest-vlan': {label:'Гостевой VLAN с изоляцией', detail:'Для изоляции нужен Firewall.'},
   'guest-dhcp': {label:'DHCP гостевого VLAN', detail:'Требует гостевой VLAN.'},
@@ -24,7 +25,7 @@ var features = {
 var defaults=['wan-static','dhcp-lan','firewall','nat','dns-cache'];
 var catalogs = {
   intro: { choices:['wan-static','wan-dhcp','dhcp-lan','firewall','nat','dns-cache','pppoe','wifi'], defaults:defaults },
-  'ros-ip': { choices:['wan-static','wan-dhcp','dhcp-lan','firewall','nat','dns-cache','dns-static'], defaults:defaults },
+  'ros-ip': { choices:['wan-static','wan-dhcp','dhcp-lan','firewall','nat','dns-cache','dns-static','publication'], defaults:defaults },
   'ros-interfaces': {choices:['bridge'],defaults:['bridge'],base:defaults},
   'ros-bridge': {choices:['bridge','firewall','guest-vlan','guest-dhcp'],defaults:['bridge','firewall'],base:['wan-static','dhcp-lan','nat','dns-cache']},
   'ros-routing': {choices:['route','dynamic-routing'],defaults:['route'],base:defaults},
@@ -51,6 +52,7 @@ function validate(section, ids) {
   if (has('guest-vlan')&&!has('firewall')) errors.push('Гостевой VLAN требует Firewall для изоляции от основной LAN.');
   if (has('guest-dhcp')&&!has('guest-vlan')) errors.push('DHCP гостевой сети требует включённого гостевого VLAN.');
   if (has('dns-static')&&!has('dns-cache')) errors.push('Локальная DNS-запись требует включённого DNS-кэша роутера.');
+  if (has('publication')&&!has('firewall')) errors.push('Публикация сервера требует Firewall и отдельной проверки защиты сервиса.');
   if (!has('nat')) errors.push('Текущая учебная модель с WAN требует NAT masquerade. Выключение NAT пока не поддерживается для этого сценария.');
   if (has('nat')&&!has('firewall')) errors.push('В учебном сценарии NAT требует Firewall: без него нельзя считать сеть защищённой.');
   return {errors:errors, selected:all};
@@ -63,7 +65,8 @@ function build(section,ids,types,engine) {
   Object.assign(router,{wanFailover:false,routerFailover:false,dhcp:has('dhcp-lan'),firewall:has('firewall'),nat:has('nat'),dnsCache:has('dns-cache'),dnsStatic:has('dns-static'),vlanGuest:has('guest-vlan'),guestDhcp:has('guest-dhcp'),staticRoute:has('route'),identityOn:has('identity'),ntpClient:has('ntp'),ntpServer:'192.0.2.123',timeZone:'Europe/Minsk'});
   client.mode=router.dhcp?'dhcp':'static';
   var state={seq:5,devices:[{id:'d1',type:'isp',name:'Провайдер (учебный)',x:300,y:10,cfg:isp},{id:'d2',type:'router',name:'MikroTik',x:300,y:150,cfg:router},{id:'d3',type:'pc',name:'ПК основной LAN',x:150,y:330,cfg:client}],links:[{id:'l4',a:'d1',b:'d2'},{id:'l5',a:'d2',b:'d3',nicId:'nic1'}]};
-  if(router.vlanGuest){var guest=types.pc.cfg();Object.assign(guest,{segment:'guest',mode:router.guestDhcp?'dhcp':'static',ip:'192.168.99.10/24',gw:'192.168.99.1'});state.devices.push({id:'d6',type:'pc',name:'ПК гостевой VLAN',x:450,y:330,cfg:guest});state.links.push({id:'l7',a:'d2',b:'d6',nicId:'nic1'});state.seq=7;}
+  if(router.vlanGuest){var guest=types.pc.cfg();Object.assign(guest,{segment:'guest',mode:router.guestDhcp?'dhcp':'static',ip:'192.168.99.10/24',gw:'192.168.99.1'});var guestId='d'+(++state.seq);state.devices.push({id:guestId,type:'pc',name:'ПК гостевой VLAN',x:450,y:330,cfg:guest});state.links.push({id:'l'+(++state.seq),a:'d2',b:guestId,nicId:'nic1'});}
+  if(has('publication')){var server=types.server.cfg();Object.assign(server,{mode:'static',ip:'192.168.88.20/24',gw:'192.168.88.1',external:true,extProto:'tcp',extPort:'8443',localPort:'443',extraPublications:[]});var serverId='d'+(++state.seq);state.devices.push({id:serverId,type:'server',name:'Учебный сервер',x:450,y:330,cfg:server});state.links.push({id:'l'+(++state.seq),a:'d2',b:serverId,nicId:'nic1'});}
   var check=engine.run(state), preflight=engine.chrPreflight(state,'d2');
   var errors=check.errors.concat(preflight.blockers);
   return errors.length?{errors:errors}:{errors:[],state:state};
