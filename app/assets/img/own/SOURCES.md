@@ -73,3 +73,5 @@
 `android-font-reading.jpg`, `android-font-menu.jpg` — оригинальные снимки Android-приложения из [CI 41322169380](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41322169380), одноразовый эмулятор 320×640: текст 150%, затем прокрученное меню. Визуально проверены; это не WinBox и не физический телефон.
 
 `chr-ping-controls-windows.jpg` — оригинальный снимок элементов окна лаборатории Windows Electron [CI 41336424303](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41336424303), визуально проверен. При съёмке мост подменён тестом, CHR не запускалась и ping не отправлялся; это не WinBox и не пользовательская схема.
+
+`chr-ping-dns-windows.jpg` — оригинальный снимок полей ping и DNS в окне лаборатории Windows Electron [CI 41342540822](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41342540822), визуально проверен. Мост подменён тестом, CHR не запускалась, DNS и ping не выполнялись; это не WinBox и не пользовательская схема.

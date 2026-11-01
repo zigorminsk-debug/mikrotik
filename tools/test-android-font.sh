@@ -66,7 +66,7 @@ snapshot; coords 'Лаборатория' >/dev/null || { echo '::error::Lab pag
 found=0
 for i in $(seq 1 12); do
  snapshot
- if grep -q 'на Android реальный ping' "$xml"; then found=1; break; fi
+ if coords 'на Android реальный ping' >/dev/null; then found=1; break; fi
  adb shell input swipe 155 550 155 240 350
  sleep 1
 done
