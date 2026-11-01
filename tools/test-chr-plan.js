@@ -22,7 +22,8 @@ s = sample(); Object.assign(s.devices[1].cfg,{ntpClient:true,ntpServer:'192.0.2.
 plan=makePlan(engine,s,'r');assert.deepStrictEqual(plan.blockers,[]);assert.deepStrictEqual(plan.expected.ntp,{server:'192.0.2.123',zone:'Europe/Minsk'});assert(plan.groups.some(g=>g.id==='services' && g.commands.some(x=>x.includes('/system ntp client servers add'))));
 s.devices[1].cfg.ntpServer='bad; /system reboot';assert(makePlan(engine,s,'r').blockers.length);
 s.devices[1].cfg.ntpServer='192.0.2.123';s.devices[1].cfg.timeZone='Bad;reboot';assert(makePlan(engine,s,'r').blockers.length);
-s = sample(); s.devices[0].cfg.kind = 'dhcp'; assert(makePlan(engine,s,'r').blockers.length);
+s = sample(); s.devices[0].cfg.kind = 'dhcp'; plan=makePlan(engine,s,'r');assert.deepStrictEqual(plan.blockers,[]);assert.equal(plan.expected.wans[0].kind,'dhcp');assert(plan.groups.find(g=>g.id==='wan').commands.some(c=>c.includes('/ip dhcp-client add interface=ether1')));
+s.devices[1].cfg.lan='10.0.2.0/24';s.devices[1].cfg.gw='10.0.2.1';assert(makePlan(engine,s,'r').blockers.some(x=>/пересекается/.test(x)));
 s = sample(); s.devices[0].cfg.kind = 'lte'; assert(makePlan(engine,s,'r').blockers.some(x => /LTE/.test(x)));
 s = sample(); s.devices[2].cfg.external = true; assert(makePlan(engine,s,'r').blockers.length); // DHCP target rejected
 s = sample(); Object.assign(s.devices[2].cfg,{mode:'static',ip:'192.168.88.20/24',gw:'192.168.88.1',external:true,extProto:'tcp',extPort:'8443',localPort:'443'});

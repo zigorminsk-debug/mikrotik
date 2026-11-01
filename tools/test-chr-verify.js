@@ -51,6 +51,17 @@ const get = async key => { assert(key in records, key); return records[key]; };
   records['/rest/ip/dns/static'][0].address = e.dnsStatic.address; records['/rest/ip/firewall/filter'][1].action = e.filterRules[0].action;
   const dstnat = records['/rest/ip/firewall/nat'].find(x => x.chain === 'dstnat'); dstnat['to-ports'] = '444'; await assert.rejects(verifyConfiguration(e,get),/правила NAT/);
   dstnat['to-ports']='443';dstnat.disabled='true';await assert.rejects(verifyConfiguration(e,get),/правила NAT/);delete dstnat.disabled;dstnat['to-ports']='444';
+  dstnat['to-ports']='443';
+  const dhcpExpected={...e,wans:[{kind:'dhcp',port:e.wanPort,distance:'1'}]};
+  const oldClients=records['/rest/ip/dhcp-client'],oldAddr=records['/rest/ip/address'];
+  records['/rest/ip/dhcp-client']=[{interface:e.wanPort,disabled:'false','use-peer-dns':'false','add-default-route':'yes','default-route-distance':'1',status:'bound',address:'10.0.2.15/24'}];
+  records['/rest/ip/address']=oldAddr.filter(x=>x.interface!==e.wanPort).concat([{interface:e.wanPort,address:'10.0.2.15/24',dynamic:'true'}]);
+  await verifyConfiguration(dhcpExpected,get);
+  records['/rest/ip/dhcp-client'][0].status='searching';await assert.rejects(verifyConfiguration(dhcpExpected,get),/ожидание DHCP/);records['/rest/ip/dhcp-client'][0].status='bound';
+  records['/rest/ip/dhcp-client'][0]['use-peer-dns']='true';await assert.rejects(verifyConfiguration(dhcpExpected,get),/DHCP-клиент WAN/);records['/rest/ip/dhcp-client'][0]['use-peer-dns']='false';
+  records['/rest/ip/dhcp-client'].push({...records['/rest/ip/dhcp-client'][0]});await assert.rejects(verifyConfiguration(dhcpExpected,get),/DHCP-клиент WAN/);records['/rest/ip/dhcp-client'].pop();
+  records['/rest/ip/address'].at(-1).dynamic='false';await assert.rejects(verifyConfiguration(dhcpExpected,get),/динамический адрес/);
+  records['/rest/ip/dhcp-client']=oldClients;records['/rest/ip/address']=oldAddr;
   // Both WAN entries must be checked, including duplicate/incorrect settings.
   const dual = makePlan(E,require('./chr-ci-dual-wan-fixture').state,'r',{allowDualStaticWan:true}).expected;
   const second = dual.wans[1];

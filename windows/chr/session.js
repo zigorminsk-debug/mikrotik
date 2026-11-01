@@ -87,7 +87,9 @@ class ChrSession {
       // Administrative access is separate from the simulated topology and
       // remains first in the input chain when the laboratory firewall is added.
       const managementCommands = [
-        '/ip dhcp-client disable [find]',
+        // The disposable CHR has a factory client; remove it before applying a
+        // generated DHCP WAN so we never create duplicate clients on a port.
+        '/ip dhcp-client remove [find]',
         '/ip address add address=172.31.254.15/24 interface=ether6',
         '/ip service enable www',
         '/ip firewall filter add chain=input in-interface=ether6 action=accept comment="Lab management"'
@@ -106,14 +108,15 @@ class ChrSession {
       const get = makeReader(managementPort, 'admin', password, this.diagnostic);
       let verificationError;
       // Under software emulation, WebFig can become reachable after the serial
-      // console and configuration. Retry only connection failures, never a
-      // mismatch in the settings themselves.
-      for (let attempt = 0; attempt < 4; attempt++) {
+      // console and configuration. Retry connection failures and the transient DHCP lease wait, never a
+      // mismatch in the configured settings themselves.
+      for (let attempt = 0; attempt < 15; attempt++) {
         try { await verifyConfiguration(plan.expected, get, this.diagnostic); verificationError = null; break; }
         catch (error) {
           verificationError = error;
-          if (!/Не удалось подключиться к виртуальной CHR/.test(error.message) || this.closed) throw error;
-          if (attempt === 3) {
+          const waitingLease = /ожидание DHCP-аренды WAN/.test(error.message);
+          if ((!/Не удалось подключиться к виртуальной CHR/.test(error.message) && !waitingLease) || this.closed) throw error;
+          if ((waitingLease && attempt === 14) || (!waitingLease && attempt >= 3)) {
             if (this.diagnoseManagement) {
               try { this.diagnostic({management:await this.console.managementDiagnostic()}); }
               catch (_) { this.diagnostic({management:'diagnostic unavailable'}); }

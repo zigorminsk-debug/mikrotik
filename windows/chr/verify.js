@@ -55,14 +55,27 @@ async function verifyConfiguration(expected, get, diagnostic = () => {}) {
   const wans = expected.wans || [{port:expected.wanPort, address:expected.wanAddress, gateway:expected.wanGateway, distance:'1'}];
   check(one(members, x => x.list === 'LAN' && x.interface === 'bridge-lan') && wans.every(w => one(members, x => x.list === 'WAN' && x.interface === w.port)), 'состав списков интерфейсов');
   const wanClients = list(await get('/rest/ip/dhcp-client'));
-  check(!wanClients.some(x => wans.some(w => w.port === x.interface) && enabled(x)), 'лишний DHCP-клиент WAN');
-  const addresses = await get('/rest/ip/address');
-  check(one(addresses, x => x.address === expected.lanAddress && x.interface === 'bridge-lan') && wans.every(w => one(addresses, x => x.address === w.address && x.interface === w.port)), 'адреса LAN и WAN');
-  check(wans.every(w => list(addresses).filter(x => x.interface === w.port && x.disabled !== 'true' && x.disabled !== true).length === 1), 'лишние адреса WAN');
+  const addresses = list(await get('/rest/ip/address'));
+  check(one(addresses, x => x.address === expected.lanAddress && x.interface === 'bridge-lan'), 'адреса LAN и WAN');
+  for (const w of wans) {
+    const clients = wanClients.filter(x => x.interface === w.port && enabled(x));
+    const wanAddresses = addresses.filter(x => x.interface === w.port && notDisabled(x));
+    if (w.kind === 'dhcp') {
+      check(clients.length === 1 && String(clients[0]['use-peer-dns']) === 'false' && clients[0]['add-default-route'] === 'yes' && String(clients[0]['default-route-distance']) === w.distance, 'DHCP-клиент WAN');
+      const client = clients[0];
+      check(client.status === 'bound' && /^10\.0\.2\.(?:[1-9]|[1-9]\d|1\d\d|2[0-4]\d|25[0-4])\/24$/.test(client.address || ''), 'ожидание DHCP-аренды WAN');
+      check(wanAddresses.length === 1 && wanAddresses[0].address === client.address && String(wanAddresses[0].dynamic) === 'true', 'динамический адрес DHCP WAN');
+    } else {
+      check(clients.length === 0, 'лишний DHCP-клиент WAN');
+      check(wanAddresses.length === 1 && wanAddresses[0].address === w.address, 'адреса LAN и WAN');
+    }
+  }
   if (expected.vlan) check(one(addresses, x => x.address === expected.guestAddress && x.interface === 'vlan-guest'), 'адрес гостевого VLAN');
   if (expected.wireguard) await verifyWireguard(expected.wireguard, get, addresses);
   const routes = await get('/rest/ip/route');
-  check(wans.every(w => one(routes, x => x['dst-address'] === '0.0.0.0/0' && x.gateway === w.gateway && String(x.distance) === w.distance && x['check-gateway'] === 'ping' && x.disabled !== 'true' && x.disabled !== true)), 'маршруты WAN');
+  // Restricted QEMU DHCP may omit a router option entirely. Verify the
+  // configured client, but never claim a default route or Internet exists.
+  check(wans.filter(w => w.kind !== 'dhcp').every(w => one(routes, x => x['dst-address'] === '0.0.0.0/0' && x.gateway === w.gateway && String(x.distance) === w.distance && x['check-gateway'] === 'ping' && x.disabled !== 'true' && x.disabled !== true)), 'маршруты WAN');
   if (expected.staticRoute) {
     const found = list(routes).filter(x => x['dst-address'] === expected.staticRoute.destination);
     if (!one(found, x => x.gateway === expected.staticRoute.gateway && String(x.distance) === expected.staticRoute.distance && x.disabled !== true && x.disabled !== 'true')) {

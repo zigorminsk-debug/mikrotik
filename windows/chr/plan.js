@@ -18,7 +18,15 @@ function makePlan(engine, state, routerId, options = {}) {
     if (c.routerFailover || (c.wanFailover && options.allowDualStaticWan !== true)) blockers.push('Переключение провайдеров и роутеров ещё не проверено в виртуальной CHR; выключите резервирование.');
   }
   const dualExperiment = options.allowDualStaticWan === true && isps.length === 2 && router && router.cfg && router.cfg.wanFailover === true && isps.every(x => x.cfg && x.cfg.kind === 'static');
-  if (!dualExperiment && (isps.length !== 1 || !isps[0].cfg || isps[0].cfg.kind !== 'static')) blockers.push('Пока проверен только один провайдер со статическим IPv4; виртуальный провайдер не подключён к интернету.');
+  const singleDhcp = isps.length === 1 && isps[0].cfg && isps[0].cfg.kind === 'dhcp';
+  if (!dualExperiment && (isps.length !== 1 || !isps[0].cfg || !['static','dhcp'].includes(isps[0].cfg.kind))) blockers.push('Пока поддерживаются один изолированный WAN со статическим IPv4 или DHCP; виртуальный провайдер не подключён к интернету.');
+  if (singleDhcp && router) {
+    // QEMU's restricted DHCP network is 10.0.2.0/24 on the WAN; do not
+    // silently let it overlap the user's LAN or guest VLAN.
+    const qemuNet = engine.parseCidr('10.0.2.0/24'), c = router.cfg || {};
+    if ([c.lan, c.vlanGuest ? c.guestNet : null].some(x => { const n = x && engine.parseCidr(x); return n && n.overlaps(qemuNet); }))
+      blockers.push('DHCP WAN использует изолированную сеть QEMU 10.0.2.0/24, которая пересекается с LAN или гостевой сетью.');
+  }
   if (state.devices.some(d => d.on === false)) blockers.push('Состояние выключенных устройств ещё не воспроизводится в CHR.');
   if (state.devices.some(d => d.cfg && d.cfg.nics && d.cfg.nics.length)) blockers.push('Дополнительные сетевые карты клиентов ещё не проверены в CHR.');
   if (blockers.length) return { blockers, notices: initial.notices, groups: [] };
@@ -37,7 +45,7 @@ function makePlan(engine, state, routerId, options = {}) {
   const r = result.model.router, wan = result.model.primaryIsp;
   const expected = {
     lanAddress: r.gw + '/24', wanAddress: wan.cfg.ip, wanPort: wan.phys, wanGateway: wan.cfg.gw,
-    wans: result.model.isps.map(i => ({address:i.cfg.ip, port:i.phys, gateway:i.cfg.gw, distance:i.priority === 'primary' ? '1' : '2'})),
+    wans: result.model.isps.map(i => ({kind:i.kind, address:i.kind === 'static' ? i.cfg.ip : null, port:i.phys, gateway:i.kind === 'static' ? i.cfg.gw : null, distance:i.priority === 'primary' ? '1' : '2'})),
     dns: r.dns, dnsCache: r.cfg.dnsCache !== false,
     staticRoute: r.cfg.staticRoute ? {destination:r.cfg.routeDst, gateway:r.cfg.routeGw, distance:String(r.cfg.routeDistance)} : null,
     dnsStatic: r.cfg.dnsStatic ? {name:r.cfg.dnsStaticName, address:r.cfg.dnsStaticIp} : null,
