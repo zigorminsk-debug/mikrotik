@@ -13,12 +13,19 @@ if(!$script:asTask){throw 'WinRT AsTask missing'}
 function Await-Ci([object]$op,[type]$type){
  $task=$script:asTask.MakeGenericMethod($type).Invoke($null,@($op));if(!$task.Wait(20000)){throw 'WinRT timeout'};return $task.Result
 }
-function Read-CiOcr([string]$image){
+function Read-CiOcr([string]$image,[string]$mode='bicubic'){
  # Enlarge the lossless fixture image. Caller converts coordinates back by 3.
  $source=[System.Drawing.Image]::FromFile($image)
  $scaled=[System.Drawing.Bitmap]::new($source.Width*3,$source.Height*3);$graphics=[System.Drawing.Graphics]::FromImage($scaled)
  $tmp=Join-Path $env:RUNNER_TEMP 'winbox-ocr-scaled.png'
- try{$graphics.InterpolationMode=[System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic;$graphics.DrawImage($source,0,0,$scaled.Width,$scaled.Height);$scaled.Save($tmp,[System.Drawing.Imaging.ImageFormat]::Png)}finally{$graphics.Dispose();$scaled.Dispose();$source.Dispose()}
+ try{
+  if($mode -notin @('bicubic','nearest','threshold')){throw 'Unsupported OCR processing mode'}
+  $graphics.InterpolationMode=if($mode -eq 'bicubic'){[System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic}else{[System.Drawing.Drawing2D.InterpolationMode]::NearestNeighbor}
+  if($mode -eq 'threshold'){
+   $attrs=[System.Drawing.Imaging.ImageAttributes]::new();try{$attrs.SetThreshold(0.6);$graphics.DrawImage($source,[System.Drawing.Rectangle]::new(0,0,$scaled.Width,$scaled.Height),0,0,$source.Width,$source.Height,[System.Drawing.GraphicsUnit]::Pixel,$attrs)}finally{$attrs.Dispose()}
+  }else{$graphics.DrawImage($source,0,0,$scaled.Width,$scaled.Height)}
+  $scaled.Save($tmp,[System.Drawing.Imaging.ImageFormat]::Png)
+ }finally{$graphics.Dispose();$scaled.Dispose();$source.Dispose()}
  $file=Await-Ci ([Windows.Storage.StorageFile]::GetFileFromPathAsync($tmp)) ([Windows.Storage.StorageFile])
  $stream=Await-Ci ($file.OpenAsync([Windows.Storage.FileAccessMode]::Read)) ([Windows.Storage.Streams.IRandomAccessStream])
  try{
@@ -40,7 +47,7 @@ function Find-CiAddressRows([object]$result,[string]$address,[string]$iface){
 # narrow strip at its vertical position to find the exact interface. Never
 # infer an interface from an adjacent row, fuzzy-match a token, or choose a
 # duplicate address. The caller must still validate the resulting detail view.
-function Read-CiOcrAddressStrip([string]$image,[object]$wordRect){
+function Read-CiOcrAddressStrip([string]$image,[object]$wordRect,[string]$mode='bicubic'){
  $source=[System.Drawing.Bitmap]::FromFile($image)
  $strip=$null;$graphics=$null
  $tmp=Join-Path $env:RUNNER_TEMP 'winbox-ocr-row.png'
@@ -56,7 +63,7 @@ function Read-CiOcrAddressStrip([string]$image,[object]$wordRect){
   $graphics.DrawImage($source,[System.Drawing.Rectangle]::new(0,0,$strip.Width,$strip.Height),[System.Drawing.Rectangle]::new($left,$top,$strip.Width,$strip.Height),[System.Drawing.GraphicsUnit]::Pixel)
   $strip.Save($tmp,[System.Drawing.Imaging.ImageFormat]::Png)
  } finally {if($graphics){$graphics.Dispose()};if($strip){$strip.Dispose()};$source.Dispose()}
- try{return Read-CiOcr $tmp}finally{Remove-Item $tmp -Force -ErrorAction SilentlyContinue}
+ try{return Read-CiOcr $tmp $mode}finally{Remove-Item $tmp -Force -ErrorAction SilentlyContinue}
 }
 function Find-CiAddressRowsByStrip([object]$result,[string]$address,[string]$iface,[scriptblock]$readStrip){
  $candidates=@($result.Lines | ForEach-Object { $_.Words } | Where-Object { $_.Text -ceq $address })
