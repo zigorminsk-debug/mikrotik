@@ -145,6 +145,18 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -PassThru -RedirectStandardError
   $bothLines=@($result.Lines | Where-Object { $_.Text -match '(?i)bridge' -and $_.Text -match '(?i)lan' }).Count
   Write-Output ('CI_OCR_PARTIAL='+$bridgeLines+','+$lanLines+','+$bothLines)
   $readStrip={param($bounds) Read-CiOcrAddressStrip (Join-Path $env:RUNNER_TEMP 'lab-scheme-winbox-ocr.png') $bounds}
+  $anchorWord=@($result.Lines | ForEach-Object { $_.Words } | Where-Object { $_.Text -ceq '192.168.88.1/24' })
+  if($anchorWord.Count -eq 1){
+   $stripDiagnostic=& $readStrip $anchorWord[0].BoundingRect
+   $stripLines=@($stripDiagnostic.Lines)
+   $stripWords=@($stripLines | ForEach-Object { $_.Words })
+   # Fixture-only, fixed-token counts; do not expose recognized text.
+   $exact=@($stripWords | Where-Object { $_.Text -ceq 'bridge-lan' }).Count
+   $joined=@($stripLines | Where-Object { ($_.Text -replace '\s','') -cmatch 'bridge-lan' }).Count
+   $partBridge=@($stripWords | Where-Object { $_.Text -cmatch 'bridge' }).Count
+   $partLan=@($stripWords | Where-Object { $_.Text -cmatch 'lan' }).Count
+   Write-Output ('CI_STRIP_COUNTS='+$stripLines.Count+','+$stripWords.Count+','+$exact+','+$joined+','+$partBridge+','+$partLan)
+  }
   $wrong=@(Find-CiAddressRowsByStrip $result '192.168.88.99/24' 'bridge-lan' $readStrip)
   if($wrong.Count -ne 0){throw 'Negative OCR target unexpectedly matched'}
   $wrongInterface=@(Find-CiAddressRowsByStrip $result '192.168.88.1/24' 'wrong-interface' $readStrip)
