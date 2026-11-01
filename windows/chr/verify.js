@@ -5,7 +5,7 @@ function makeReader(port, user, password, diagnostic = () => {}) {
   if (!Number.isInteger(port) || port < 1 || port > 65535 || user !== 'admin' || typeof password !== 'string') throw new Error('Неверные параметры управления CHR');
   const headers = { authorization: 'Basic ' + Buffer.from(user + ':' + password).toString('base64') };
   return endpoint => new Promise((resolve, reject) => {
-    if (!/^\/rest\/[a-z\-/]+$/.test(endpoint)) return reject(new Error('Недопустимый запрос CHR'));
+    if (typeof endpoint !== 'string' || !/^\/rest\/[a-z0-9-]+(?:\/[a-z0-9-]+)*$/.test(endpoint)) return reject(new Error('Недопустимый запрос CHR'));
     const started = Date.now();
     let timedOut = false;
     const report = detail => { try { diagnostic({endpoint, elapsedMs: Date.now() - started, ...detail}); } catch (_) {} };

@@ -82,5 +82,12 @@ const get = async key => { assert(key in records, key); return records[key]; };
   records['/rest/ip/route'].at(-1).distance='1'; await assert.rejects(verifyConfiguration(dual,get),/маршруты WAN/); records['/rest/ip/route'].at(-1).distance='2';
   records['/rest/ip/address'].at(-1).address='198.51.101.3/30'; await assert.rejects(verifyConfiguration(dual,get),/адреса LAN и WAN/);
   assert.throws(()=>makeReader(0,'admin','secret'), /параметры/);
+  // Exercise the actual HTTP reader, not just a mocked get(): IPv6 REST paths
+  // must pass while paths containing authority, traversal, queries or CRLF fail.
+  const http=require('http');let requested='';const server=http.createServer((req,res)=>{requested=req.url;res.writeHead(200,{'content-type':'application/json'});res.end('[]');});
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  try {const reader=makeReader(server.address().port,'admin','test-password');assert.deepStrictEqual(await reader('/rest/ipv6/address'),[]);assert.equal(requested,'/rest/ipv6/address');assert.deepStrictEqual(await reader('/rest/ipv6/firewall/filter'),[]);
+    for(const bad of ['/rest/../ip','/rest/ipv6/address?x=1','/rest//ipv6/address','http://127.0.0.1/rest/ipv6','/rest/ipv6/address\r\nX: y',null])await assert.rejects(reader(bad),/Недопустимый запрос/);
+  } finally {await new Promise(resolve=>server.close(resolve));}
   console.log('CHR сверка: неправильные адреса и правила не выдаются за успех.');
 })().catch(err => {console.error(err);process.exitCode = 1;});
