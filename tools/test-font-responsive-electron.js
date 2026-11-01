@@ -35,5 +35,5 @@ app.whenReady().then(async()=>{
    })()`);
    console.log('Font responsive layout:',JSON.stringify(result));
   }
- }catch(e){console.error('Responsive test failed:',e.message);process.exitCode=1;}finally{win.destroy();app.quit();}
+ }catch(e){console.error('Responsive test failed:',e.message);console.log('::error title=Responsive layout::'+String(e.message).replace(/[\r\n%]/g,' '));process.exitCode=1;}finally{win.destroy();app.quit();}
 });

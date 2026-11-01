@@ -3,6 +3,14 @@
 set -euo pipefail
 : "${ANDROID_FONT_APK:?}" "${RUNNER_TEMP:?}"
 xml="$RUNNER_TEMP/font-ui.xml"
+# This emulator uses a fresh disposable app profile; expose its accessibility
+# hierarchy only on failure to diagnose coordinates, never user data.
+trap 'if [[ -s "$xml" ]]; then python3 - "$xml" <<'PYDUMP'
+import sys
+s=open(sys.argv[1],encoding="utf-8",errors="replace").read()
+print("::notice title=Android disposable UI::"+s[:20000].replace("%","%25").replace("\r","").replace("\n","%0A"))
+PYDUMP
+fi' ERR
 adb wait-for-device
 adb install -r "$ANDROID_FONT_APK"
 adb shell wm size 320x640
