@@ -1,6 +1,7 @@
 name: Windows physical scheme preview screenshot
 on:
   push:
+    branches: ['**'] # Tags run only Build and Android update; branch coverage is unchanged.
     paths:
       - '.github/workflows/windows-physical-preview-capture.yml'
       - 'tools/capture-physical-preview.js'

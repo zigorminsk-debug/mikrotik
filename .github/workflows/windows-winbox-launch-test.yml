@@ -1,6 +1,7 @@
 name: Windows WinBox launcher test
 on:
   push:
+    branches: ['**'] # Tags run only Build and Android update; branch coverage is unchanged.
     paths:
       - '.github/workflows/windows-winbox-launch-test.yml'
       - 'windows/physical/open-winbox.js'

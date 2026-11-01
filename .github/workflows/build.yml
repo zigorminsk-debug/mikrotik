@@ -52,6 +52,7 @@ jobs:
           node tools/test-physical-mndp.js
           node tools/test-open-winbox.js
           node tools/test-physical-preview.js
+          node tools/test-workflow-triggers.js
       - name: DOM-тест (интерактивный стенд, шрифт, автодополнение)
         run: |
           npm install --prefix tools --no-audit --no-fund

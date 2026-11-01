@@ -3,6 +3,7 @@
 name: WinBox DHCP Client changes and verification screenshots
 on:
   push:
+    branches: ['**'] # Tags run only Build and Android update; branch coverage is unchanged.
     paths:
       - '.github/workflows/winbox-dhcp-verify-capture.yml'
       - 'tools/capture-winbox-dhcp-verify.py'

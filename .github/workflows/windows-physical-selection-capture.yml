@@ -1,6 +1,7 @@
 name: Windows physical device selection screenshots
 on:
   push:
+    branches: ['**'] # Tags run only Build and Android update; branch coverage is unchanged.
     paths:
       - '.github/workflows/windows-physical-selection-capture.yml'
       - 'tools/capture-physical-selection.js'

@@ -3,6 +3,7 @@
 name: WireGuard WinBox capture
 on:
   push:
+    branches: ['**'] # Tags run only Build and Android update; branch coverage is unchanged.
     paths:
       - '.github/workflows/wireguard-capture.yml'
       - 'tools/capture-wireguard.py'

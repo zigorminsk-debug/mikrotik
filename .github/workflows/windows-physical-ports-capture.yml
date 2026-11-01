@@ -1,6 +1,7 @@
 name: Windows manual port comparison screenshots
 on:
   push:
+    branches: ['**'] # Tags run only Build and Android update; branch coverage is unchanged.
     paths:
       - '.github/workflows/windows-physical-ports-capture.yml'
       - 'tools/capture-physical-ports.js'

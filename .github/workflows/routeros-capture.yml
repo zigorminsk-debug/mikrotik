@@ -3,6 +3,7 @@
 name: RouterOS capture feasibility
 on:
   push:
+    branches: ['**'] # Tags run only Build and Android update; branch coverage is unchanged.
     paths:
       - '.github/workflows/routeros-capture.yml'
       - 'tools/capture-routeros.py'

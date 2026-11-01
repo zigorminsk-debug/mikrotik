@@ -3,6 +3,7 @@
 name: WinBox IP menu screenshot
 on:
   push:
+    branches: ['**'] # Tags run only Build and Android update; branch coverage is unchanged.
     paths:
       - '.github/workflows/winbox-ip-menu-capture.yml'
       - 'tools/capture-winbox-ip-menu.py'

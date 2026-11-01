@@ -1,6 +1,7 @@
 name: Windows CHR button screenshot
 on:
   push:
+    branches: ['**'] # Tags run only Build and Android update; branch coverage is unchanged.
     paths:
       - '.github/workflows/windows-chr-screenshot.yml'
       - 'tools/capture-chr-button.js'

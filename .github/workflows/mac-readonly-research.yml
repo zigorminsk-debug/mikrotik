@@ -1,6 +1,7 @@
 name: Isolated MAC read-only CHR research
 on:
   push:
+    branches: ['**'] # Tags run only Build and Android update; branch coverage is unchanged.
     paths:
       - '.github/workflows/mac-readonly-research.yml'
       - 'tools/test-mac-readonly-chr.py'

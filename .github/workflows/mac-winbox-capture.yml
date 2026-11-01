@@ -1,6 +1,7 @@
 name: Original WinBox MAC neighbour capture
 on:
   push:
+    branches: ['**'] # Tags run only Build and Android update; branch coverage is unchanged.
     paths:
       - '.github/workflows/mac-winbox-capture.yml'
       - 'tools/capture-winbox-mac.py'

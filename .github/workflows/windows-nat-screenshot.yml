@@ -1,6 +1,7 @@
 name: Windows NAT settings screenshot
 on:
   push:
+    branches: ['**'] # Tags run only Build and Android update; branch coverage is unchanged.
     paths:
       - '.github/workflows/windows-nat-screenshot.yml'
       - 'tools/capture-router-nat.js'

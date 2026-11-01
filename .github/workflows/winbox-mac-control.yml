@@ -1,6 +1,7 @@
 name: Isolated official WinBox MAC control
 on:
   push:
+    branches: ['**'] # Tags run only Build and Android update; branch coverage is unchanged.
     paths:
       - '.github/workflows/winbox-mac-control.yml'
       - 'tools/test-winbox-mac-control.py'

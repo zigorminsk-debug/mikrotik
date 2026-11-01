@@ -2,6 +2,7 @@
 name: Windows CHR DHCP WAN integration
 on:
   push:
+    branches: ['**'] # Tags run only Build and Android update; branch coverage is unchanged.
     paths:
       - '.github/workflows/windows-chr-dhcp-wan-integration.yml'
       - 'tools/test-chr-dhcp-wan-integration.js'

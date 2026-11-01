@@ -2,6 +2,7 @@
 name: Windows WinBox targeted-input research
 on:
   push:
+    branches: ['**'] # Tags run only Build and Android update; branch coverage is unchanged.
     paths:
       - '.github/workflows/windows-winbox-postmessage-research.yml'
       - 'tools/test-winbox-scheme-capture.js'

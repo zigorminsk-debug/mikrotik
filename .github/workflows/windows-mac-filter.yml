@@ -1,6 +1,7 @@
 name: Windows MAC packet filter research
 on:
   push:
+    branches: ['**'] # Tags run only Build and Android update; branch coverage is unchanged.
     paths:
       - '.github/workflows/windows-mac-filter.yml'
       - 'tools/mac-filter-ci/**'

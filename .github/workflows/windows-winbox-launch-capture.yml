@@ -1,6 +1,7 @@
 name: Windows WinBox launcher screenshots
 on:
   push:
+    branches: ['**'] # Tags run only Build and Android update; branch coverage is unchanged.
     paths:
       - '.github/workflows/windows-winbox-launch-capture.yml'
       - 'tools/capture-winbox-launch.js'

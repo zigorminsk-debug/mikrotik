@@ -1,6 +1,7 @@
 name: Isolated WireGuard CHR tunnel research
 on:
   push:
+    branches: ['**'] # Tags run only Build and Android update; branch coverage is unchanged.
     paths:
       - '.github/workflows/wireguard-chr-research.yml'
       - 'tools/chr-wireguard-fixture.js'

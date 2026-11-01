@@ -2,6 +2,7 @@
 name: Windows scheme-specific WinBox research
 on:
   push:
+    branches: ['**'] # Tags run only Build and Android update; branch coverage is unchanged.
     paths:
       - '.github/workflows/windows-scheme-winbox-research.yml'
       - 'tools/test-winbox-scheme-capture.js'
