@@ -58,6 +58,13 @@ adb exec-out screencap -p > "$RUNNER_TEMP/android-font-menu.png"
 tap 'О программе'
 adb exec-out screencap -p > "$RUNNER_TEMP/android-font-about.png"
 snapshot; coords 'О программе' >/dev/null || { echo '::error::About page not reachable'; exit 1; }
+# Other menu functions near the end must remain reachable too.
+tap 'Открыть меню'
+tap 'Лаборатория'
+snapshot; coords 'Лаборатория' >/dev/null || { echo '::error::Lab page not reachable'; exit 1; }
+tap 'Открыть меню'
+tap 'Интерактивный стенд'
+snapshot; coords 'Интерактивный стенд' >/dev/null || { echo '::error::Stand page not reachable'; exit 1; }
 adb shell am force-stop by.mikrotik.tutor
 adb shell am start -n by.mikrotik.tutor/.MainActivity >/dev/null
 sleep 8
@@ -70,4 +77,4 @@ done
 if [[ $restored != 1 ]]; then echo '::error::Font setting did not survive restart or accessibility tree did not load'; exit 1; fi
 tap 'Уменьшить шрифт'
 snapshot; coords '130%' >/dev/null || { echo '::error::Font reduction not reachable'; exit 1; }
-echo '::notice title=Android text size::On a disposable 320x640 emulator, the real release WebView reached 150%, opened and scrolled the menu to About, persisted across restart, and reduced to 130%. No physical phone tested.'
+echo '::notice title=Android text size::On a disposable 320x640 emulator, the real release WebView reached 150%, opened the menu and navigated to About, Lab and Stand, persisted across restart, and reduced to 130%. No physical phone tested.'

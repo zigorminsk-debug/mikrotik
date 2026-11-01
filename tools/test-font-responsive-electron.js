@@ -6,8 +6,8 @@ app.whenReady().then(async()=>{
  const win=new BrowserWindow({width:360,height:700,show:false,useContentSize:true,webPreferences:{offscreen:true,sandbox:true,contextIsolation:true,nodeIntegration:false}});
  try {
   await win.loadFile(path.resolve(__dirname,'../windows/www/index.html'));
-  for(const width of [320,360,412,1200]){
-   win.setContentSize(width,700);await new Promise(r=>setTimeout(r,150));
+  for(const [width,height] of [[320,640],[360,700],[412,700],[640,320],[1200,700]]){
+   win.setContentSize(width,height);await new Promise(r=>setTimeout(r,150));
    const result=await win.webContents.executeJavaScript(`(async()=>{
     const must=(v,m)=>{if(!v)throw Error(m)}; const $=id=>document.getElementById(id);
     const visible=e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0&&r.left>=-1&&r.right<=innerWidth+1&&r.top>=-1&&r.bottom<=innerHeight+1};
@@ -21,6 +21,7 @@ app.whenReady().then(async()=>{
     must(Math.abs(document.querySelector('.content-wrap').getBoundingClientRect().width-contentWidth)<1,'content width changed');
     must(!$('fs_plus').closest('.content-wrap').style.zoom,'page zoom still enabled');
     must(visible($('fs_plus'))&&visible($('fs_minus'))&&visible($('btn_update')),'top controls offscreen');
+    must(document.documentElement.scrollWidth<=innerWidth+1,'page overflows horizontally');
     if(innerWidth<=820){
      must(visible($('burger')),'menu button offscreen');$('burger').click();await new Promise(r=>setTimeout(r,300));
      const nav=$('nav'), sidebar=$('sidebar');must(sidebar.classList.contains('open'),'menu did not open');
