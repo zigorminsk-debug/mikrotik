@@ -176,4 +176,14 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -PassThru -RedirectStandardError
   $params=New-Object System.Drawing.Imaging.EncoderParameters(1);$params.Param[0]=New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality,[long]40)
   try{if($env:CI_BACKGROUND_NAV -eq '1'){if([CiMouse]::GetForegroundWindow() -ne $decoy.Handle){throw 'DHCP navigation changed foreground'};$hdc=$graphics.GetHdc();try{$ok=[CiMouse]::PrintWindow($handle,$hdc,2)}finally{$graphics.ReleaseHdc($hdc)};if(!$ok){throw 'PrintWindow failed'}}else{$graphics.CopyFromScreen([int]$rect.X,[int]$rect.Y,0,0,$bitmap.Size)};$bitmap.Save((Join-Path $env:RUNNER_TEMP 'lab-scheme-dhcp.jpg'),$jpeg,$params)}finally{$params.Dispose();$graphics.Dispose();$bitmap.Dispose()}
  }
-}catch{Write-Output ('CI_STAGE='+$stage);exit 1}finally{if($decoy){$decoy.Close();$decoy.Dispose()};if($p){$p.Refresh();if(!$p.HasExited){Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue}};Remove-Item $errLog,$outLog -Force -ErrorAction SilentlyContinue}
+}catch{
+ # Only fixed categories are reported: never emit window text or credentials.
+ $reason=switch -Exact ($_.Exception.Message){
+  'Negative OCR target unexpectedly matched' {'negative-target'}
+  'OCR row missing or ambiguous' {'row-missing-or-ambiguous'}
+  'OCR row outside window' {'row-outside-window'}
+  'OCR did not confirm address and interface fields' {'detail-unconfirmed'}
+  default {'other'}
+ }
+ Write-Output ('CI_STAGE='+$stage);Write-Output ('CI_REASON='+$reason);exit 1
+}finally{if($decoy){$decoy.Close();$decoy.Dispose()};if($p){$p.Refresh();if(!$p.HasExited){Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue}};Remove-Item $errLog,$outLog -Force -ErrorAction SilentlyContinue}
