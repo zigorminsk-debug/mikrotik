@@ -310,3 +310,13 @@ figure.shot img{width:auto;max-width:100%;height:auto;object-fit:contain;margin:
 .nav-item .ni-ico svg { width: 20px; height: 20px; flex: 0 0 auto; }
 .nav-item .ni-badge { background: #d4e2df; color: #285751; }
 .sidebar-foot { color: #536c69; border-color: #c9d3d1; }
+/* Практические сценарии учебника доступны офлайн и ничего не применяют. */
+.wb-practice { margin: 12px 0; border: 1px solid #9ebfba; border-radius: 6px; background: #f3f9f7; }
+.wb-practice > summary { padding: 11px 12px; cursor: pointer; color: #164f47; font-weight: 700; }
+.wb-practice > summary:focus-visible { outline: 3px solid #087a70; outline-offset: -3px; }
+.wb-practice-body { padding: 0 14px 12px; line-height: 1.55; }
+.wb-practice-body h3 { font-size: 1em; margin: 12px 0 4px; }
+.wb-practice-body p { margin: 9px 0; }
+.wb-practice-body ol { margin: 6px 0 12px; padding-left: 1.5em; }
+.wb-practice-body li { margin: 8px 0; }
+.wb-practice-source a { overflow-wrap: anywhere; color: #075e56; }

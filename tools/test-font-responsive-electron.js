@@ -32,6 +32,17 @@ app.whenReady().then(async()=>{
      target.click();await new Promise(r=>setTimeout(r,100));
      must(location.hash==='#about'&&!sidebar.classList.contains('open'),'menu navigation failed');
     }
+    location.hash='ros-interfaces';await new Promise(r=>setTimeout(r,120));
+    const tabs=[...document.querySelectorAll('.wb-tab')];must(tabs.length===13,'Interfaces tabs missing');
+    tabs[6].click();const panel=document.getElementById(tabs[6].getAttribute('aria-controls'));
+    const practice=panel.querySelector('.wb-practice');must(practice&&practice.querySelectorAll('li').length>=3,'VLAN practice missing');practice.open=true;
+    const field=panel.querySelector('.wb-field');field.open=true;await new Promise(r=>setTimeout(r,80));
+    must(document.documentElement.scrollWidth<=innerWidth+1,'practice page overflows horizontally');
+    must(panel.scrollWidth<=panel.clientWidth+1,'practice panel overflows horizontally');
+    tabs[0].focus();tabs[0].dispatchEvent(new KeyboardEvent('keydown',{key:'End',bubbles:true}));
+    must(tabs[12].getAttribute('aria-selected')==='true'&&document.activeElement===tabs[12],'last tab not reachable by keyboard');
+    const tabRect=tabs[12].getBoundingClientRect(), barRect=tabs[12].parentNode.getBoundingClientRect();
+    must(tabRect.left>=barRect.left-1&&tabRect.right<=barRect.right+1,'last tab did not scroll into view');
     return {width:innerWidth,before,after};
    })()`);
    console.log('Font responsive layout:',JSON.stringify(result));

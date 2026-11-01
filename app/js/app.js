@@ -207,9 +207,28 @@ function renderInterfacesGuide() {
     var h=document.createElement('h2');h.textContent=tab.name;panel.appendChild(h);
     var summary=el('p','wb-tab-summary');summary.textContent=tab.summary;panel.appendChild(summary);
     var hint=el('p','fs-hint');hint.textContent='Нажмите параметр, чтобы узнать его назначение и порядок настройки. Перечень дополняется: поля могут отличаться в зависимости от версии, модели и типа интерфейса.';panel.appendChild(hint);
+    var practice=window.INTERFACES_PRACTICE && window.INTERFACES_PRACTICE[tab.name];
+    if(practice){
+      var scenario=document.createElement('details');scenario.className='wb-practice';
+      var scenarioTitle=document.createElement('summary');scenarioTitle.textContent='Где использовать и практический пример';scenario.appendChild(scenarioTitle);
+      var scenarioBody=el('div','wb-practice-body');
+      function paragraph(label,text,cls){var p=el('p',cls||'');var strong=document.createElement('strong');strong.textContent=label+' ';p.appendChild(strong);p.appendChild(document.createTextNode(text));scenarioBody.appendChild(p);}
+      paragraph('Где применяется:',practice.use);
+      var stepsTitle=document.createElement('h3');stepsTitle.textContent='Порядок действий';scenarioBody.appendChild(stepsTitle);
+      var steps=document.createElement('ol');practice.steps.forEach(function(text){var li=document.createElement('li');li.textContent=text;steps.appendChild(li);});scenarioBody.appendChild(steps);
+      paragraph('Как проверить:',practice.check);
+      paragraph('На что обратить внимание:',practice.caution,'warn');
+      paragraph('В лаборатории:',practice.lab,'note');
+      paragraph('Снимки:', 'Отдельные оригинальные скриншоты WinBox для каждого действия этого примера пока не добавлены.');
+      if(practice.source && /^https:\/\/help\.mikrotik\.com\/docs\//.test(practice.source)){
+        var source=el('p','wb-practice-source'),link=document.createElement('a');link.href=practice.source;link.textContent='Документация MikroTik (на английском, нужен интернет)';source.appendChild(link);scenarioBody.appendChild(source);
+      }
+      scenario.appendChild(scenarioBody);panel.appendChild(scenario);
+    }
     tab.fields.forEach(function(item){
       var d=document.createElement('details');d.className='wb-field';var title=document.createElement('summary');title.textContent=item.name;d.appendChild(title);
       var p=el('p','wb-field-purpose');p.textContent='Для чего: '+item.purpose;d.appendChild(p);
+      if(practice && practice.fields && practice.fields[item.name]) {var use=el('p','wb-field-use');use.textContent='Где применяется: '+practice.fields[item.name];d.appendChild(use);}
       var how=el('p','wb-field-setup');how.textContent='Как настраивать: '+item.setup;d.appendChild(how);
       if(item.warning){var warn=el('p','warn');warn.textContent=item.warning;d.appendChild(warn);}
       panel.appendChild(d);
