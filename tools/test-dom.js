@@ -123,10 +123,10 @@ async function main() {
   ok($('fs_val').textContent === '100%', 'стартовый масштаб 100%');
   $('fs_plus').dispatchEvent(new win.Event('click', { bubbles: true }));
   ok($('fs_val').textContent === '115%', 'A＋ → 115%');
-  ok(doc.querySelector('.content-wrap').style.zoom === '1.15', 'zoom применён к контенту');
+  ok(doc.documentElement.style.getPropertyValue('--font-scale') === '1.15' && !doc.querySelector('.content-wrap').style.zoom, 'масштабируется только размер текста, не окно');
   $('fs_plus').dispatchEvent(new win.Event('click', { bubbles: true }));
   $('fs_plus').dispatchEvent(new win.Event('click', { bubbles: true }));
-  ok($('fs_val').textContent === '150%', 'максимум 150%');
+  ok($('fs_val').textContent === '150%' && doc.documentElement.style.getPropertyValue('--font-scale') === '1.5', 'максимум 150%');
   $('fs_plus').dispatchEvent(new win.Event('click', { bubbles: true }));
   ok($('fs_val').textContent === '150%', 'потолок не превышается');
   $('fs_minus').dispatchEvent(new win.Event('click', { bubbles: true }));

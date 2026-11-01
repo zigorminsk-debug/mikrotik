@@ -736,7 +736,6 @@ if (window.Android || window.routerOS) setTimeout(function(){ checkUpdates(true)
 
 /* ---------- масштаб шрифта A−/A+ (сохраняется между запусками) ---------- */
 (function initFontScale() {
-  var wrap = document.querySelector('.content-wrap');
   var SCALES = [1, 1.15, 1.3, 1.5];
   var idx = 0;
   try {
@@ -746,7 +745,7 @@ if (window.Android || window.routerOS) setTimeout(function(){ checkUpdates(true)
   var valEl = document.getElementById('fs_val');
   function apply() {
     var v = SCALES[idx];
-    if (wrap) wrap.style.zoom = (v === 1 ? '' : String(v));
+    document.documentElement.style.setProperty('--font-scale', String(v));
     if (valEl) valEl.textContent = Math.round(v * 100) + '%';
     try { localStorage.setItem('mtFontScale', String(idx)); } catch (e) {}
   }

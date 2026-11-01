@@ -1,0 +1,32 @@
+name: Text size responsive layout
+on:
+  push:
+    branches: ['**']
+    paths:
+      - '.github/workflows/windows-font-responsive.yml'
+      - 'tools/test-font-responsive-electron.js'
+      - 'app/css/app.css'
+      - 'app/js/app.js'
+      - 'app/index.html'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Electron and copy application
+        shell: pwsh
+        run: |
+          npm install --prefix windows --no-audit --no-fund
+          npm run copy --prefix windows
+      - name: Check mobile and desktop Chromium layouts
+        shell: pwsh
+        run: |
+          ./windows/node_modules/.bin/electron.cmd tools/test-font-responsive-electron.js
+          if ($LASTEXITCODE -ne 0) { throw 'Responsive layout failed' }
