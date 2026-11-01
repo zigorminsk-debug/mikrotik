@@ -110,3 +110,12 @@ jobs:
       - name: Export DHCP screenshot 20–23
         if: matrix.kind == 'dhcp'
         run: python tools/export-lab-scheme-winbox.py 20 dhcp
+      - name: Export targeted window screenshot 0–9
+        if: matrix.kind == 'static'
+        run: python tools/export-lab-scheme-winbox.py 0 print
+      - name: Export targeted window screenshot 10–19
+        if: matrix.kind == 'static'
+        run: python tools/export-lab-scheme-winbox.py 10 print
+      - name: Export targeted window screenshot 20–23
+        if: matrix.kind == 'static'
+        run: python tools/export-lab-scheme-winbox.py 20 print

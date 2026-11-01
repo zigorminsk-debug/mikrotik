@@ -16,6 +16,7 @@ public static class CiMouse {
  [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X; public int Y; }
  [DllImport("user32.dll")] public static extern bool ScreenToClient(IntPtr hwnd,ref POINT pt);
  [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hwnd,uint msg,IntPtr wParam,IntPtr lParam);
+ [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hwnd,IntPtr hdc,uint flags);
 }
 '@
 # CI-only: read disposable credentials from stdin, never arguments or env.
@@ -51,11 +52,19 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -PassThru -RedirectStandardError
   foreach($c in $text.ToCharArray()) {if(![CiMouse]::PostMessage($handle,0x102,[IntPtr]([int]$c),[IntPtr]1)){throw 'Character input failed'}}
   Start-Sleep -Milliseconds 300
  }
+ # Hold a harmless decoy window in the foreground while the target receives
+ # the test credentials. This is still not a production security proof.
+ $decoy=New-Object System.Windows.Forms.Form;$decoy.Text='CI foreground decoy';$decoy.Width=300;$decoy.Height=120
+ $decoy.Show();$decoy.Activate();[System.Windows.Forms.Application]::DoEvents();Start-Sleep -Milliseconds 500
+ [void][CiMouse]::SetForegroundWindow($decoy.Handle);Start-Sleep -Milliseconds 500
+ if([CiMouse]::GetForegroundWindow() -ne $decoy.Handle){throw 'CI decoy not focused'}
  PostClick 230 318
  PostText ('127.0.0.1:'+ $record.port)
  PostClick 230 367
  PostText $record.password
  PostClick 198 471
+ if([CiMouse]::GetForegroundWindow() -ne $decoy.Handle){throw 'Input changed the foreground window'}
+ $decoy.Close();$decoy.Dispose()
  $record.password=$null
  $stage='workspace'
  Start-Sleep -Seconds 35
@@ -99,6 +108,16 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -PassThru -RedirectStandardError
   $jpeg=[System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object {$_.MimeType -eq 'image/jpeg'} | Select-Object -First 1
   $bitmap.Save((Join-Path $env:RUNNER_TEMP 'lab-scheme-winbox.jpg'),$jpeg,$params)
  }finally{$params.Dispose();$graphics.Dispose();$bitmap.Dispose()}
+ if($env:CI_CAPTURE_PRINT -eq '1'){
+  $stage='print-window'
+  $bitmap=[System.Drawing.Bitmap]::new([int]$rect.Width,[int]$rect.Height);$graphics=[System.Drawing.Graphics]::FromImage($bitmap)
+  $params=New-Object System.Drawing.Imaging.EncoderParameters(1);$params.Param[0]=New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality,[long]40)
+  try{
+   $hdc=$graphics.GetHdc();try{$ok=[CiMouse]::PrintWindow($handle,$hdc,2)}finally{$graphics.ReleaseHdc($hdc)}
+   if(!$ok){throw 'PrintWindow failed'}
+   $bitmap.Save((Join-Path $env:RUNNER_TEMP 'lab-scheme-print.jpg'),$jpeg,$params)
+  }finally{$params.Dispose();$graphics.Dispose();$bitmap.Dispose()}
+ }
  if($env:CI_CAPTURE_DHCP -eq '1'){
   $stage='dhcp-client'
   [void][CiMouse]::SetCursorPos([int]$rect.X+55,[int]$rect.Y+280);[CiMouse]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[CiMouse]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
