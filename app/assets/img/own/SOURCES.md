@@ -71,3 +71,5 @@
 `about-history-windows.jpg` — оригинальный снимок меню «О программе» в Windows Electron, [CI 41315808020](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41315808020). Проверен визуально, отображает версию и сохранённые заметки. Это не WinBox, CHR не запускалась.
 
 `android-font-reading.jpg`, `android-font-menu.jpg` — оригинальные снимки Android-приложения из [CI 41322169380](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41322169380), одноразовый эмулятор 320×640: текст 150%, затем прокрученное меню. Визуально проверены; это не WinBox и не физический телефон.
+
+`chr-ping-controls-windows.jpg` — оригинальный снимок элементов окна лаборатории Windows Electron [CI 41336424303](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41336424303), визуально проверен. При съёмке мост подменён тестом, CHR не запускалась и ping не отправлялся; это не WinBox и не пользовательская схема.
