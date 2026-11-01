@@ -7,7 +7,7 @@ const {JSDOM,VirtualConsole}=require('jsdom');
 const engine=require('../app/js/lab-sim'),{makePlan}=require('../windows/chr/plan');
 const {ChrSession}=require('../windows/chr/session');
 const [qemu,image,work,supervisor]=process.argv.slice(2),kind=process.env.CI_GUIDE_CASE;
-const cases={ip:'ros-ip',dhcp:'ros-ip',bridge:'ros-bridge',system:'ros-system',routing:'ros-routing',queues:'ros-queues',log:'ros-log'};
+const cases={ip:'ros-ip',dhcp:'ros-ip',bridge:'ros-bridge',system:'ros-system',routing:'ros-routing',queues:'ros-queues',log:'ros-log',ipv6:'ros-ipv6'};
 if(!qemu||!image||!work||!supervisor||!cases[kind])throw Error('Missing or invalid CI arguments');
 let session,dom;const errors=[];
 (async()=>{
@@ -30,6 +30,7 @@ let session,dom;const errors=[];
  if(kind==='bridge')assert(plan.expected.vlan&&plan.expected.guestDhcp);
  if(kind==='system'){assert(plan.expected.ntp&&plan.expected.identity);assert.deepStrictEqual(plan.expected.logTopics,['system','interface']);}
  if(kind==='routing')assert(plan.expected.staticRoute);
+ if(kind==='ipv6')assert.deepStrictEqual(plan.expected.ipv6Lab,{address:'fd42:7469:6b::1/64',interface:'bridge-lan'});
  if(kind==='log')assert.deepStrictEqual(plan.expected.logTopics,['system','interface']);
  if(kind==='queues'){assert.deepStrictEqual(plan.expected.simpleQueue,{target:'192.168.88.10/32',rate:'10000000'});assert(!plan.expected.filterRules.some(x=>x.action==='fasttrack-connection'));}
  session=new ChrSession({qemu:path.resolve(qemu),image:path.resolve(image),tempRoot:path.resolve(work),supervisor:path.resolve(supervisor)});

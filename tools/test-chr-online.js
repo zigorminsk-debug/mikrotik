@@ -13,6 +13,7 @@ assert(validateDualInternet(expected));
 for (const change of [
   e=>e.wans[0].port='ether4', e=>e.wans[1].gateway='10.0.3.4', e=>e.wans[1].address='10.0.3.21/24',
   e=>e.wans[0].distance='2', e=>e.wans.pop(), e=>e.dns='8.8.8.8', e=>e.lanPorts.push({name:'ether4'}),
+  e=>e.ipv6Lab={address:'fd42:7469:6b::1/64',interface:'bridge-lan'},
   e=>e.wanPort='ether2', e=>e.wanAddress='10.0.2.21/24'
 ]) {
   const copy = JSON.parse(JSON.stringify(expected)); change(copy);

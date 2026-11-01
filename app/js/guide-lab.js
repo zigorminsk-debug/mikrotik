@@ -13,6 +13,9 @@ var features = {
   'bridge': {label:'Мост и Ethernet-порты LAN'},
   'guest-vlan': {label:'Гостевой VLAN с изоляцией', detail:'Для изоляции нужен Firewall.'},
   'guest-dhcp': {label:'DHCP гостевого VLAN', detail:'Требует гостевой VLAN.'},
+  'ipv6-lan': {label:'Учебный IPv6-адрес LAN', detail:'fd42:7469:6b::1/64 на bridge-lan, без RA; входящий и транзитный IPv6 заблокированы. Клиенты и связность не проверяются.'},
+  'ipv6-dhcp': {label:'DHCPv6 и Prefix Delegation', unavailable:'DHCPv6 и выдача префикса пока не проверены в лаборатории.'},
+  'ipv6-route': {label:'Маршрутизация IPv6 и доступ в интернет', unavailable:'IPv6-маршрутизация и связность пока не реализованы в лаборатории.'},
   'log-system': {label:'События system в памяти CHR', detail:'Правило журналирования; события и сохранение после выключения не проверяются.'},
   'log-interface': {label:'События interface в памяти CHR', detail:'Правило журналирования; состояние физического порта не проверяется.'},
   'log-remote': {label:'Удалённый syslog', unavailable:'Внешний syslog в изолированной CHR пока не проверен.'},
@@ -31,6 +34,7 @@ var defaults=['wan-static','dhcp-lan','firewall','nat','dns-cache'];
 var catalogs = {
   intro: { choices:['wan-static','wan-dhcp','dhcp-lan','firewall','nat','dns-cache','pppoe','wifi'], defaults:defaults },
   'ros-ip': { choices:['wan-static','wan-dhcp','dhcp-lan','firewall','nat','dns-cache','dns-static','publication'], defaults:defaults },
+  'ros-ipv6': {choices:['ipv6-lan','ipv6-dhcp','ipv6-route'],defaults:['ipv6-lan'],base:defaults},
   'ros-interfaces': {choices:['bridge'],defaults:['bridge'],base:defaults},
   'ros-bridge': {choices:['bridge','firewall','guest-vlan','guest-dhcp'],defaults:['bridge','firewall'],base:['wan-static','dhcp-lan','nat','dns-cache']},
   'ros-log': {choices:['log-system','log-interface','log-remote'],defaults:['log-system'],base:defaults},
@@ -70,6 +74,7 @@ function build(section,ids,types,engine) {
   var isp=types.isp.cfg(), router=types.router.cfg(), client=types.pc.cfg();
   Object.assign(isp,{kind:has('wan-dhcp')?'dhcp':'static',priority:'primary',ip:'198.51.100.2/30',gw:'198.51.100.1',dns:'1.1.1.1'});
   Object.assign(router,{wanFailover:false,routerFailover:false,dhcp:has('dhcp-lan'),firewall:has('firewall'),nat:has('nat'),dnsCache:has('dns-cache'),dnsStatic:has('dns-static'),vlanGuest:has('guest-vlan'),guestDhcp:has('guest-dhcp'),staticRoute:has('route'),identityOn:has('identity'),ntpClient:has('ntp'),ntpServer:'192.0.2.123',timeZone:'Europe/Minsk'});
+  router.ipv6Lab=has('ipv6-lan');
   Object.assign(router,{logSystem:has('log-system'),logInterface:has('log-interface')});
   if (has('simple-queue')) Object.assign(router,{simpleQueue:true,queueTarget:'192.168.88.10',queueRate:'10'});
   client.mode=has('simple-queue')?'static':(router.dhcp?'dhcp':'static');

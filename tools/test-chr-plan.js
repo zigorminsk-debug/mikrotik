@@ -17,6 +17,8 @@ for (const flag of ['vpn','wifiAp','secureManagement','cloudDdns','wanFailover',
 }
 s = sample(); Object.assign(s.devices[1].cfg, {staticRoute:true, routeDst:'10.20.0.0/24', routeGw:'192.168.88.254', routeDistance:'2', dnsStatic:true, dnsStaticName:'host.lan', dnsStaticIp:'192.168.88.20', identityOn:true, systemIdentity:'Router Lab'});
 plan = makePlan(engine,s,'r'); assert.deepStrictEqual(plan.blockers, []); assert(plan.groups.some(g=>g.id==='route')); assert(plan.groups.some(g=>g.id==='services')); assert.strictEqual(plan.expected.identity, 'Router Lab');
+// One fixed IPv6 example and two mandatory blocking rules; no renderer commands.
+s = sample();s.devices[1].cfg.ipv6Lab=true;plan=makePlan(engine,s,'r');assert.deepStrictEqual(plan.blockers,[]);assert.deepStrictEqual(plan.expected.ipv6Lab,{address:'fd42:7469:6b::1/64',interface:'bridge-lan'});assert.deepStrictEqual(plan.groups.find(g=>g.id==='ipv6').commands,['/ipv6 address add address=fd42:7469:6b::1/64 interface=bridge-lan advertise=no','/ipv6 firewall filter add chain=input action=drop','/ipv6 firewall filter add chain=forward action=drop']);
 // Logging is explicitly selected; defaults in older saved schemes remain off.
 s = sample();Object.assign(s.devices[1].cfg,{logSystem:true,logInterface:true});plan=makePlan(engine,s,'r');assert.deepStrictEqual(plan.blockers,[]);assert.deepStrictEqual(plan.expected.logTopics,['system','interface']);assert(plan.groups.find(g=>g.id==='services').commands.includes('/system logging add topics=system action=memory prefix=lab-system'));assert(plan.groups.find(g=>g.id==='services').commands.includes('/system logging add topics=interface action=memory prefix=lab-interface'));
 // One Simple Queue only, strictly validated before commands are generated.

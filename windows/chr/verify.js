@@ -92,6 +92,12 @@ async function verifyConfiguration(expected, get, diagnostic = () => {}) {
     const servers = list(await get('/rest/system/ntp/client/servers'));
     check(servers.length === 1 && one(servers, x => x.address === expected.ntp.server && enabled(x)), 'NTP-сервер');
   }
+  if (expected.ipv6Lab) {
+    const addresses6=list(await get('/rest/ipv6/address'));
+    check(one(addresses6, x => x.address === expected.ipv6Lab.address && x.interface === expected.ipv6Lab.interface && enabled(x) && String(x.advertise) === 'false'), 'изолированный IPv6-адрес');
+    const filter6=list(await get('/rest/ipv6/firewall/filter'));
+    check(filter6.length === 2 && ['input','forward'].every((chain,n) => filter6[n].chain === chain && filter6[n].action === 'drop' && enabled(filter6[n])), 'запрет IPv6');
+  }
   if (expected.logTopics && expected.logTopics.length) {
     const logging = list(await get('/rest/system/logging'));
     for (const topic of expected.logTopics) check(one(logging, x => x.topics === topic && x.action === 'memory' && x.prefix === 'lab-' + topic && enabled(x)), 'правило журнала ' + topic);

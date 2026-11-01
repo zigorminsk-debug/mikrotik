@@ -3,7 +3,7 @@
 // prepared for an internet experiment. Never replace selected user addresses.
 // They are two NATs on one host, not separate physical providers.
 function validateDualInternet(expected) {
-  if (!expected || !Array.isArray(expected.wans) || expected.wans.length !== 2 || !Array.isArray(expected.lanPorts)) return false;
+  if (!expected || expected.ipv6Lab || !Array.isArray(expected.wans) || expected.wans.length !== 2 || !Array.isArray(expected.lanPorts)) return false;
   const wanted = [
     {port:'ether1',address:'10.0.2.20/24',gateway:'10.0.2.2',distance:'1'},
     {port:'ether4',address:'10.0.3.20/24',gateway:'10.0.3.2',distance:'2'}
