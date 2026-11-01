@@ -144,9 +144,12 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -PassThru -RedirectStandardError
   $lanLines=@($result.Lines | Where-Object { $_.Text -match '(?i)lan' }).Count
   $bothLines=@($result.Lines | Where-Object { $_.Text -match '(?i)bridge' -and $_.Text -match '(?i)lan' }).Count
   Write-Output ('CI_OCR_PARTIAL='+$bridgeLines+','+$lanLines+','+$bothLines)
-  $wrong=@(Find-CiAddressRows $result '192.168.88.99/24' 'bridge-lan')
+  $readStrip={param($bounds) Read-CiOcrAddressStrip (Join-Path $env:RUNNER_TEMP 'lab-scheme-winbox-ocr.png') $bounds}
+  $wrong=@(Find-CiAddressRowsByStrip $result '192.168.88.99/24' 'bridge-lan' $readStrip)
   if($wrong.Count -ne 0){throw 'Negative OCR target unexpectedly matched'}
-  $rows=@(Find-CiAddressRows $result '192.168.88.1/24' 'bridge-lan')
+  $wrongInterface=@(Find-CiAddressRowsByStrip $result '192.168.88.1/24' 'wrong-interface' $readStrip)
+  if($wrongInterface.Count -ne 0){throw 'Negative OCR target unexpectedly matched'}
+  $rows=@(Find-CiAddressRowsByStrip $result '192.168.88.1/24' 'bridge-lan' $readStrip)
   if($rows.Count -ne 1){throw 'OCR row missing or ambiguous'}
   $x=[int][Math]::Round(($rows[0].Left+$rows[0].Width/2)/3);$y=[int][Math]::Round(($rows[0].Top+$rows[0].Height/2)/3)
   if($x -lt 0 -or $y -lt 0 -or $x -ge $rect.Width -or $y -ge $rect.Height){throw 'OCR row outside window'}

@@ -9,6 +9,7 @@ on:
       - 'tools/test-winbox-scheme-ocr.ps1'
       - 'tools/export-lab-scheme-winbox.py'
       - 'tools/winbox-ocr-ci.ps1'
+      - 'tools/test-winbox-ocr-geometry.ps1'
       - 'tools/test-chr-isolated-example-dom.js'
       - 'tools/package*.json'
       - 'app/js/lab.js'
@@ -88,6 +89,9 @@ jobs:
           $exe=@(Get-ChildItem -Recurse -File -Path $dir -Filter 'WinBox.exe')
           if ($exe.Count -ne 1) { throw 'Expected one official WinBox executable' }
           "WINBOX_EXE=$($exe[0].FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Test OCR selector against synthetic positive and negative cases
+        shell: pwsh
+        run: ./tools/test-winbox-ocr-geometry.ps1
       - name: Apply selected scheme and capture original WinBox
         env:
           CI_SCHEME_KIND: ${{ matrix.kind }}
