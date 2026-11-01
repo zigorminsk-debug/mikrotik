@@ -16,6 +16,14 @@ for(const name of files.filter(x=>!exempt.has(x))){
 const build=fs.readFileSync(path.join(root,'build.yml'),'utf8');
 assert(/\n  push:\s*\n/.test(build),'tag Build must remain enabled');
 assert(build.includes("if: startsWith(github.ref, 'refs/tags/v')"),'release must remain tag-triggered');
+// Artifacts for both platforms must be uploaded on branch runs as well as
+// tags; an `if: tag` on either upload silently removes the user's links.
+for (const [id,name] of [['android_artifact','MikroTik-Guide-Android-internal'],['windows_artifact','MikroTik-Guide-Windows']]) {
+ const section=build.match(new RegExp('      - uses: actions/upload-artifact@v4\\n        id: '+id+'\\n([\\s\\S]*?)(?=\\n      - |\\n  [a-z]+:|$)'));
+ assert(section && section[1].includes('name: '+name) && !/\n        if:/.test(section[1]),name+': artifact must be uploaded for branch and tag');
+ assert(build.includes('steps.'+id+'.outputs.artifact-url'),name+': missing run-specific summary link');
+}
+assert(build.includes('GITHUB_STEP_SUMMARY') && build.includes('MikroTik-Guide-Setup-%s.exe'), 'release download links missing from summary');
 const update=fs.readFileSync(path.join(root,'android-update-check.yml'),'utf8');
 assert(update.includes("tags: ['v*']"),'tagged Android update test must remain enabled');
 console.log('Triggers: '+(files.length-exempt.size)+' специализированных workflow — ветки и ручной запуск; Build и Android update — также теги.');

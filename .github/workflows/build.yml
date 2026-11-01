@@ -99,15 +99,21 @@ jobs:
           badging=$($ANDROID_HOME/build-tools/34.0.0/aapt dump badging "$APK")
           printf '%s\n' "${badging%%$'\n'*}"
           grep -Fq "package: name='by.mikrotik.tutor' versionCode='$code' versionName='$version'" <<< "$badging"
-      # Только для передачи между job при сборке тега. Пользователь скачивает
-      # из GitHub Release чистый APK, не архив Actions.
+      # Ссылка на артефакт нужна и в веточной сборке. Actions выдаёт ZIP;
+      # чистый APK опубликован отдельно в релизе и в releases/ ветки.
       - uses: actions/upload-artifact@v4
-        if: startsWith(github.ref, 'refs/tags/v')
+        id: android_artifact
         with:
           name: MikroTik-Guide-Android-internal
           path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
-          retention-days: 1
+      - name: Ссылка на Android-артефакт в Actions
+        env:
+          ARTIFACT_URL: ${{ steps.android_artifact.outputs.artifact-url }}
+        shell: bash
+        run: |
+          test -n "$ARTIFACT_URL"
+          printf '## Android APK\n\n[Скачать артефакт Android (ZIP)](%s)\n\nGitHub может потребовать вход. Чистый APK опубликован на странице проверенного релиза.\n' "$ARTIFACT_URL" >> "$GITHUB_STEP_SUMMARY"
       - name: Выложить чистый APK в репозиторий (releases/MikroTik-Guide.apk)
         if: github.ref_type == 'branch'
         run: |
@@ -160,15 +166,28 @@ jobs:
       - name: Проверка установленного приложения и компонентов
         shell: pwsh
         run: ./scripts/smoke-packaged.ps1
-      # Branch builds still compile and smoke-test the installer, but only tag
-      # builds need to transfer its >1 GB artifact to the release job.
+      # Доступен в каждом успешном запуске, не только для тега. Установщик
+      # уже сжат, поэтому дополнительное сжатие ZIP не требуется.
       - uses: actions/upload-artifact@v4
-        if: startsWith(github.ref, 'refs/tags/v')
+        id: windows_artifact
         with:
-          compression-level: 0 # EXE is already compressed; avoid recompressing it.
+          compression-level: 0
           name: MikroTik-Guide-Windows
           path: windows/dist/*.exe
           if-no-files-found: error
+      - name: Ссылка на Windows-артефакт в Actions
+        shell: pwsh
+        env:
+          ARTIFACT_URL: ${{ steps.windows_artifact.outputs.artifact-url }}
+        run: |
+          if (-not $env:ARTIFACT_URL) { throw 'Не получена ссылка на артефакт Windows' }
+          @"
+          ## Windows-установщик
+
+          [Скачать артефакт Windows (ZIP)]($env:ARTIFACT_URL)
+
+          GitHub может потребовать вход. Установщик EXE также публикуется без архива на странице проверенного релиза.
+          "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
 
   release:
     name: Публикация релиза
@@ -206,3 +225,16 @@ jobs:
           fail_on_unmatched_files: true
           files: out/*
           generate_release_notes: true
+      - name: Ссылки на файлы проверяемого релиза
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases"
+          tag="$GITHUB_REF_NAME"
+          {
+            printf '## Файлы релиза %s\n\n' "$tag"
+            printf '[Страница релиза](%s/tag/%s)\n\n' "$base" "$tag"
+            printf '[Скачать Windows EXE](%s/download/%s/MikroTik-Guide-Setup-%s.exe)\n\n' "$base" "$tag" "${tag#v}"
+            printf '[Скачать чистый Android APK](%s/download/%s/MikroTik-Guide-%s.apk)\n\n' "$base" "$tag" "$tag"
+            printf 'Релиз создаётся черновиком; ссылки на файлы доступны после проверки и публикации.\n'
+          } >> "$GITHUB_STEP_SUMMARY"
