@@ -73,3 +73,22 @@ function Find-CiAddressRowsByStrip([object]$result,[string]$address,[string]$ifa
  $matches=@($stripResult.Lines | ForEach-Object { $_.Words } | Where-Object { $_.Text -ceq $iface })
  if($matches.Count -eq 1){return $candidate.BoundingRect}
 }
+
+# CI-only second experiment: an address is usable as an anchor only if its exact
+# token occurs once. This alone must never be treated as verified settings.
+function Find-CiUniqueAddress([object]$result,[string]$address){
+ $words=@($result.Lines | ForEach-Object { $_.Words } | Where-Object { $_.Text -ceq $address })
+ if($words.Count -eq 1){return $words[0].BoundingRect}
+}
+# Require exact label/value pairs on the same baseline, with the value to the
+# right. This is a heuristic for one disposable CI fixture, not an authenticity
+# proof or a production selector. Coordinates are in the scaled OCR image.
+function Test-CiDetailField([object]$result,[string]$label,[string]$value){
+ $words=@($result.Lines | ForEach-Object { $_.Words })
+ $labels=@($words | Where-Object { $_.Text -ceq $label })
+ $values=@($words | Where-Object { $_.Text -ceq $value })
+ if($labels.Count -ne 1 -or $values.Count -ne 1){return $false}
+ $a=$labels[0].BoundingRect;$b=$values[0].BoundingRect
+ $cy1=$a.Y+$a.Height/2;$cy2=$b.Y+$b.Height/2
+ return ($b.X -gt ($a.X+$a.Width)) -and ([Math]::Abs($cy1-$cy2) -le 18)
+}

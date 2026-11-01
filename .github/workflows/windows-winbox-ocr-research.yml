@@ -109,17 +109,32 @@ jobs:
         if: failure()
         shell: pwsh
         run: |
-          if (Test-Path (Join-Path $env:RUNNER_TEMP 'lab-scheme-winbox.jpg')) { python tools/export-lab-scheme-winbox.py 0 address; if ($LASTEXITCODE -ne 0) { throw 'Address export failed' } }
+          if ((Test-Path (Join-Path $env:RUNNER_TEMP 'lab-scheme-winbox.jpg')) -and !(Test-Path (Join-Path $env:RUNNER_TEMP 'lab-scheme-detail.jpg'))) { python tools/export-lab-scheme-winbox.py 0 address; if ($LASTEXITCODE -ne 0) { throw 'Address export failed' } }
       - name: Export fixture address screenshot after failure 10–19
         if: failure()
         shell: pwsh
         run: |
-          if (Test-Path (Join-Path $env:RUNNER_TEMP 'lab-scheme-winbox.jpg')) { python tools/export-lab-scheme-winbox.py 10 address; if ($LASTEXITCODE -ne 0) { throw 'Address export failed' } }
+          if ((Test-Path (Join-Path $env:RUNNER_TEMP 'lab-scheme-winbox.jpg')) -and !(Test-Path (Join-Path $env:RUNNER_TEMP 'lab-scheme-detail.jpg'))) { python tools/export-lab-scheme-winbox.py 10 address; if ($LASTEXITCODE -ne 0) { throw 'Address export failed' } }
       - name: Export fixture address screenshot after failure 20–23
         if: failure()
         shell: pwsh
         run: |
-          if (Test-Path (Join-Path $env:RUNNER_TEMP 'lab-scheme-winbox.jpg')) { python tools/export-lab-scheme-winbox.py 20 address; if ($LASTEXITCODE -ne 0) { throw 'Address export failed' } }
+          if ((Test-Path (Join-Path $env:RUNNER_TEMP 'lab-scheme-winbox.jpg')) -and !(Test-Path (Join-Path $env:RUNNER_TEMP 'lab-scheme-detail.jpg'))) { python tools/export-lab-scheme-winbox.py 20 address; if ($LASTEXITCODE -ne 0) { throw 'Address export failed' } }
+      - name: Export unverified disposable detail on failure 0–9
+        if: failure()
+        shell: pwsh
+        run: |
+          if (Test-Path (Join-Path $env:RUNNER_TEMP 'lab-scheme-detail.jpg')) { python tools/export-lab-scheme-winbox.py 0 detail; if ($LASTEXITCODE -ne 0) { throw 'Detail diagnostic export failed' } }
+      - name: Export unverified disposable detail on failure 10–19
+        if: failure()
+        shell: pwsh
+        run: |
+          if (Test-Path (Join-Path $env:RUNNER_TEMP 'lab-scheme-detail.jpg')) { python tools/export-lab-scheme-winbox.py 10 detail; if ($LASTEXITCODE -ne 0) { throw 'Detail diagnostic export failed' } }
+      - name: Export unverified disposable detail on failure 20–23
+        if: failure()
+        shell: pwsh
+        run: |
+          if (Test-Path (Join-Path $env:RUNNER_TEMP 'lab-scheme-detail.jpg')) { python tools/export-lab-scheme-winbox.py 20 detail; if ($LASTEXITCODE -ne 0) { throw 'Detail diagnostic export failed' } }
       - name: Export detail screenshot 0–9
         run: python tools/export-lab-scheme-winbox.py 0 detail
       - name: Export detail screenshot 10–19

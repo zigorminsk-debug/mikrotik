@@ -144,26 +144,12 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -PassThru -RedirectStandardError
   $lanLines=@($result.Lines | Where-Object { $_.Text -match '(?i)lan' }).Count
   $bothLines=@($result.Lines | Where-Object { $_.Text -match '(?i)bridge' -and $_.Text -match '(?i)lan' }).Count
   Write-Output ('CI_OCR_PARTIAL='+$bridgeLines+','+$lanLines+','+$bothLines)
-  $anchorWord=@($result.Lines | ForEach-Object { $_.Words } | Where-Object { $_.Text -ceq '192.168.88.1/24' })
-  $rows=@()
-  foreach($mode in @('bicubic','nearest','threshold')){
-   $readStrip={param($bounds) Read-CiOcrAddressStrip (Join-Path $env:RUNNER_TEMP 'lab-scheme-winbox-ocr.png') $bounds $mode}.GetNewClosure()
-   if($anchorWord.Count -eq 1){
-    $stripDiagnostic=& $readStrip $anchorWord[0].BoundingRect
-    $stripLines=@($stripDiagnostic.Lines);$stripWords=@($stripLines | ForEach-Object { $_.Words })
-    $exact=@($stripWords | Where-Object { $_.Text -ceq 'bridge-lan' }).Count
-    $joined=@($stripLines | Where-Object { ($_.Text -replace '\s','') -cmatch 'bridge-lan' }).Count
-    $partBridge=@($stripWords | Where-Object { $_.Text -cmatch 'bridge' }).Count
-    $partLan=@($stripWords | Where-Object { $_.Text -cmatch 'lan' }).Count
-    Write-Output ('CI_STRIP_'+$mode.ToUpper()+'='+$stripLines.Count+','+$stripWords.Count+','+$exact+','+$joined+','+$partBridge+','+$partLan)
-   }
-   $wrong=@(Find-CiAddressRowsByStrip $result '192.168.88.99/24' 'bridge-lan' $readStrip)
-   if($wrong.Count -ne 0){throw 'Negative OCR target unexpectedly matched'}
-   $wrongInterface=@(Find-CiAddressRowsByStrip $result '192.168.88.1/24' 'wrong-interface' $readStrip)
-   if($wrongInterface.Count -ne 0){throw 'Negative OCR target unexpectedly matched'}
-   $candidate=@(Find-CiAddressRowsByStrip $result '192.168.88.1/24' 'bridge-lan' $readStrip)
-   if($candidate.Count -eq 1){$rows=$candidate}
-  }
+  # Different CI-only path: select a unique exact address, then require the
+  # actual detail form to confirm its address, network and interface below.
+  # Never use this coordinate/OCR heuristic on a user's desktop.
+  $wrong=@(Find-CiUniqueAddress $result '192.168.88.99/24')
+  if($wrong.Count -ne 0){throw 'Negative OCR target unexpectedly matched'}
+  $rows=@(Find-CiUniqueAddress $result '192.168.88.1/24')
   if($rows.Count -ne 1){throw 'OCR row missing or ambiguous'}
   $x=[int][Math]::Round(($rows[0].Left+$rows[0].Width/2)/3);$y=[int][Math]::Round(($rows[0].Top+$rows[0].Height/2)/3)
   if($x -lt 0 -or $y -lt 0 -or $x -ge $rect.Width -or $y -ge $rect.Height){throw 'OCR row outside window'}
@@ -173,10 +159,22 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -PassThru -RedirectStandardError
   if([CiMouse]::GetForegroundWindow() -ne $decoy.Handle){throw 'Detail navigation changed foreground'}
   $bitmap=[System.Drawing.Bitmap]::new([int]$rect.Width,[int]$rect.Height);$graphics=[System.Drawing.Graphics]::FromImage($bitmap)
   $params=New-Object System.Drawing.Imaging.EncoderParameters(1);$params.Param[0]=New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality,[long]40)
-  try{$hdc=$graphics.GetHdc();try{$ok=[CiMouse]::PrintWindow($handle,$hdc,2)}finally{$graphics.ReleaseHdc($hdc)};if(!$ok){throw 'PrintWindow failed'};$bitmap.Save((Join-Path $env:RUNNER_TEMP 'lab-scheme-detail.jpg'),$jpeg,$params)}finally{$params.Dispose();$graphics.Dispose();$bitmap.Dispose()}
+  try{
+   $hdc=$graphics.GetHdc();try{$ok=[CiMouse]::PrintWindow($handle,$hdc,2)}finally{$graphics.ReleaseHdc($hdc)};if(!$ok){throw 'PrintWindow failed'}
+   $bitmap.Save((Join-Path $env:RUNNER_TEMP 'lab-scheme-detail.jpg'),$jpeg,$params)
+   # Fixed CI window only: isolate the form fields, excluding the table behind
+   # the dialog so OCR cannot mistake the list for a confirmed detail view.
+   if($bitmap.Width -lt 800 -or $bitmap.Height -lt 500){throw 'Unexpected detail bounds'}
+   $crop=$bitmap.Clone([System.Drawing.Rectangle]::new(400,280,380,180),[System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+   try{$crop.Save((Join-Path $env:RUNNER_TEMP 'lab-scheme-detail-fields.png'),[System.Drawing.Imaging.ImageFormat]::Png)}finally{$crop.Dispose()}
+  }finally{$params.Dispose();$graphics.Dispose();$bitmap.Dispose()}
   $stage='address-detail-ocr'
-  $detail=Read-CiOcr (Join-Path $env:RUNNER_TEMP 'lab-scheme-detail.jpg')
-  if($detail.Text -notmatch '192\.168\.88\.1/24' -or $detail.Text -notmatch 'bridge-lan' -or $detail.Text -notmatch 'Network'){throw 'OCR did not confirm address and interface fields'}
+  $detail=Read-CiOcr (Join-Path $env:RUNNER_TEMP 'lab-scheme-detail-fields.png')
+  $addressOk=Test-CiDetailField $detail 'Address' '192.168.88.1/24'
+  $networkOk=Test-CiDetailField $detail 'Network' '192.168.88.0'
+  $interfaceOk=Test-CiDetailField $detail 'Interface' 'bridge-lan'
+  Write-Output ('CI_DETAIL_FIELDS='+[int]$addressOk+','+[int]$networkOk+','+[int]$interfaceOk)
+  if(!$addressOk -or !$networkOk -or !$interfaceOk){throw 'OCR did not confirm address and interface fields'}
  }
  if($env:CI_CAPTURE_PRINT -eq '1'){
   $stage='print-window'
