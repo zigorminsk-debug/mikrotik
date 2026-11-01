@@ -33,7 +33,8 @@ const {ChrSession}=mod.exports;let session,dom;
  const info=await session.start(plan);assert.equal(new URL(info.url).hostname,'127.0.0.1');assert(Number.isInteger(info.ciWinboxPort));
  await new Promise((resolve,reject)=>{
   const env={...process.env,CI_WINBOX_EXE:path.resolve(winbox),CI_CAPTURE_DHCP:kind==='dhcp'?'1':'0'};
-  const p=spawn('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,'test-winbox-scheme-capture.ps1')],{env,stdio:['pipe','pipe','ignore'],windowsHide:true});
+  const helper=process.env.CI_INPUT_METHOD==='postmessage'?'test-winbox-scheme-postmessage.ps1':'test-winbox-scheme-capture.ps1';
+  const p=spawn('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,helper)],{env,stdio:['pipe','pipe','ignore'],windowsHide:true});
   p.stdin.on('error',()=>{});p.stdin.end(JSON.stringify({port:info.ciWinboxPort,password:info.password})+'\n');
   let stage='unknown';p.stdout.on('data',data=>{const m=String(data).match(/CI_STAGE=(start|window|login-input|workspace|ip-menu|addresses-menu|screenshot|dhcp-client|verified-workspace-no-uia|authentication-unconfirmed)/);if(m)stage=m[1];});
   const timer=setTimeout(()=>{p.kill();reject(Error('WinBox GUI timeout at '+stage));},120000);
