@@ -121,6 +121,8 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -PassThru -RedirectStandardError
   else {$graphics.CopyFromScreen([int]$rect.X,[int]$rect.Y,0,0,$bitmap.Size)}
   $jpeg=[System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object {$_.MimeType -eq 'image/jpeg'} | Select-Object -First 1
   $bitmap.Save((Join-Path $env:RUNNER_TEMP 'lab-scheme-winbox.jpg'),$jpeg,$params)
+  # OCR the lossless fixture capture, not the compressed annotation preview.
+  $bitmap.Save((Join-Path $env:RUNNER_TEMP 'lab-scheme-winbox-ocr.png'),[System.Drawing.Imaging.ImageFormat]::Png)
  }finally{$params.Dispose();$graphics.Dispose();$bitmap.Dispose()}
  if($env:CI_DETAIL_NAV -eq '1'){
   if($env:CI_BACKGROUND_NAV -ne '1' -or $env:CI_CAPTURE_DHCP -eq '1'){throw 'Detail research requires static background scenario'}
@@ -130,7 +132,7 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -PassThru -RedirectStandardError
   # any click. OCR alone is not a safety or authenticity proof for production.
   $stage='address-row-ocr'
   . (Join-Path $PSScriptRoot 'winbox-ocr-ci.ps1')
-  $result=Read-CiOcr (Join-Path $env:RUNNER_TEMP 'lab-scheme-winbox.jpg')
+  $result=Read-CiOcr (Join-Path $env:RUNNER_TEMP 'lab-scheme-winbox-ocr.png')
   # Fixed-fixture counts only. Never emit OCR text or window contents to logs.
   $addressLines=@($result.Lines | Where-Object { $_.Text.Contains('192.168.88.1/24') }).Count
   $interfaceLines=@($result.Lines | Where-Object { $_.Text.Contains('bridge-lan') }).Count
@@ -141,7 +143,7 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -PassThru -RedirectStandardError
   if($wrong.Count -ne 0){throw 'Negative OCR target unexpectedly matched'}
   $rows=@(Find-CiAddressRows $result '192.168.88.1/24' 'bridge-lan')
   if($rows.Count -ne 1){throw 'OCR row missing or ambiguous'}
-  $x=[int][Math]::Round(($rows[0].Left+$rows[0].Width/2)/2);$y=[int][Math]::Round(($rows[0].Top+$rows[0].Height/2)/2)
+  $x=[int][Math]::Round(($rows[0].Left+$rows[0].Width/2)/3);$y=[int][Math]::Round(($rows[0].Top+$rows[0].Height/2)/3)
   if($x -lt 0 -or $y -lt 0 -or $x -ge $rect.Width -or $y -ge $rect.Height){throw 'OCR row outside window'}
   $stage='address-detail'
   PostAt 0x201 $x $y 1; PostAt 0x202 $x $y 0; PostAt 0x203 $x $y 1; PostAt 0x202 $x $y 0

@@ -14,9 +14,9 @@ function Await-Ci([object]$op,[type]$type){
  $task=$script:asTask.MakeGenericMethod($type).Invoke($null,@($op));if(!$task.Wait(20000)){throw 'WinRT timeout'};return $task.Result
 }
 function Read-CiOcr([string]$image){
- # Enlarge tiny WinBox text for OCR. Coordinates are divided by two by caller.
+ # Enlarge the lossless fixture image. Caller converts coordinates back by 3.
  $source=[System.Drawing.Image]::FromFile($image)
- $scaled=[System.Drawing.Bitmap]::new($source.Width*2,$source.Height*2);$graphics=[System.Drawing.Graphics]::FromImage($scaled)
+ $scaled=[System.Drawing.Bitmap]::new($source.Width*3,$source.Height*3);$graphics=[System.Drawing.Graphics]::FromImage($scaled)
  $tmp=Join-Path $env:RUNNER_TEMP 'winbox-ocr-scaled.png'
  try{$graphics.InterpolationMode=[System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic;$graphics.DrawImage($source,0,0,$scaled.Width,$scaled.Height);$scaled.Save($tmp,[System.Drawing.Imaging.ImageFormat]::Png)}finally{$graphics.Dispose();$scaled.Dispose();$source.Dispose()}
  $file=Await-Ci ([Windows.Storage.StorageFile]::GetFileFromPathAsync($tmp)) ([Windows.Storage.StorageFile])
