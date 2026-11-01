@@ -708,6 +708,8 @@ function openSettings(id) {
       '<p class="fs-hint">Экспериментальный поиск соседних устройств MNDP: настоящие физические MikroTik этой функцией ещё не проверялись. Подключение, сброс и отправка схемы на физический роутер ещё не реализованы. Ответы могут поступить через другие адаптеры. MAC и имя из сети не подтверждены: сравните MAC с наклейкой на устройстве.</p>' +
       '<label>Сетевой адаптер Windows<select id="lm_physical_if"><option value="">Загрузка…</option></select></label>' +
       '<button type="button" class="btn" id="lm_find_physical">Искать устройства по MAC</button><div id="lm_physical_result" class="fs-hint" style="white-space:pre-wrap;overflow-wrap:anywhere" aria-live="polite"></div>' +
+      '<label for="lm_manual_mac">MAC устройства с наклейки или из поиска</label><input id="lm_manual_mac" type="text" maxlength="17" placeholder="AA:BB:CC:DD:EE:FF" spellcheck="false" autocomplete="off">' +
+      '<button type="button" class="btn ghost" id="lm_copy_mac">Копировать MAC для WinBox</button><div id="lm_copy_mac_status" class="fs-hint" aria-live="polite"></div><p class="fs-hint">Копирование заменит текущее содержимое буфера обмена Windows. Введите MAC вручную, если поиск не обнаружил устройство, или выберите строку выше. Это не проверка устройства и не подключение; вставьте адрес в отдельный WinBox самостоятельно.</p>' +
       '<button type="button" class="btn ghost" id="lm_open_winbox">Открыть WinBox отдельно</button><p class="fs-hint">Выберите установленный официальный WinBox и войдите в него вручную по MAC. Лаборатория не получает доступ к устройству и не отправляет настройки.</p><div id="lm_winbox_status" class="fs-hint" aria-live="polite"></div>' +
       '<label for="lm_manual_ports">Имена Ethernet-портов устройства (необязательно, вручную)</label>' +
       '<textarea id="lm_manual_ports" rows="3" maxlength="4096" spellcheck="false" placeholder="ether1, ether2, ether3"></textarea><p class="fs-hint">Перепишите имена портов из Interfaces в отдельном WinBox через запятую или с новой строки. Не вставляйте экспорт, команды, пароли или ключи. Список временный и не сохраняется.</p>' +
@@ -869,12 +871,31 @@ function openSettings(id) {
       btn.addEventListener('click',function(){
         Array.prototype.forEach.call(group.querySelectorAll('button'),function(other){other.setAttribute('aria-pressed',other===btn?'true':'false');});
         selected.replaceChildren();
+        var manual=$('lm_manual_mac');if(manual){manual.value=mac;manual.dataset.source='discovery';$('lm_copy_mac_status').textContent='';}
         var label=document.createElement('label');label.textContent='Выбранный MAC (не подтверждён): ';
         var input=document.createElement('input');input.id='lm_selected_mac';input.type='text';input.readOnly=true;input.value=mac;input.setAttribute('aria-label','Выбранный не подтверждённый MAC');label.appendChild(input);selected.appendChild(label);
-        var tip=document.createElement('div');tip.textContent='Сверьте MAC с наклейкой устройства. Чтобы перенести его в отдельный WinBox, выделите текст, скопируйте Ctrl+C и вставьте в Connect To. Лаборатория не проверяет вход.';selected.appendChild(tip);
+        var tip=document.createElement('div');tip.textContent='Сверьте MAC с наклейкой устройства. Он подставлен в поле ниже: скопируйте и вставьте его в Connect To отдельного WinBox. Лаборатория не проверяет вход.';selected.appendChild(tip);
       });
     });
   }
+  var manualMac=$('lm_manual_mac'), copyMac=$('lm_copy_mac'), copyMacStatus=$('lm_copy_mac_status');
+  if (manualMac && copyMac) {
+    manualMac.addEventListener('input',function(){manualMac.dataset.source='manual';copyMacStatus.textContent='';});
+    if (!window.routerOS || typeof window.routerOS.copyPhysicalMac !== 'function') {
+      copyMac.disabled=true;copyMacStatus.textContent='Копирование доступно в Windows-приложении.';
+    } else copyMac.addEventListener('click',function(){
+      var value=manualMac.value.trim().toUpperCase();
+      if (!/^(?:[0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(value) || (parseInt(value.slice(0,2),16)&1) || value==='00:00:00:00:00:00') {copyMacStatus.textContent='Введите одноадресный MAC в формате AA:BB:CC:DD:EE:FF.';return;}
+      copyMac.disabled=true;copyMacStatus.textContent='Копирование…';
+      window.routerOS.copyPhysicalMac(value).then(function(result){
+        if (copyMacStatus !== $('lm_copy_mac_status')) return;
+        if (manualMac.value.trim().toUpperCase()!==value) {copyMacStatus.textContent='Поле изменено; проверьте содержимое буфера обмена.';return;}
+        copyMacStatus.textContent=result && result.ok ? 'MAC скопирован. Вставьте его в Connect To отдельного WinBox; вход выполняется вручную.' : (result && result.message)||'Не удалось скопировать MAC.';
+      }).catch(function(){if(copyMacStatus === $('lm_copy_mac_status'))copyMacStatus.textContent='Не удалось скопировать MAC.';})
+        .finally(function(){if(copyMac === $('lm_copy_mac'))copyMac.disabled=false;});
+    });
+  }
+  function clearDiscoveryChoice(){if(manualMac && manualMac.dataset.source==='discovery'){manualMac.value='';manualMac.dataset.source='';if(copyMacStatus)copyMacStatus.textContent='';}}
   var physicalSelect = $('lm_physical_if'), physicalResult = $('lm_physical_result'), physicalButton = $('lm_find_physical');
   if (physicalSelect && physicalButton) {
     if (!window.routerOS || typeof window.routerOS.physicalInterfaces !== 'function') {
@@ -886,10 +907,10 @@ function openSettings(id) {
         if (!result || !result.ok || !result.interfaces.length) { var empty=document.createElement('option'); empty.value=''; empty.textContent='Нет подходящих IPv4-адаптеров'; physicalSelect.appendChild(empty); physicalButton.disabled=true; return; }
         result.interfaces.forEach(function(nic) { var option=document.createElement('option'); option.value=nic.address; option.dataset.name=nic.name; option.textContent=nic.name+' — '+nic.address; physicalSelect.appendChild(option); });
       }).catch(function(){if (physicalResult === $('lm_physical_result')) physicalResult.textContent='Не удалось получить список адаптеров.';});
-      physicalSelect.addEventListener('change',function(){ physicalResult.textContent=''; });
+      physicalSelect.addEventListener('change',function(){ physicalResult.textContent='';clearDiscoveryChoice(); });
       physicalButton.addEventListener('click',function(){
         var option=physicalSelect.selectedOptions[0]; if(!option || !option.value) return;
-        physicalButton.disabled=true; physicalSelect.disabled=true; physicalResult.textContent='Ожидание подтверждения…';
+        clearDiscoveryChoice();physicalButton.disabled=true; physicalSelect.disabled=true; physicalResult.textContent='Ожидание подтверждения…';
         window.routerOS.discoverPhysical(option.dataset.name,option.value).then(function(result){
           if(physicalResult !== $('lm_physical_result')) return;
           if(result && result.cancelled) physicalResult.textContent='Поиск отменён.';

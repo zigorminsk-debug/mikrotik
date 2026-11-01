@@ -139,6 +139,15 @@ ipcMain.handle('physical:discover', async (event,name,address) => {
   } catch (_) { return {ok:false,message:'Не удалось выполнить поиск. Проверьте адаптер и доступность UDP/5678; возможно, порт занят или заблокирован Windows.'}; }
   finally { physicalScanning=false; }
 });
+// Explicit user action only: overwrite clipboard with a single validated MAC.
+// This is not discovery, device authentication, a connection or a router command.
+ipcMain.handle('physical:copy-mac', async (event, mac) => {
+  if (!trustedMain(event)) return {ok:false,message:'Недопустимый источник запроса.'};
+  if (typeof mac !== 'string' || !/^(?:[0-9a-f]{2}:){5}[0-9a-f]{2}$/i.test(mac) || (parseInt(mac.slice(0,2),16)&1) || /^00(?::00){5}$/i.test(mac))
+    return {ok:false,message:'Введите одноадресный MAC в формате AA:BB:CC:DD:EE:FF.'};
+  try {clipboard.writeText(mac.toUpperCase());return {ok:true};}
+  catch (_) {return {ok:false,message:'Не удалось скопировать MAC в буфер обмена Windows.'};}
+});
 // This starts a user-selected external application only; it cannot send
 // commands or credentials, or determine whether any router login succeeds.
 let openingWinbox=false;

@@ -1,0 +1,41 @@
+name: Windows manual MAC entry screenshot
+on:
+  push:
+    paths:
+      - '.github/workflows/windows-physical-manual-mac-capture.yml'
+      - 'tools/capture-physical-manual-mac.js'
+      - 'tools/export-physical-manual-mac.py'
+      - 'app/js/lab.js'
+      - 'windows/preload.js'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Electron and copy application
+        shell: pwsh
+        run: |
+          Push-Location windows
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed' }
+          npm run copy
+          if ($LASTEXITCODE -ne 0) { throw 'Copy failed' }
+          Pop-Location
+      - name: Capture button (no WinBox or router)
+        shell: pwsh
+        run: |
+          ./windows/node_modules/.bin/electron.cmd tools/capture-physical-manual-mac.js
+          if ($LASTEXITCODE -ne 0) { throw 'Electron screenshot failed' }
+      - name: Export screenshot 0–9
+        run: python tools/export-physical-manual-mac.py 0
+      - name: Export screenshot 10–19
+        run: python tools/export-physical-manual-mac.py 10
+      - name: Export screenshot 20–23
+        run: python tools/export-physical-manual-mac.py 20

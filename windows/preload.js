@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('routerOS', Object.freeze({
   physicalInterfaces: () => ipcRenderer.invoke('physical:interfaces'),
   discoverPhysical: (name, address) => ipcRenderer.invoke('physical:discover', name, address),
   openWinbox: () => ipcRenderer.invoke('physical:open-winbox'),
+  copyPhysicalMac: mac => ipcRenderer.invoke('physical:copy-mac', mac),
   saveDiagram: (format, bytes) => ipcRenderer.invoke('diagram:save', format, bytes),
   onStatus: callback => {
     if (typeof callback !== 'function') throw new TypeError('Expected callback');

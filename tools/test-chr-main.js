@@ -9,7 +9,7 @@ const windows = [], handlers = {}, choices = [], downloads = [], opened = [], cr
 let onlineValid = true, physicalCalls = 0;
 const physicalNic={name:'Test Ethernet',address:'192.168.88.5'};
 let saveChoice = {canceled:true}, openChoice = {canceled:true};
-const winboxRuns=[];
+const winboxRuns=[], clipboardWrites=[];
 const mockSpawn=(...args)=>{winboxRuns.push(args);const p=new EventEmitter();p.unref=()=>{};setImmediate(()=>p.emit('spawn'));return p;};
 let plan = {blockers:[],groups:[{id:'iface',commands:['/interface print']}],expected:{}};
 class Window extends EventEmitter {
@@ -31,7 +31,7 @@ class Session {
 const app=new EventEmitter();Object.assign(app,{isPackaged:true,getPath:()=>'/test-data',requestSingleInstanceLock:()=>true,whenReady:()=>Promise.resolve(),quit:()=>{}});
 const electron={app,BrowserWindow:Window,shell:{openExternal:async url=>opened.push(url)},
   dialog:{showMessageBox:async(_win,options)=>{dialogs.push(options);return {response:choices.shift()};},showErrorBox:(_title,msg)=>errors.push(msg),showSaveDialog:async()=>saveChoice,showOpenDialog:async()=>openChoice},
-  ipcMain:{handle:(name,fn)=>handlers[name]=fn},clipboard:{writeText(){},readText(){return '';},clear(){}}};
+  ipcMain:{handle:(name,fn)=>handlers[name]=fn},clipboard:{writeText(value){clipboardWrites.push(value);},readText(){return '';},clear(){}}};
 const mockfs={promises:{realpath:async p=>p,stat:async()=>({isFile:()=>true}),readdir:async()=>{const e=new Error();e.code='ENOENT';throw e;},access:async()=>{},rm:async()=>{},writeFile:async(file,data)=>writes.push({file,data:Buffer.from(data)})}};
 const req=name=>{
   if(name==='electron')return electron;if(name==='fs')return mockfs;
@@ -60,6 +60,10 @@ vm.runInNewContext(source,{require:req,process:{platform:'win32',resourcesPath:'
   choices.push(0);assert((await findPhysical(good,physicalNic.name,physicalNic.address)).cancelled);assert.equal(physicalCalls,0);
   assert(dialogs.at(-1).defaultId===0 && dialogs.at(-1).detail.includes('не сбрасывает'));
   choices.push(1);assert((await findPhysical(good,physicalNic.name,physicalNic.address)).ok);assert.equal(physicalCalls,1);
+  const copyMac=handlers['physical:copy-mac'];
+  assert(!(await copyMac({sender:{},senderFrame:{}},'02:11:22:33:44:55')).ok);
+  for(const badMac of ['00:00:00:00:00:00','FF:FF:FF:FF:FF:FF','01:11:22:33:44:55','02:11:22:33:44:55;bad',{},null]) assert(!(await copyMac(good,badMac)).ok);
+  assert.equal(clipboardWrites.length,0);assert((await copyMac(good,'02:aa:22:33:44:55')).ok);assert.equal(clipboardWrites.at(-1),'02:AA:22:33:44:55');
   const openWinbox=handlers['physical:open-winbox'];
   assert(!(await openWinbox({sender:{},senderFrame:{}})).ok);assert.equal(winboxRuns.length,0);
   assert((await openWinbox(good)).cancelled);assert.equal(winboxRuns.length,0);
