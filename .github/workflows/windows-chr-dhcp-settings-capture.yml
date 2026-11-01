@@ -1,0 +1,41 @@
+name: Windows CHR DHCP settings screenshot
+on:
+  push:
+    paths:
+      - '.github/workflows/windows-chr-dhcp-settings-capture.yml'
+      - 'tools/capture-chr-dhcp-settings.js'
+      - 'tools/export-chr-dhcp-settings.py'
+      - 'app/js/lab.js'
+      - 'app/index.html'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Electron and copy application
+        shell: pwsh
+        run: |
+          Push-Location windows
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed' }
+          npm run copy
+          if ($LASTEXITCODE -ne 0) { throw 'Copy failed' }
+          Pop-Location
+      - name: Capture synthetic example and settings (no CHR launch)
+        shell: pwsh
+        run: |
+          ./windows/node_modules/.bin/electron.cmd tools/capture-chr-dhcp-settings.js
+          if ($LASTEXITCODE -ne 0) { throw 'Electron capture failed' }
+      - name: Export settings 0–9
+        run: python tools/export-chr-dhcp-settings.py 0
+      - name: Export settings 10–19
+        run: python tools/export-chr-dhcp-settings.py 10
+      - name: Export settings 20–23
+        run: python tools/export-chr-dhcp-settings.py 20
