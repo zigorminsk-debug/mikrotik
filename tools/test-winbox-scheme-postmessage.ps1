@@ -110,13 +110,19 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -PassThru -RedirectStandardError
  }finally{$params.Dispose();$graphics.Dispose();$bitmap.Dispose()}
  if($env:CI_CAPTURE_PRINT -eq '1'){
   $stage='print-window'
+  # Cover part of WinBox with a harmless decoy to see whether PrintWindow
+  # captures only the target or inadvertently includes the foreground window.
+  $cover=New-Object System.Windows.Forms.Form;$cover.Text='CI OVERLAY - MUST NOT APPEAR';$cover.Width=350;$cover.Height=160;$cover.StartPosition='Manual';$cover.Left=[int]$rect.X+400;$cover.Top=[int]$rect.Y+190;$cover.TopMost=$true
+  $cover.Show();$cover.Activate();[System.Windows.Forms.Application]::DoEvents();Start-Sleep -Milliseconds 500
+  [void][CiMouse]::SetForegroundWindow($cover.Handle);Start-Sleep -Milliseconds 500
+  if([CiMouse]::GetForegroundWindow() -ne $cover.Handle){throw 'CI overlay not focused'}
   $bitmap=[System.Drawing.Bitmap]::new([int]$rect.Width,[int]$rect.Height);$graphics=[System.Drawing.Graphics]::FromImage($bitmap)
   $params=New-Object System.Drawing.Imaging.EncoderParameters(1);$params.Param[0]=New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality,[long]40)
   try{
    $hdc=$graphics.GetHdc();try{$ok=[CiMouse]::PrintWindow($handle,$hdc,2)}finally{$graphics.ReleaseHdc($hdc)}
    if(!$ok){throw 'PrintWindow failed'}
    $bitmap.Save((Join-Path $env:RUNNER_TEMP 'lab-scheme-print.jpg'),$jpeg,$params)
-  }finally{$params.Dispose();$graphics.Dispose();$bitmap.Dispose()}
+  }finally{$params.Dispose();$graphics.Dispose();$bitmap.Dispose();$cover.Close();$cover.Dispose()}
  }
  if($env:CI_CAPTURE_DHCP -eq '1'){
   $stage='dhcp-client'
