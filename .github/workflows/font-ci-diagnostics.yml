@@ -2,7 +2,8 @@ name: Font CI diagnostics
 on:
   push:
     branches: ['**']
-    paths: ['.github/workflows/font-ci-diagnostics.yml']
+    paths:
+      - '.github/workflows/font-ci-diagnostics.yml'
   workflow_dispatch:
     inputs:
       android_run:
@@ -30,7 +31,7 @@ jobs:
           for kind in ANDROID WINDOWS; do
             if [[ "$kind" == ANDROID ]]; then id="$ANDROID_RUN"; else id="$WINDOWS_RUN"; fi
             [[ "$id" =~ ^[0-9]+$ ]]
-            gh run view "$id" --log-failed > "$RUNNER_TEMP/$kind.txt"
+            gh run view "$id" --log-failed > "$RUNNER_TEMP/$kind.txt" 2>&1 || true
             python3 - "$RUNNER_TEMP/$kind.txt" "$kind" <<'PY'
           import re,sys
           lines=open(sys.argv[1],encoding='utf-8',errors='replace').read().splitlines()
