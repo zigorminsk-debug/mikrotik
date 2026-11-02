@@ -21,8 +21,15 @@ const assert=require('assert'),path=require('path'),{JSDOM,VirtualConsole}=requi
  const cert=w.GUIDE.sections.find(s=>s.id==='ros-system').steps.find(x=>x.t.includes('учебный центр'));
  const caActions=cert.b.find(b=>b.k==='ol').items;
  assert(caActions.length>=12,'CA/server procedure must enumerate individual steps');
- for(const name of ['guide-cert-menu-arrow.png','guide-cert-new-arrow.png','guide-cert-fields-arrow.png','guide-cert-usage-arrow.png'])assert(caActions.some(x=>x.shot&&x.shot.src.endsWith(name)),name);
+ for(const name of ['guide-cert-menu-arrow.png','guide-cert-new-arrow.png','guide-cert-fields-3650-arrow.png','guide-cert-usage-arrow.png','guide-cert-sign-action-arrow.png','guide-cert-sign-dialog-arrow.png','guide-cert-signed-arrow.png'])assert(caActions.some(x=>x.shot&&x.shot.src.endsWith(name)),name);
  for(const value of ['lab-ca','lab-server','Key Usage','crl sign','key cert. sign','Common Name','Subject Alt. Name','Days Valid','Export Passphrase'])assert(JSON.stringify(cert).includes(value),value);
+ assert(JSON.stringify(cert).includes('Days Valid: 3650'),'CA 3650-day lifetime missing');
+ assert(JSON.stringify(cert).includes('Days Valid: 365.'),'server 365-day lifetime missing');
+ const clientCert=w.GUIDE.sections.find(s=>s.id==='ros-system').steps.find(x=>x.t==='Практика: сертификат клиента и безопасная передача');
+ assert(JSON.stringify(clientCert).includes('Days Valid: 365.'),'client 365-day lifetime missing');
+ const lifetime=w.GUIDE.sections.find(s=>s.id==='ros-system').steps.find(x=>x.t==='Как выбрать срок сертификатов и не потерять VPN');
+ assert(lifetime&&lifetime.b.some(b=>b.k==='ol'&&b.items.length>=4));
+ for(const term of ['3650','365 дней','7 дней','30 дней','отзыва','10 календарных лет'])assert(JSON.stringify(lifetime).includes(term),'missing explanation: '+term);
  const dhcp=w.GUIDE.sections.find(s=>s.id==='ros-ip').steps.find(x=>x.t.includes('DHCP-сервер для одной LAN'));
  for(const value of ['Bridge → Bridge → New','Bridge → Ports → New','IP → Addresses → New','DHCP Setup','192.168.88.100-192.168.88.199','ipconfig /all'])assert(JSON.stringify(dhcp).includes(value),value);
  const client=w.GUIDE.sections.find(s=>s.id==='ros-ppp').steps.find(x=>x.t.includes('OpenVPN-клиент, маршрут'));

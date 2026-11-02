@@ -20,7 +20,7 @@
 | IPv6 (`ros-ipv6`) | 2 | 1 | 1 |
 | MPLS (`ros-mpls`) | 1 | 0 | 1 |
 | Routing (`ros-routing`) | 8 | 1 | 7 |
-| System (`ros-system`) | 7 | 4 | 3 |
+| System (`ros-system`) | 8 | 5 | 3 |
 | Queues (`ros-queues`) | 2 | 1 | 1 |
 | Dot1X (`ros-dot1x`) | 1 | 0 | 1 |
 | Files (`ros-files`) | 2 | 1 | 1 |

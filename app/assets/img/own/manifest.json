@@ -43,5 +43,25 @@
     "sha256": "df90c64dc5a9e07077b245b1a5a1e7a1609212796c27237782b27964ae595852",
     "width": 1440,
     "height": 900
+  },
+  "guide-cert-fields-3650-arrow.png": {
+    "sha256": "12aa2b80e928502616fcdcde3615fd85f9ca37b77d5ab02106048fb1d75493bb",
+    "width": 1440,
+    "height": 900
+  },
+  "guide-cert-sign-action-arrow.png": {
+    "sha256": "24a3367580a00954d6f6ad8a63a732ec798e1fe247b92feafac2610f1f12a854",
+    "width": 1440,
+    "height": 900
+  },
+  "guide-cert-sign-dialog-arrow.png": {
+    "sha256": "7755d8500eb409bd1f8567f3c916b65ba84ed0662a7b425e01bd9ce43159ba16",
+    "width": 1440,
+    "height": 900
+  },
+  "guide-cert-signed-arrow.png": {
+    "sha256": "60d1647c83195e13b9951fadac73a45d47eef0d8511a6adebf89fe5b1492f19b",
+    "width": 1440,
+    "height": 900
   }
 }
