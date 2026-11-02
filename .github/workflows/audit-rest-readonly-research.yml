@@ -9,6 +9,8 @@ on:
       - 'tools/test-audit-rest-readonly.js'
       - 'tools/test-audit-report.js'
       - 'tools/test-audit-ipc-handler.js'
+      - 'tools/test-audit-preview-ipc.js'
+      - 'tools/test-audit-preview-ui.js'
       - 'tools/test-audit-import-plan.js'
       - 'tools/test-audit-compare.js'
       - 'tools/test-audit-ui.js'
@@ -34,9 +36,11 @@ jobs:
           node tools/test-audit-rest-readonly.js
           node tools/test-audit-report.js
           node tools/test-audit-ipc-handler.js
+          node tools/test-audit-preview-ipc.js
           node tools/test-audit-import-plan.js
           node tools/test-audit-compare.js
           node tools/test-audit-ui.js
+          node tools/test-audit-preview-ui.js
       - name: Install QEMU and console tools
         run: |
           sudo apt-get update

@@ -63,6 +63,7 @@ jobs:
           node tools/test-open-winbox.js
           node tools/test-physical-preview.js
           node tools/test-audit-ipc-handler.js
+          node tools/test-audit-preview-ipc.js
           node tools/test-audit-report.js
           node tools/test-audit-import-plan.js
           node tools/test-audit-compare.js
@@ -87,6 +88,7 @@ jobs:
           node tools/test-chr-isolated-example-dom.js
           node tools/test-physical-dom.js
           node tools/test-audit-ui.js
+          node tools/test-audit-preview-ui.js
           node tools/test-audit-product-dom.js
           node tools/test-physical-preview-dom.js
 

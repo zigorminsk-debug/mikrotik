@@ -2,8 +2,8 @@
    Never connects to any router. All addresses, data and credentials are fixtures. */
 'use strict';
 const {app,BrowserWindow,dialog}=require('electron'),path=require('path'),os=require('os'),fs=require('fs');
-const reader=require('../windows/audit/rest-readonly');let calls=0,choice=0,lastDialog;
-reader.collect=async options=>{calls++;if(options.host!=='192.0.2.10'||options.password!=='fixture-password')throw Error('Fixture mismatch');return {complete:false,sections:[{id:'system',status:'ok',rows:[{version:'7.23.8','board-name':'CHR'}]},{id:'identity',status:'ok',rows:[{name:'TEST-FIXTURE'}]}]};};
+const reader=require('../windows/audit/rest-readonly'),{fixture}=require('./audit-safe-fixture');let calls=0,choice=0,lastDialog;
+reader.collect=async options=>{calls++;if(options.host!=='192.0.2.10'||options.password!=='fixture-password')throw Error('Fixture mismatch');return {complete:false,sections:[...fixture().snapshot.sections,{id:'system',status:'ok',rows:[{version:'7.23.8','board-name':'CHR'}]},{id:'identity',status:'ok',rows:[{name:'TEST-FIXTURE'}]}]};};
 dialog.showMessageBox=async (_owner,options)=>{lastDialog=options;return {response:choice};};
 app.commandLine.appendSwitch('disable-gpu');app.setPath('userData',path.join(os.tmpdir(),'mikrotik-audit-ui-ci'));require('../windows/main.js');
 (async()=>{try{
@@ -17,7 +17,12 @@ app.commandLine.appendSwitch('disable-gpu');app.setPath('userData',path.join(os.
  const result=await win.webContents.executeJavaScript(`(async()=>{const $=id=>document.getElementById(id);$('audit-password').value='fixture-password';$('lm_physical_audit').querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));for(let i=0;i<100&&!$('lm_physical_audit').textContent.includes('TEST-FIXTURE');i++)await new Promise(r=>setTimeout(r,50));return {cleared:$('audit-password').value==='',text:$('lm_physical_audit').textContent};})()`);
  // Identity is inside a collapsed details element, but is still text in the DOM.
  if(!result.cleared||!result.text.includes('TEST-FIXTURE')||calls!==2)throw Error('UI fixture result failed');
+ const preview=await win.webContents.executeJavaScript(`(async()=>{const el=document.getElementById('lm_physical_audit'),s=el.querySelectorAll('select');if(s.length!==2)return false;s[0].value='ether2';s[1].value='ether3';const b=[...el.querySelectorAll('button')].find(x=>x.textContent==='Проверить предварительный план');b.click();for(let i=0;i<100&&!el.textContent.includes('192.0.2.1/24');i++)await new Promise(r=>setTimeout(r,50));return el.textContent.includes('192.0.2.1/24')&&el.textContent.includes('перенос не выполнялся')&&el.textContent.includes('NAT IPv4');})()`);
+ if(!preview)throw Error('Preview UI/preload/IPC failed');
  await win.webContents.executeJavaScript(`document.querySelector('#lm_physical_audit button[type=submit]').scrollIntoView({block:'center'});new Promise(r=>setTimeout(r,500))`);
  const shot=await win.webContents.capturePage();if(shot.isEmpty())throw Error('Screenshot is empty');fs.writeFileSync(path.join(process.env.RUNNER_TEMP,'audit-ui-mocked.jpg'),shot.resize({width:900}).toJPEG(30));
- console.log('::notice title=Audit Windows IPC::Real Electron renderer, preload and IPC exercised with a mocked confirmation and collector. Only fixture data; no physical router, actual native dialog or network was tested.');
+ await win.webContents.executeJavaScript(`document.querySelector('#lm_physical_audit select').scrollIntoView({block:'center'});new Promise(r=>setTimeout(r,500))`);
+ const previewShot=await win.webContents.capturePage();if(previewShot.isEmpty())throw Error('Preview screenshot is empty');fs.writeFileSync(path.join(process.env.RUNNER_TEMP,'audit-preview-ui-mocked.jpg'),previewShot.resize({width:900}).toJPEG(30));
+ const cleared=await win.webContents.executeJavaScript(`(async()=>{document.getElementById('lm_cancel').click();await new Promise(r=>setTimeout(r,100));return await routerOS.auditPreview([{source:'physical-1',target:'ether2'},{source:'physical-2',target:'ether3'}]);})()`);if(cleared.ok)throw Error('Snapshot not cleared on close');
+ console.log('::notice title=Audit Windows IPC::Real Electron renderer, preload and IPC including preview and cleanup exercised with a mocked confirmation and collector. Only fixture data; no physical router, actual native dialog or network was tested.');
 }catch(_){console.log('::error title=Audit Windows IPC::Fixture failed; no raw data logged.');process.exitCode=1;}finally{for(const w of BrowserWindow.getAllWindows())w.destroy();app.quit();}})();

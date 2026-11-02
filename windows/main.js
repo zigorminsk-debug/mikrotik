@@ -244,6 +244,8 @@ const auditIp=createAuditHandler({isTrusted:trustedAuditMain,
   isStopped:()=>quitting || !mainWindow || mainWindow.isDestroyed(),
   collect:collectAudit,describe:describeAudit});
 ipcMain.handle('physical:audit-ip',auditIp);
+ipcMain.handle('physical:audit-preview',auditIp.preview);
+ipcMain.handle('physical:audit-clear',auditIp.clear);
 ipcMain.handle('physical:interfaces', async event => {
   if (!trustedMain(event)) return {ok:false,message:'Поиск доступен только в окне приложения Windows.'};
   try { return {ok:true,interfaces:physicalDiscovery.interfaces()}; }
@@ -297,10 +299,12 @@ ipcMain.handle('diagram:save', async (event, format, bytes) => {
 function createWindow() {
   mainWindow = new BrowserWindow({width:1280, height:860, minWidth:860, minHeight:560, backgroundColor:'#0f172a', title:'Учебник MikroTik', autoHideMenuBar:false,
     webPreferences:{contextIsolation:true, nodeIntegration:false, sandbox:true, preload:path.join(__dirname,'preload.js')}});
+  mainWindow.webContents.on('did-start-navigation', (_event, _url, isInPlace, isMainFrame) => { if (isMainFrame && !isInPlace) auditIp.reset(); });
+  mainWindow.webContents.on('render-process-gone', () => auditIp.reset());
   mainWindow.loadFile(path.join(__dirname,'www','index.html'));
   mainWindow.webContents.setWindowOpenHandler(({url}) => { if (/^https?:/i.test(url)) shell.openExternal(url); return {action:'deny'}; });
   mainWindow.webContents.on('will-navigate', (event, url) => { if (/^https?:/i.test(url)) { event.preventDefault(); shell.openExternal(url); } });
-  mainWindow.on('closed', () => { mainWindow = null; if (!quitting) { quitting = true; closeChr().catch(() => dialog.showErrorBox('Очистка лаборатории', 'Не удалось удалить временные данные. Проверьте chr-sessions в данных приложения.')).finally(() => app.quit()); } });
+  mainWindow.on('closed', () => { auditIp.reset(); mainWindow = null; if (!quitting) { quitting = true; closeChr().catch(() => dialog.showErrorBox('Очистка лаборатории', 'Не удалось удалить временные данные. Проверьте chr-sessions в данных приложения.')).finally(() => app.quit()); } });
 }
 if (!app.requestSingleInstanceLock()) app.quit();
 else app.whenReady().then(async () => {

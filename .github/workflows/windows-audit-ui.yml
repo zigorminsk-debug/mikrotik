@@ -12,6 +12,7 @@ on:
       - 'windows/preload.js'
       - 'windows/audit/**'
       - 'tools/test-audit-electron-windows.js'
+      - 'tools/audit-safe-fixture.js'
       - 'tools/export-audit-ui.py'
   workflow_dispatch:
 permissions:
@@ -40,8 +41,8 @@ jobs:
           ./windows/node_modules/.bin/electron.cmd tools/test-audit-electron-windows.js
           if ($LASTEXITCODE -ne 0) { throw 'Audit IPC fixture failed' }
       - name: Export mock screenshot 0–9
-        run: python tools/export-audit-ui.py 0
+        run: python tools/export-audit-ui.py 0 preview
       - name: Export mock screenshot 10–19
-        run: python tools/export-audit-ui.py 10
+        run: python tools/export-audit-ui.py 10 preview
       - name: Export mock screenshot 20–23
-        run: python tools/export-audit-ui.py 20
+        run: python tools/export-audit-ui.py 20 preview

@@ -1,8 +1,12 @@
 'use strict';
-// Research only. Produces a tiny typed preview, never executable RouterOS text.
-// It is NOT connected to a VM, a UI, a production router or an importer.
+// Produces a tiny typed preview, never executable RouterOS text.
+// The Windows UI uses it for a non-executable assessment of a read-only snapshot.
+// It is NOT connected to a VM, an importer or a production write path.
 const net=require('net');
 const required=['interfaces','bridge','bridge-ports','bridge-vlans','addresses'];
+// Each of these collected topics is deliberately omitted from this tiny IR.
+// Unread/denied is unknown, not evidence of an empty configuration.
+const omitted=[['system','Ресурсы системы'],['identity','Системное имя'],['vlan','Интерфейсы VLAN'],['routes','Маршруты IPv4'],['dhcp-client','DHCP-клиенты'],['dhcp-server','DHCP-серверы'],['dhcp-network','Сети DHCP'],['pools','Пулы адресов'],['dns','DNS'],['filter','Фильтрация IPv4'],['nat','NAT IPv4'],['services','Службы управления'],['queues','Простые очереди']];
 const limitations=Object.freeze([
  'Это только предварительная модель одного моста, его выбранных Ethernet-портов и одного IPv4-адреса, а не копия устройства.',
  'Все другие настройки, включая firewall, NAT, маршруты, DHCP, VPN, Wi-Fi, секреты, скрипты, задачи и аппаратные функции, не переносятся.',
@@ -55,7 +59,12 @@ function preview(snapshot,mapping){
  const address=addresses[0];
  if(!address||address.interface!==bridge.name||address.disabled!=='false'||address.dynamic!=='false'||!validAddress(address.address))return reject('Адрес моста должен быть включённым, статическим и корректным IPv4 /8–/30; неизвестные значения не допускаются.');
  out.items=[{kind:'bridge',name:'audit-lan',protocol:'rstp',vlanFiltering:false},...portItems,{kind:'ipv4',address:address.address,interface:'audit-lan'}];
- out.skipped.push('Все разделы и параметры, кроме перечисленных элементов предварительной модели, не переносились.');
+ out.skipped.push('Все другие параметры моста, портов и адреса, аппаратная обработка, секреты, скрипты и несчитанные разделы не включены в модель.');
+ for(const [id,title] of omitted){
+  const section=sections.get(id);
+  if(section&&section.status==='ok'&&Array.isArray(section.rows)&&section.rows.length<=2000)out.skipped.push(title+': получено записей '+section.rows.length+'; этот раздел в модель не включён.');
+  else out.skipped.push(title+': раздел недоступен или не считывался; его содержание неизвестно и в модель не включено.');
+ }
  return out;
 }
 module.exports={validAddress,preview};
