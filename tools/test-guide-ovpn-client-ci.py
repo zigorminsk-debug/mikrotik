@@ -42,13 +42,14 @@ with tempfile.TemporaryDirectory(prefix='guide-ovpn-ci-') as d:
    '/ip dhcp-client set [find where interface=ether1] disabled=no', '/ip service enable ssh',
    '/interface bridge add name=guide-lan', '/interface bridge port add bridge=guide-lan interface=ether2',
    '/ip address add address=192.168.88.1/24 interface=guide-lan',
-   '/certificate add name=guide-ca common-name=guide-ca key-size=2048 key-usage=key-cert-sign,crl-sign days-valid=30',
+   '/certificate add name=guide-ca common-name=guide-ca key-size=2048 key-usage=key-cert-sign,crl-sign days-valid=3650',
    '/certificate sign guide-ca', ':delay 3s', '/certificate set guide-ca trusted=yes',
-   '/certificate add name=guide-server common-name=vpn.example.org subject-alt-name=DNS:vpn.example.org key-size=2048 key-usage=digital-signature,key-encipherment,tls-server days-valid=7',
+   '/certificate add name=guide-server common-name=vpn.example.org subject-alt-name=DNS:vpn.example.org key-size=2048 key-usage=digital-signature,key-encipherment,tls-server days-valid=365',
    '/certificate sign guide-server ca=guide-ca', ':delay 3s',
-   '/certificate add name=guide-client common-name=guide-client key-size=2048 key-usage=digital-signature,tls-client days-valid=7',
+   '/certificate add name=guide-client common-name=guide-client key-size=2048 key-usage=digital-signature,tls-client days-valid=365',
    '/certificate sign guide-client ca=guide-ca', ':delay 3s',
    '/certificate export-certificate guide-ca type=pem',
+   '/certificate export-certificate guide-server type=pem',
    '/certificate export-certificate guide-client type=pem export-passphrase='+keypass,
    '/ip pool add name=guide-vpn-pool ranges=10.44.0.10-10.44.0.99',
    '/ppp profile add name=guide-vpn local-address=10.44.0.1 remote-address=guide-vpn-pool',
@@ -56,8 +57,15 @@ with tempfile.TemporaryDirectory(prefix='guide-ovpn-ci-') as d:
    '/interface ovpn-server server add name=guide-ovpn protocol=tcp port=1194 mode=ip certificate=guide-server require-client-certificate=yes default-profile=guide-vpn auth=sha256 cipher=aes256-cbc disabled=no',
   ]
   for i,c in enumerate(cmds):stage='setup-'+str(i+1);cmd(c)
-  for remote,local in [('cert_export_guide-ca.crt','ca.crt'),('cert_export_guide-client.crt','client.crt'),('cert_export_guide-client.key','client.key')]:
+  for remote,local in [('cert_export_guide-ca.crt','ca.crt'),('cert_export_guide-server.crt','server.crt'),('cert_export_guide-client.crt','client.crt'),('cert_export_guide-client.key','client.key')]:
    stage='export-'+local;copy_file(remote,local)
+  stage='validity-check'
+  from datetime import datetime
+  for name,days in [('ca.crt',3650),('server.crt',365),('client.crt',365)]:
+   dates=subprocess.check_output(['openssl','x509','-in',str(base/name),'-noout','-startdate','-enddate'],text=True).splitlines()
+   before=datetime.strptime(dates[0].split('=',1)[1],'%b %d %H:%M:%S %Y %Z')
+   after=datetime.strptime(dates[1].split('=',1)[1],'%b %d %H:%M:%S %Y %Z')
+   if (after-before).total_seconds()!=days*86400:raise RuntimeError('Certificate validity differs from example')
   if 'ENCRYPTED' not in (base/'client.key').read_text():raise RuntimeError('Client key not encrypted')
   for name,content in [('auth.txt','guide-user\n'+authpass+'\n'),('pass.txt',keypass+'\n')]:
    p=base/name;p.write_text(content);p.chmod(0o600)
@@ -97,7 +105,7 @@ with tempfile.TemporaryDirectory(prefix='guide-ovpn-ci-') as d:
   stage='wrong-password';(base/'auth.txt').write_text('guide-user\nwrong-password\n');bad,log=run(common,40)
   if bad:bad.terminate();bad.communicate(timeout=10);raise RuntimeError('Incorrect password accepted')
   if 'AUTH_FAILED' not in log:raise RuntimeError('Negative password control inconclusive')
-  print('::notice title=Disposable OpenVPN::RouterOS 7.23.8 generated CA/server/client certificates; OpenVPN Linux connected and pinged router LAN address via tunnel. Wrong server name and wrong PPP password were rejected. Loopback-forwarded CI only; no WinBox, separate LAN host, public WAN or physical router tested.')
+  print('::notice title=Disposable OpenVPN::RouterOS 7.23.8 generated CA (3650 days) and server/client (365 days) certificates, and validity was checked with OpenSSL; OpenVPN Linux connected and pinged router LAN address via tunnel. Wrong server name and wrong PPP password were rejected. Loopback-forwarded CI only; no WinBox, separate LAN host, public WAN or physical router tested.')
  except Exception as e:
   detail=str(e) if type(e) is RuntimeError else type(e).__name__
   print('::error title=Disposable OpenVPN::Stage '+stage+'; '+detail+'; serial and client logs withheld.',flush=True);sys.exit(1)
