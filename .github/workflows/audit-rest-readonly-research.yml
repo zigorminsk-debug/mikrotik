@@ -7,6 +7,7 @@ on:
       - '.github/workflows/audit-rest-readonly-research.yml'
       - 'windows/audit/**'
       - 'tools/test-audit-rest-readonly.js'
+      - 'tools/test-audit-report.js'
       - 'tools/test-audit-rest-chr-ci.js'
       - 'tools/test-audit-rest-chr-ci.py'
   workflow_dispatch:
@@ -22,7 +23,9 @@ jobs:
         with:
           node-version: '20'
       - name: Verify TLS pinning and allowlist with local fake server
-        run: node tools/test-audit-rest-readonly.js
+        run: |
+          node tools/test-audit-rest-readonly.js
+          node tools/test-audit-report.js
       - name: Install QEMU and console tools
         run: |
           sudo apt-get update
