@@ -30,13 +30,16 @@ try:
               '/system identity set name=audit-fixture',
               '/certificate add name=audit-ci common-name=audit-ci key-usage=digital-signature,key-encipherment,tls-server days-valid=1',
               '/certificate sign audit-ci',
+              ':delay 3s',
               '/ip service set www-ssl certificate=audit-ci disabled=no',
               '/user group add name=audit-ci policy=read,api,rest-api',
               '/user add name=ci-audit group=audit-ci password="'+password+'"']):
   stage='configure-'+str(index+1);command(text,120)
  stage='read-certificate-fingerprint'
- data=command(':put ("AUDITPIN" . [/certificate get [find where name="audit-ci"] fingerprint] . "END")')
- match=re.search(r'AUDITPIN([0-9A-Fa-f]{64})END',re.sub(r'\x1b\[[0-9;?]*[A-Za-z]','',data))
+ data=command(':put ("AUDITPIN" . [/certificate get [/certificate find where name="audit-ci"] fingerprint] . "END")')
+ stage='parse-certificate-fingerprint'
+ clean=re.sub(r'\x1b\[[0-9;?]*[A-Za-z]','',data).replace('\r','').replace('\n','')
+ match=re.search(r'AUDITPIN([0-9A-Fa-f]{64})END',clean)
  if not match:raise RuntimeError('Cannot obtain fixture certificate fingerprint')
  pin=':'.join(match.group(1)[i:i+2] for i in range(0,64,2))
  stage='collector-and-write-denial'
