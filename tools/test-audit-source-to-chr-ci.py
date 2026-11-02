@@ -53,7 +53,8 @@ with tempfile.TemporaryDirectory(prefix='audit-source-chr-') as tmp:
   print('::error title=Audit source fixture::Stage '+stage+'; exception class: '+type(error).__name__+'; no serial output logged.',flush=True)
   sys.exit(1)
  finally:vm.close(force=True)
- # Source has stopped and its disk is deleted. Only generated narrow commands
+ # Source has stopped; its temporary disk is deleted when the context exits.
+ # Only generated narrow commands
  # are piped to the separate one-use target with no inbound forwarding.
  result=subprocess.run(['/usr/bin/python3','tools/test-audit-isolated-chr-ci.py',str(base),'--stdin-plan'],input=plan,text=True,timeout=360)
  if result.returncode:raise SystemExit('Target fixture failed')
