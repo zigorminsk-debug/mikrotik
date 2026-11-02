@@ -57,7 +57,7 @@ class LinuxGuest {
   async address(){return this.operation(()=>shellResult(this.console,"result=$(ip -4 addr show dev eth0 | awk '/inet / {split($2,a,\"/\");print a[1];exit}')",'ip'));}
   async hasDns(dns){
     if(!validTarget(dns))throw Error('Недопустимый DNS клиента');
-    return this.operation(async()=>await shellResult(this.console,`grep -Fx 'nameserver ${dns}' /etc/resolv.conf >/dev/null; result=$?`,'status')===0);
+    return this.operation(async()=>await shellResult(this.console,`awk '$1=="nameserver" {count++; if ($2=="${dns}") found++} END {exit !(count==1 && found==1)}' /etc/resolv.conf; result=$?`,'status')===0);
   }
   async hasGateway(gateway){
     if(gateway!==''&&!validTarget(gateway))throw Error('Недопустимый шлюз клиента');
@@ -73,9 +73,14 @@ class LinuxGuest {
     return this.operation(async()=>{
       // Well-known image, fixed commands only. The gateway is from the
       // validated scheme; never interpolate a name or renderer command.
-      const cmd='sudo dhcpcd -k eth0 >/dev/null 2>&1 || true; sudo ip addr flush dev eth0 && sudo ip addr add '+ip+'/24 dev eth0 && sudo ip link set eth0 up'+(gateway?' && sudo ip route add default via '+gateway:'')+` && sudo sh -c 'printf "nameserver %s\\n" "${dns}" > /etc/resolv.conf'; result=$?`;
+      // The boot daemon manages all interfaces; `-k eth0` can leave it
+      // running and it can later rewrite resolv.conf with the DHCP server.
+      // This image has one NIC. Stop the daemon globally and fail closed if
+      // it survives; never silently fall back to the DHCP DNS.
+      const configure='sudo ip addr flush dev eth0 && sudo ip addr add '+ip+'/24 dev eth0 && sudo ip link set eth0 up'+(gateway?' && sudo ip route add default via '+gateway:'')+` && sudo sh -c 'printf "nameserver %s\\n" "${dns}" > /etc/resolv.conf'`;
+      const cmd='sudo dhcpcd -k >/dev/null 2>&1 || true; n=0; while pidof dhcpcd >/dev/null && [ "$n" -lt 5 ]; do sleep 1; n=$((n+1)); done; if pidof dhcpcd >/dev/null; then result=1; else '+configure+'; result=$?; fi';
       if(await shellResult(this.console,cmd,'status')!==0)throw Error('Не удалось назначить адрес или DNS клиенту');
-      if(await shellResult(this.console,`grep -Fx 'nameserver ${dns}' /etc/resolv.conf >/dev/null; result=$?`,'status')!==0)throw Error('DNS клиента не совпал с выбранной схемой');
+      if(await shellResult(this.console,`awk '$1=="nameserver" {count++; if ($2=="${dns}") found++} END {exit !(count==1 && found==1)}' /etc/resolv.conf; result=$?`,'status')!==0)throw Error('DNS клиента не совпал с выбранной схемой');
     });
   }
   async resolve(name){

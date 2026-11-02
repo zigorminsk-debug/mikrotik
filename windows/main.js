@@ -211,7 +211,7 @@ ipcMain.handle('chr:ping-client',async(event,routerId,clientId,state,target)=>{
       if(lookup.response!==1||active!==vm||activeMeta!==meta||quitting)return {ok:false,cancelled:true};
       const resolved=await vm.resolveClient(clientId,target);
       if(active!==vm||activeMeta!==meta||quitting)return {ok:false,message:'Лаборатория закрылась во время DNS-запроса; результат неизвестен.'};
-      if(!resolved||!resolved.ok||!validTarget(resolved.address))return {ok:false,message:resolved&&(resolved.reason==='address'||resolved.ok)?'DNS вернул специальный или неподдерживаемый адрес; ping не отправлен.':'DNS в Linux-клиенте не вернул IPv4. Проверьте имя, DNS и подключение; ping не отправлен.'};
+      if(!resolved||!resolved.ok||!validTarget(resolved.address))return {ok:false,message:resolved&&resolved.reason==='dns-config'?'Настройки DNS Linux-клиента изменились после запуска; запрос и ping не отправлены. Перезапустите лабораторию.':resolved&&(resolved.reason==='address'||resolved.ok)?'DNS вернул специальный или неподдерживаемый адрес; ping не отправлен.':'DNS в Linux-клиенте не вернул IPv4. Проверьте имя, DNS и подключение; ping не отправлен.'};
       address=resolved.address;
     }
     const answer=await dialog.showMessageBox(mainWindow,{type:'warning',title:'Реальный ping из Linux-клиента',message:'Отправить три ICMP-запроса на '+address+(address===target?'':' (имя '+target+')')+'?',

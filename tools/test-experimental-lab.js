@@ -13,6 +13,9 @@ const opts={engine,state:state(),routerId:'r',qemu:'ignored',chrImage:'ignored',
  const collision=state();collision.devices[2].cfg={mode:'static',segment:'main',ip:'192.168.73.100/24',gw:'192.168.73.1'};assert.throws(()=>new ExperimentalLab({...opts,state:collision}),/схем|DHCP/i);
  const used=new Set(),a=await reservePort(used),b=await reservePort(used);assert(a!==b&&used.has(a)&&used.has(b));
  const stopped=new ExperimentalLab(opts);await stopped.stop();await assert.rejects(stopped.start(),/уже использована/);
+ const resolver=new ExperimentalLab(opts);let called=0, matches=false;
+ resolver.guests.set('pc',{expectedDns:'192.168.73.1',hasDns:async dns=>{assert.equal(dns,'192.168.73.1');return matches;},resolve:async name=>{called++;return {ok:true,address:'192.168.73.20'};}});
+ assert.deepStrictEqual(await resolver.resolveClient('pc','server.lab'),{ok:false,reason:'dns-config'});assert.equal(called,0);matches=true;assert.deepStrictEqual(await resolver.resolveClient('pc','server.lab'),{ok:true,address:'192.168.73.20'});assert.equal(called,1);resolver.guests.clear();await resolver.stop();
  // Cancel while the hub is being created: stop must wait for the newly
  // returned hub and close it instead of losing it during asynchronous startup.
  const original=EthernetHub.create;let entered,release,closed=0;

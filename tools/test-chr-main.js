@@ -154,6 +154,7 @@ vm.runInNewContext(source,{require:req,process:{platform:'win32',resourcesPath:'
   choices.push(1,1);const namedClient=await pingClient(good,'r','pc',{},'server.lab');assert.equal(namedClient.address,'192.168.88.20');assert.equal(lab.calls.length,2);assert(dialogs.at(-1).message.includes('server.lab'));
   lab.resolveClient=async()=>({ok:false,reason:'dns'});choices.push(1);assert((await pingClient(good,'r','pc',{},'missing.lab')).message.includes('DNS'));assert.equal(lab.calls.length,2);
   lab.resolveClient=async()=>({ok:true,address:'127.0.0.1'});choices.push(1);assert((await pingClient(good,'r','pc',{},'bad.lab')).message.includes('специальный'));assert.equal(lab.calls.length,2);
+  lab.resolveClient=async()=>({ok:false,reason:'dns-config'});choices.push(1);assert((await pingClient(good,'r','pc',{},'server.lab')).message.includes('изменились'));assert.equal(lab.calls.length,2);
   let finishCleanup;lab.stop=()=>new Promise(resolve=>{lab.stopped=true;finishCleanup=resolve;});
   windows.at(-1).destroy();await new Promise(resolve=>setImmediate(resolve));assert(lab.stopped);assert(!(await pingClient(good,'r','pc',{},'192.168.88.20')).ok);
   assert((await call(good,'r',{},true)).message.includes('очищается'),'launch must wait for disk cleanup');finishCleanup();await new Promise(resolve=>setImmediate(resolve));

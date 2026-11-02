@@ -23,6 +23,11 @@ async function diagnostics(guest){
  const raw=await c.expect(new RegExp(start+'[\\s\\S]{0,1000}?'+end),30000);
  console.log('::notice title=Disposable CI DNS configuration::'+raw.slice(start.length,-end.length).trim().replace(/[\r\n%]/g,' '));
 }
+async function setDnsForNegativeControl(guest,dns){
+ const token='CI'+randomBytes(16).toString('hex'),a=token.slice(0,16),b=token.slice(16),c=guest.console;
+ await c.settle();c.send(`sudo sh -c 'printf "nameserver %s\\n" "${dns}" > /etc/resolv.conf'; result=$?; printf '%s%s%sEND\\n' '${a}' '${b}' "$result"`);
+ assert.equal(await c.expect(new RegExp(token+'[0-9]+END'),30000),token+'0END');
+}
 async function nic(guest,up){
  const token='CI'+randomBytes(16).toString('hex'),a=token.slice(0,16),b=token.slice(16),c=guest.console;
  await c.settle();c.send('sudo ip link set eth0 '+(up?'up':'down')+`; result=$?; printf '%s%s%sEND\\n' '${a}' '${b}' "$result"`);
@@ -35,6 +40,8 @@ async function nic(guest,up){
  stage='Linux DNS and chosen gateway';assert.equal(await lab.guests.get('pc').hasGateway('192.168.73.1'),true);assert.equal(await lab.guests.get('server').hasGateway('192.168.73.1'),true);assert.equal(await lab.guests.get('pc').hasGateway('192.168.73.2'),false);
  const resolved=await lab.resolveClient('pc','server.lab');assert.deepStrictEqual(resolved,{ok:true,address:server.address});assert.deepStrictEqual(await lab.pingClient('pc',resolved.address),{sent:3,received:3});
  await diagnostics(lab.guests.get('server'));const unavailable=await lab.resolveClient('server','server.lab');await diagnostics(lab.guests.get('server'));assert.deepStrictEqual(unavailable,{ok:false,reason:'dns'}); // chosen static DNS is an absent host
+ assert(await lab.guests.get('server').hasDns('192.168.73.53'));assert(!await lab.guests.get('server').hasDns('192.168.73.1'));
+ await setDnsForNegativeControl(lab.guests.get('server'),'192.168.73.1');assert.deepStrictEqual(await lab.resolveClient('server','server.lab'),{ok:false,reason:'dns-config'});await setDnsForNegativeControl(lab.guests.get('server'),'192.168.73.53');
  stage='PC to server';assert.deepStrictEqual(await lab.pingClient('pc',server.address),{sent:3,received:3});
  stage='server to PC';assert.deepStrictEqual(await lab.pingClient('server',pc.address),{sent:3,received:3});
  stage='router to clients';assert.equal((await lab.router.ping(pc.address)).received,3);assert.equal((await lab.router.ping(server.address)).received,3);
@@ -42,5 +49,5 @@ async function nic(guest,up){
  stage='close and erase';await lab.stop();assert.deepStrictEqual(await fs.readdir(tempRoot),[]);
  stage='cancel during startup';const cancelled=new ExperimentalLab(opts),starting=cancelled.start().then(()=>{throw Error('Expected startup cancellation');},e=>e);
  await new Promise(ok=>setTimeout(ok,2000));await cancelled.stop();const outcome=await starting;assert(outcome instanceof Error);assert.deepStrictEqual(await fs.readdir(tempRoot),[]);
- console.log('::notice title=Real scheme-based virtual clients::Actual application planner and CHR controller with two real Linux guests in '+mode+' topology, non-default LAN, DHCP and static; Linux DNS success and unavailable DNS, gateway readback, bidirectional ICMP, NIC negative/recovery, start cancellation and cleanup passed. Isolated CI only, no UI, VPN, external networking or physical devices.');
+ console.log('::notice title=Real scheme-based virtual clients::Actual application planner and CHR controller with two real Linux guests in '+mode+' topology, non-default LAN, DHCP and static; Linux DNS success, unavailable DNS and changed DNS negative control, gateway readback, bidirectional ICMP, NIC negative/recovery, start cancellation and cleanup passed. Isolated CI only, no UI, VPN, external networking or physical devices.');
 })().catch(e=>{console.log('::error title=Scheme-based Linux clients::'+stage+': '+String(e.message).replace(/[\r\n%]/g,' '));process.exitCode=1;}).finally(async()=>{try{await lab.stop();}catch(_){console.log('::error title=Cleanup::Disposable lab cleanup failed');process.exitCode=1;}});
