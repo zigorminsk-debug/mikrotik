@@ -3,10 +3,10 @@
 const assert=require('assert'),path=require('path'),{JSDOM,VirtualConsole}=require('jsdom');
 const delay=()=>new Promise(r=>setTimeout(r,20));
 (async()=>{
- const errors=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));let calls=[],handler,closed;
+ const errors=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));let calls=[],handler,closed,second=false,duplicate=false;
  const dom=await JSDOM.fromFile(path.join(__dirname,'../app/index.html'),{runScripts:'dangerously',resources:'usable',pretendToBeVisual:true,virtualConsole:vc,beforeParse(w){
   w.scrollTo=()=>{};w.HTMLElement.prototype.scrollIntoView=()=>{};w.confirm=()=>true;
-  w.routerOS={onClosed:fn=>{closed=fn;},launch:async()=>({ok:true}),launchClients:async(id,state)=>({ok:true,clients:[{id:state.devices.find(d=>d.type==='pc').id,address:'192.168.88.10',type:'pc',mode:'static'}]}),
+  w.routerOS={onClosed:fn=>{closed=fn;},launch:async()=>({ok:true}),launchClients:async(id,state)=>({ok:true,clients:[{id:state.devices.find(d=>d.type==='pc').id,address:'192.168.88.10',type:'pc',mode:'static'}].concat(second?[{id:state.devices.find(d=>d.type==='server').id,address:duplicate?'192.168.88.10':'192.168.88.20',type:'server',mode:'static'}]:[])}),
    ping:(...a)=>{calls.push(['chr',...a]);return handler('chr',a);},pingClient:(...a)=>{calls.push(['client',...a]);return handler('client',a);}};
  }});
  const w=dom.window;await new Promise(r=>w.addEventListener('load',r));w.location.hash='intro';await delay();assert(w.document.querySelector('img[src="assets/img/own/lab-matrix-button-windows.png"]'), 'missing illustrated tutorial action');w.location.hash='lab';await delay();const d=w.document,$=id=>d.getElementById(id);
@@ -23,5 +23,9 @@ const delay=()=>new Promise(r=>setTimeout(r,20));
  calls=[];handler=()=>new Promise(r=>{finish=r;});$('lab-matrix-start').click();await delay();closed();finish({ok:true,address:'192.168.88.10',sent:3,received:3});await delay();assert.equal(calls.length,1);assert($('lab-matrix-start').disabled);
  // Scheme replacement while a response is outstanding must not launch another pair.
  d.querySelector('.lab-checked-launch[data-clients="true"]').click();await delay();calls=[];handler=()=>new Promise(r=>{finish=r;});$('lab-matrix-start').click();await delay();w.Lab.reset();finish({ok:true,address:'192.168.88.10',sent:3,received:3});await delay();assert.equal(calls.length,1);
+ // Exercise three nodes (six directed pairs) and reject ambiguous addresses.
+ $('lab_example_chr_isolated').click();const r=w.Lab.state.devices.find(x=>x.type==='router'),serverId=w.Lab.place('server',300,330);w.Lab.state.devices.find(x=>x.id===serverId).cfg.mode='dhcp';w.Lab.link(r.id,serverId);w.Lab.run({instant:true});second=true;
+ d.querySelector('.lab-checked-launch[data-clients="true"]').click();await delay();calls=[];handler=(_kind,args)=>Promise.resolve({ok:true,address:args.at(-1),sent:3,received:3});$('lab-matrix-start').click();await delay();assert.equal(calls.length,6);assert.equal($('lab-matrix-results').children.length,6);assert($('lab-matrix-status').textContent.includes('проверены'));
+ duplicate=true;d.querySelector('.lab-checked-launch[data-clients="true"]').click();await delay();calls=[];$('lab-matrix-start').click();await delay();assert.equal(calls.length,0);assert($('lab-matrix-status').textContent.includes('неоднозначны'));
  assert(!errors.length,errors.join('; '));dom.window.close();console.log('Ping matrix: sequential pairs, stop/cancel, stale scheme, close and malformed responses verified on mocks.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
