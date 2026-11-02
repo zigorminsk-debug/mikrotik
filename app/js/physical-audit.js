@@ -19,7 +19,7 @@ function createAuditUI(container, bridge) {
   var submit=node('button','Прочитать выбранные настройки','btn primary');submit.type='submit';form.appendChild(submit);
   var status=node('p','', 'fs-hint');status.setAttribute('role','status');container.appendChild(status);
   var output=node('div');container.appendChild(output);
-  var available=bridge&&typeof bridge.auditIp==='function';if(!available){submit.disabled=true;status.textContent='Чтение доступно только в проверенном Windows-приложении.';}
+  var available=bridge&&typeof bridge.auditIp==='function';if(!available){submit.disabled=true;[host,port,pin,user,password].forEach(function(input){input.disabled=true;});status.textContent='Чтение доступно только в Windows-приложении.';}
   function showReport(report){
     output.replaceChildren();
     if(!report||!Array.isArray(report.sections)||report.sections.length>40){status.textContent='Некорректный ответ Windows-компонента.';return;}
