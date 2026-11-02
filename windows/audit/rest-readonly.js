@@ -43,7 +43,7 @@ function sanitize(value,topic){
   for(const key of topic.fields){
    if(!Object.prototype.hasOwnProperty.call(row,key))continue;
    const v=row[key];if(typeof v!=='string'&&typeof v!=='number'&&typeof v!=='boolean')throw Error('Неподдерживаемый формат поля.');
-   const s=String(v);if(s.length>MAX_VALUE||/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(s))throw Error('Недопустимое значение поля.');out[key]=s;
+   const s=String(v);if(s.length>MAX_VALUE||/[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]/.test(s))throw Error('Недопустимое значение поля.');out[key]=s;
   }
   return out;
  });

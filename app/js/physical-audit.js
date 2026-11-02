@@ -53,7 +53,7 @@ function createAuditUI(container, bridge) {
   form.addEventListener('submit',function(event){
     event.preventDefault();if(disposed||busy||!available)return;
     var request={host:host.value.trim(),port:Number(port.value),fingerprint:pin.value.trim().toUpperCase(),user:user.value,password:password.value};password.value='';
-    output.replaceChildren();status.textContent='Ожидание подтверждения Windows…';submit.disabled=true;busy=true;
+    output.replaceChildren();status.textContent='Ожидание подтверждения Windows и чтение выбранных разделов…';submit.disabled=true;busy=true;
     // Defer to a Promise so synchronous bridge failures are also handled safely.
     Promise.resolve().then(function(){return disposed ? null : bridge.auditIp(request);}).then(function(result){
       if(disposed)return;if(!result||!result.ok){status.textContent=result&&result.cancelled?'Чтение отменено.':(result&&typeof result.message==='string'?result.message:'Не удалось прочитать настройки.');return;}

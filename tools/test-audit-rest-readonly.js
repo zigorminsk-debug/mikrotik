@@ -24,9 +24,10 @@ const {TOPICS,validIp,validate,sanitize,collect}=require('../windows/audit/rest-
   await new Promise(r=>server.listen(0,'127.0.0.1',r));const port=server.address().port;
   const opts={host:'127.0.0.1',port,fingerprint,user:'readonly',password:'fixture-only'};
   assert(!validIp('127.0.0.1'));assert(validIp('127.0.0.1',true));for(const ip of ['localhost','192.168.1.01','0.0.0.0','192.168.1.255','169.254.1.1','224.1.1.1','::1'])assert(!validIp(ip));assert(validIp('192.168.88.1'));
-  assert.throws(()=>validate({...opts,fingerprint:'wrong'},true));assert.throws(()=>validate({...opts,user:'bad:user'},true));
+  assert.throws(()=>validate({...opts,fingerprint:'wrong'},true));assert.throws(()=>validate({...opts,user:'bad:user'},true));assert.throws(()=>validate({...opts,fingerprint:'aa'.repeat(32)},true));
   const topic=TOPICS.find(x=>x.id==='interfaces');
   await assert.rejects(()=>collect({...opts,fingerprint:'00:'.repeat(31)+'00'},{allowLoopback:true,topics:[topic]}),/отпечаток/i);assert.equal(requests.length,0,'Credentials must never reach an untrusted certificate');
+  const realNow=Date.now;try{Date.now=()=>Date.parse(new crypto.X509Certificate(cert).validTo)+1;await assert.rejects(()=>collect(opts,{allowLoopback:true,topics:[topic]}),/истёк/i);assert.equal(requests.length,0,'Expired certificate must not receive credentials');}finally{Date.now=realNow;}
   const out=await collect(opts,{allowLoopback:true,topics:[topic]});assert.equal(out.complete,false);assert.equal(out.sections[0].status,'ok');assert.equal(out.sections[0].rows[0].name,'ether1');assert(!JSON.stringify(out).includes('MUST_NOT_ESCAPE'));assert.equal(requests.length,1);assert.equal(requests[0].method,'GET');assert(requests[0].url.startsWith('/rest/interface?'));assert(requests[0].url.includes('.proplist='));assert.equal(requests[0].auth,'Basic '+Buffer.from('readonly:fixture-only').toString('base64'));
   for(const [m,status] of [['redirect','http-error'],['auth','auth'],['forbidden','forbidden']]){mode=m;const result=await collect(opts,{allowLoopback:true,topics:[topic]});assert.equal(result.sections[0].status,status);}
   for(const m of ['large','invalid','compressed']){mode=m;await assert.rejects(()=>collect(opts,{allowLoopback:true,topics:[topic]}),error=>!error.message.includes(opts.password));}
@@ -34,7 +35,7 @@ const {TOPICS,validIp,validate,sanitize,collect}=require('../windows/audit/rest-
   mode='hang';await assert.rejects(()=>collect(opts,{allowLoopback:true,topics:[topic],timeout:100}),/тайм-аут/i);
   mode='auth';const n=requests.length;const stopped=await collect(opts,{allowLoopback:true,topics:[topic,TOPICS[0]]});assert.equal(stopped.sections.length,1);assert.equal(requests.length,n+1);
   await assert.rejects(()=>collect(opts,{allowLoopback:true,topics:[{path:'/rest/system/reset-configuration'}]}),/перечень/);
-  assert.throws(()=>sanitize(Array.from({length:2001},()=>({name:'x'})),topic));assert.throws(()=>sanitize([{name:{untrusted:true}}],topic));assert.throws(()=>sanitize([{name:'a'.repeat(513)}],topic));
+  assert.throws(()=>sanitize(Array.from({length:2001},()=>({name:'x'})),topic));assert.throws(()=>sanitize([{name:{untrusted:true}}],topic));assert.throws(()=>sanitize([{name:'a'.repeat(513)}],topic));assert.throws(()=>sanitize([{name:'ether1\u202eabc'}],topic));assert.throws(()=>sanitize([{name:'line\nbreak'}],topic));
   console.log('Audit HTTPS research: fixed GET-only topics, pin before credentials, bounds, redaction and no redirects tested with local fake TLS server; not a real router.');
  }finally{if(server)await new Promise(r=>server.close(r));fs.rmSync(temp,{recursive:true,force:true});}
 })().catch(e=>{console.error(e.message);process.exitCode=1;});

@@ -13,10 +13,10 @@ let stage='parse';
   socket.setTimeout(20000,()=>socket.destroy(Error('Fixture timeout')));socket.on('error',reject);
  });
  const options={host:'127.0.0.1',port:input.port,fingerprint,user:input.user,password:input.password};
- const sections=TOPICS.filter(t=>['system','identity','interfaces','addresses','filter','nat'].includes(t.id));
+ const sections=TOPICS;
  stage='bad-pin';const bad='00:'.repeat(31)+'00';await assert.rejects(()=>collect({...options,fingerprint:bad},{allowLoopback:true,topics:sections}),/отпечаток/i);
  stage='read-sections';const output=await collect(options,{allowLoopback:true,topics:sections,timeout:30000});
- assert.equal(output.sections.length,sections.length);for(const x of output.sections)assert.equal(x.status,'ok',x.id+': '+x.status);
+ assert.equal(output.sections.length,sections.length);for(const x of output.sections){if(x.status!=='ok')console.log('::error title=Audit fixture section::'+x.id+': '+x.status);assert.equal(x.status,'ok',x.id+': '+x.status);}
  stage='check-identity-and-address';const identity=output.sections.find(x=>x.id==='identity');assert(identity.rows.some(r=>r.name==='audit-fixture'));
  const addr=output.sections.find(x=>x.id==='addresses');assert(addr.rows.some(r=>r.address==='10.0.2.15/24'&&r.interface==='ether1'));
  assert.equal(output.complete,false);assert(!JSON.stringify(output).includes(input.password));
@@ -26,5 +26,5 @@ let stage='parse';
  assert(writeStatus>=400,'Fixture read-only account allowed a write');
  stage='identity-after-write-attempt';const identityAgain=await collect(options,{allowLoopback:true,topics:[TOPICS.find(t=>t.id==='identity')],timeout:30000});assert(identityAgain.sections[0].rows.some(r=>r.name==='audit-fixture'));
 
- console.log('::notice title=Audit IP research::HTTPS read-only collector read six selected sections from isolated RouterOS CHR with a pinned disposable certificate learned from an unauthenticated loopback fixture probe, fixed property lists and no production credentials. The fixture probe is not a production trust model. Bad pin and a write by the restricted user were rejected. This is not a production router or full audit.');
+ console.log('::notice title=Audit IP research::HTTPS read-only collector read all 18 selected sections from isolated RouterOS CHR with a pinned disposable certificate learned from an unauthenticated loopback fixture probe, fixed property lists and no production credentials. The fixture probe is not a production trust model. Bad pin and a write by the restricted user were rejected. This is not a production router or full audit.');
 })().catch(()=>{console.log('::error title=Audit IP research::Disposable CHR HTTPS audit fixture failed at '+stage+'; no credentials or raw output logged.');process.exitCode=1;});
