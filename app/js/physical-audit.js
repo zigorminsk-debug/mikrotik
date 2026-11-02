@@ -66,15 +66,16 @@ function createAuditUI(container, bridge) {
     });
     if(!selectors.length)planning.appendChild(node('p','Нет подходящего списка из 1–4 портов; можно посмотреть причину отказа.'));
     var button=node('button','Проверить предварительный план','btn');button.type='button';planning.appendChild(button);
-    var resultBox=node('div');resultBox.setAttribute('role','status');planning.appendChild(resultBox);var pending=false;
+    var resultBox=node('div');resultBox.setAttribute('role','status');planning.appendChild(resultBox);var pending=false,revision=0;
+    selectors.forEach(function(item){item.select.addEventListener('change',function(){revision++;resultBox.replaceChildren();});});
     button.addEventListener('click',function(){
       if(disposed||pending)return;
       var mapping=selectors.map(function(item){return {source:item.source,target:item.select.value};});
       if(mapping.some(function(item){return !item.target;})){resultBox.textContent='Выберите виртуальный порт для каждого физического порта.';return;}
       if(new Set(mapping.map(function(item){return item.target;})).size!==mapping.length){resultBox.textContent='Каждому физическому порту нужен отдельный виртуальный порт.';return;}
-      pending=true;button.disabled=true;resultBox.textContent='Проверка предварительной модели…';
+      pending=true;button.disabled=true;var checkedRevision=revision;resultBox.textContent='Проверка предварительной модели…';
       Promise.resolve().then(function(){return bridge.auditPreview(mapping);}).then(function(result){
-        if(disposed)return;resultBox.replaceChildren();
+        if(disposed||checkedRevision!==revision)return;resultBox.replaceChildren();
         if(!result||!result.ok||!result.plan){resultBox.appendChild(node('p',result&&typeof result.message==='string'?result.message:'Не удалось построить предварительный план.'));return;}
         var plan=result.plan;
         resultBox.appendChild(node('p',Array.isArray(plan.items)&&plan.items.length?'Поддерживаемая предварительная модель; перенос не выполнялся.':'Предварительная модель не создана.'));
@@ -85,7 +86,7 @@ function createAuditUI(container, bridge) {
         });
         if(Array.isArray(plan.skipped))plan.skipped.slice(0,20).forEach(function(text){if(typeof text==='string')resultBox.appendChild(node('p','Пропущено: '+text));});
         if(Array.isArray(plan.limitations))plan.limitations.slice(0,20).forEach(function(text){if(typeof text==='string')resultBox.appendChild(node('p',text,'fs-hint'));});
-      }).catch(function(){if(!disposed)resultBox.textContent='Ошибка связи с Windows-компонентом.';}).finally(function(){pending=false;if(!disposed)button.disabled=false;});
+      }).catch(function(){if(!disposed&&checkedRevision===revision)resultBox.textContent='Ошибка связи с Windows-компонентом.';}).finally(function(){pending=false;if(!disposed)button.disabled=false;});
     });
   }
   form.addEventListener('submit',function(event){
