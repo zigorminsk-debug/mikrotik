@@ -187,21 +187,6 @@ jobs:
         shell: pwsh
         run: |
           if (Test-Path (Join-Path $env:RUNNER_TEMP 'arrow-research/address.jpg')) { python tools/export-winbox-arrow-research.py address 20; if ($LASTEXITCODE -ne 0) { throw 'Arrow diagnostic export failed' } }
-      - name: Export network arrow diagnostic 0–9
-        if: always()
-        shell: pwsh
-        run: |
-          if (Test-Path (Join-Path $env:RUNNER_TEMP 'arrow-research/network.jpg')) { python tools/export-winbox-arrow-research.py network 0; if ($LASTEXITCODE -ne 0) { throw 'Arrow diagnostic export failed' } }
-      - name: Export network arrow diagnostic 10–19
-        if: always()
-        shell: pwsh
-        run: |
-          if (Test-Path (Join-Path $env:RUNNER_TEMP 'arrow-research/network.jpg')) { python tools/export-winbox-arrow-research.py network 10; if ($LASTEXITCODE -ne 0) { throw 'Arrow diagnostic export failed' } }
-      - name: Export network arrow diagnostic 20–29
-        if: always()
-        shell: pwsh
-        run: |
-          if (Test-Path (Join-Path $env:RUNNER_TEMP 'arrow-research/network.jpg')) { python tools/export-winbox-arrow-research.py network 20; if ($LASTEXITCODE -ne 0) { throw 'Arrow diagnostic export failed' } }
       - name: Export interface arrow diagnostic 0–9
         if: always()
         shell: pwsh
