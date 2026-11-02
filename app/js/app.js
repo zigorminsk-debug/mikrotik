@@ -136,7 +136,7 @@ function renderGuideLab(sec) {
   var cat=GuideLab.catalog(sec.id);
   if(cat.reason) panel.appendChild(el('div','note',esc(cat.reason)));
   else {
-    panel.appendChild(el('p','fs-hint','Выберите функции этого раздела. В качестве основы используются один изолированный WAN, мост, основная LAN и учебный ПК. Для разделов Bridge, Interfaces, Routing, System, Queues, Log и IPv6 также заранее включены DHCP LAN, Firewall, NAT и DNS-кэш. Поставщики и компьютеры не эмулируются как отдельные ВМ.'));
+    panel.appendChild(el('p','fs-hint','Выберите функции этого раздела. В качестве основы используются один изолированный WAN, мост, основная LAN и учебный ПК. Для разделов Bridge, Interfaces, Routing, System, Queues, Log и IPv6 также заранее включены DHCP LAN, Firewall, NAT и DNS-кэш. Провайдеры не эмулируются. Поддерживаемые ПК и серверы можно отдельно запустить как Linux VM в изолированной схеме; этот выбор не включает VPN.'));
     var inputs=[];
     cat.choices.forEach(function(item) {
       var label=el('label','row-check'), input=document.createElement('input');
@@ -188,26 +188,26 @@ function renderAbout() {
   contentEl.appendChild(list);
 }
 
-// Первая вкладочная страница учебника следует порядку Interfaces WinBox 4.
-// Это справочник, не действительный интерфейс WinBox и не настройка устройства.
-function renderInterfacesGuide() {
-  var root=el('section','wb-guide'); root.setAttribute('aria-label','Вкладки Interfaces');
-  var header=el('div','wb-guide-header');header.textContent='Interfaces';root.appendChild(header);
-  var tabs=el('div','wb-tabs');tabs.setAttribute('role','tablist');tabs.setAttribute('aria-label','Вкладки Interfaces');root.appendChild(tabs);
+// Учебный справочник, а не настоящий WinBox и не настройка устройства.
+function renderTabbedGuide(title, data, examples, prefix) {
+  var root=el('section','wb-guide'); root.setAttribute('aria-label','Вкладки '+title);
+  var header=el('div','wb-guide-header');header.textContent=title;root.appendChild(header);
+  var tabs=el('div','wb-tabs');tabs.setAttribute('role','tablist');tabs.setAttribute('aria-label','Вкладки '+title);root.appendChild(tabs);
   var body=el('div','wb-tab-panels');root.appendChild(body);
   var buttons=[],panels=[];
   function select(i,focus) {
     buttons.forEach(function(b,j){var on=i===j;b.setAttribute('aria-selected',String(on));b.tabIndex=on?0:-1;panels[j].hidden=!on;});
     if(focus){buttons[i].focus();if(buttons[i].scrollIntoView)buttons[i].scrollIntoView({block:'nearest',inline:'nearest'});}
   }
-  window.INTERFACES_GUIDE.forEach(function(tab,i){
-    var button=document.createElement('button');button.type='button';button.className='wb-tab';button.id='wb-tab-'+i;button.textContent=tab.name;
-    button.setAttribute('role','tab');button.setAttribute('aria-controls','wb-panel-'+i);tabs.appendChild(button);buttons.push(button);
-    var panel=el('div','wb-tab-panel');panel.id='wb-panel-'+i;panel.setAttribute('role','tabpanel');panel.setAttribute('aria-labelledby',button.id);
+  data.forEach(function(tab,i){
+    var button=document.createElement('button');button.type='button';button.className='wb-tab';button.id=prefix+'-tab-'+i;button.textContent=tab.name;
+    button.setAttribute('role','tab');button.setAttribute('aria-controls',prefix+'-panel-'+i);tabs.appendChild(button);buttons.push(button);
+    var panel=el('div','wb-tab-panel');panel.id=prefix+'-panel-'+i;panel.setAttribute('role','tabpanel');panel.setAttribute('aria-labelledby',button.id);
     var h=document.createElement('h2');h.textContent=tab.name;panel.appendChild(h);
     var summary=el('p','wb-tab-summary');summary.textContent=tab.summary;panel.appendChild(summary);
     var hint=el('p','fs-hint');hint.textContent='Нажмите параметр, чтобы узнать его назначение и порядок настройки. Перечень дополняется: поля могут отличаться в зависимости от версии, модели и типа интерфейса.';panel.appendChild(hint);
-    var practice=window.INTERFACES_PRACTICE && window.INTERFACES_PRACTICE[tab.name];
+    if(tab.image)panel.appendChild(renderBlock(IMG(tab.image,tab.caption),title,i));
+    var practice=examples && examples[tab.name];
     if(practice){
       var scenario=document.createElement('details');scenario.className='wb-practice';
       var scenarioTitle=document.createElement('summary');scenarioTitle.textContent='Где использовать и практический пример';scenario.appendChild(scenarioTitle);
@@ -220,7 +220,7 @@ function renderInterfacesGuide() {
       paragraph('На что обратить внимание:',practice.caution,'warn');
       paragraph('В лаборатории:',practice.lab,'note');
       paragraph('Снимки:', 'Отдельные оригинальные скриншоты WinBox для каждого действия этого примера пока не добавлены.');
-      if(practice.source && /^https:\/\/help\.mikrotik\.com\/docs\//.test(practice.source)){
+      if(practice.source && /^https:\/\/(?:help\.mikrotik\.com\/docs\/|manual\.mikrotik\.com\/docs\/)/.test(practice.source)){
         var source=el('p','wb-practice-source'),link=document.createElement('a');link.href=practice.source;link.textContent='Документация MikroTik (на английском, нужен интернет)';source.appendChild(link);scenarioBody.appendChild(source);
       }
       scenario.appendChild(scenarioBody);panel.appendChild(scenario);
@@ -248,7 +248,8 @@ function renderSection(sec) {
     (sec.lead ? '<p class="sec-lead">' + fmt(sec.lead) + '</p>' : '') +
     (sec.badge && sec.id.indexOf('ros-') === 0 ? '<p class="fs-hint">Раздел дополняется: описание и возможности лаборатории пока неполные.</p>' : '') + '</div>');
   contentEl.appendChild(head);
-  if (sec.id === 'ros-interfaces' && window.INTERFACES_GUIDE) contentEl.appendChild(renderInterfacesGuide());
+  if (sec.id === 'ros-interfaces' && window.INTERFACES_GUIDE) contentEl.appendChild(renderTabbedGuide('Interfaces',window.INTERFACES_GUIDE,window.INTERFACES_PRACTICE,'wb'));
+  if (sec.id === 'ros-wireguard' && window.WIREGUARD_GUIDE) contentEl.appendChild(renderTabbedGuide('WireGuard',window.WIREGUARD_GUIDE,window.WIREGUARD_PRACTICE,'wb-wireguard'));
   contentEl.appendChild(renderGuideLab(sec));
   (sec.steps || []).forEach(function (st, i) { contentEl.appendChild(renderStep(st, i)); });
 }
