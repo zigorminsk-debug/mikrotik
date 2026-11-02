@@ -120,6 +120,23 @@ jobs:
           $dir = Join-Path $env:RUNNER_TEMP 'qemu-candidate'
           node tools/test-winbox-multi-address.js "$env:QEMU_EXE" "$env:CHR_IMAGE" (Join-Path $dir 'scheme-sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe') "$env:WINBOX_EXE"
           if ($LASTEXITCODE -ne 0) { throw 'Scheme WinBox research failed' }
+      # This intentionally misconfigured negative fixture is never a verified
+      # user screenshot. Export even when the later positive OCR check fails.
+      - name: Export renamed-interface negative diagnostic 0–9
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path (Join-Path $env:RUNNER_TEMP 'lab-scheme-detail-negative-wan.jpg')) { python tools/export-winbox-multi-address.py 0 negative-wan; if ($LASTEXITCODE -ne 0) { throw 'Negative diagnostic export failed' } }
+      - name: Export renamed-interface negative diagnostic 10–19
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path (Join-Path $env:RUNNER_TEMP 'lab-scheme-detail-negative-wan.jpg')) { python tools/export-winbox-multi-address.py 10 negative-wan; if ($LASTEXITCODE -ne 0) { throw 'Negative diagnostic export failed' } }
+      - name: Export renamed-interface negative diagnostic 20–23
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path (Join-Path $env:RUNNER_TEMP 'lab-scheme-detail-negative-wan.jpg')) { python tools/export-winbox-multi-address.py 20 negative-wan; if ($LASTEXITCODE -ne 0) { throw 'Negative diagnostic export failed' } }
       - name: Export unverified disposable LAN on failure 0–9
         if: failure()
         shell: pwsh
