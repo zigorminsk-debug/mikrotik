@@ -21,25 +21,18 @@ function arrowPlan(words,expected,width,height){
   return {label,start:Math.round(start),tip:Math.round(tip),y:Math.round(y)};
  });
 }
-// CI guard against pairing an OCR result with a different full screenshot.
-// These are consistency checks, not an authenticity or privacy proof.
-function bitmapRegionScores(source,fields,words,expected){
- if(!source||!fields||!source.data||!fields.data||source.width!==1040||source.height!==728||fields.width!==1520||fields.height!==720||source.data.length!==source.width*source.height*4||fields.data.length!==fields.width*fields.height*4||!verify(words,expected).every(Boolean))return null;
- const scores=[];
- for(const text of ['Address',expected.address,'Network',expected.network,'Interface',expected.interface]){
-  const b=words.find(w=>w.text===text).bbox;
-  if(!['x0','x1','y0','y1'].every(k=>Number.isFinite(b[k]))||b.x0<0||b.y0<0||b.x1>fields.width||b.y1>fields.height)return null;
-  let sum=0,count=0;
-  for(let y=Math.floor(b.y0/4);y<Math.ceil(b.y1/4);y++)for(let x=Math.floor(b.x0/4);x<Math.ceil(b.x1/4);x++){
-   const a=((crop.y+y)*source.width+crop.x+x)*4,bp=((4*y+2)*fields.width+4*x+2)*4;
-   for(let c=0;c<3;c++){sum+=Math.abs(source.data[a+c]-fields.data[bp+c]);count++;}
-  }
-  if(!count)return null;
-  scores.push(sum/count);
+// Exact, whole-image pixel checks for this CI pipeline. This is a consistency
+// check, not a proof of screenshot origin, confidentiality, or all settings.
+function imageValid(image,w,h){return !!(image&&image.width===w&&image.height===h&&image.data&&image.data.length===w*h*4);}
+function sameCrop(source,raw){
+ if(!imageValid(source,1040,728)||!imageValid(raw,crop.width,crop.height))return false;
+ for(let y=0;y<crop.height;y++)for(let x=0;x<crop.width;x++){
+  const a=((crop.y+y)*source.width+crop.x+x)*4,b=(y*raw.width+x)*4;
+  for(let c=0;c<4;c++)if(source.data[a+c]!==raw.data[b+c])return false;
  }
- return scores;
+ return true;
 }
-function sameBitmapRegions(source,fields,words,expected){const scores=bitmapRegionScores(source,fields,words,expected);return !!scores&&scores.every(score=>score<=20);}
+function sameImage(a,b){return imageValid(a,1520,720)&&imageValid(b,1520,720)&&a.data.equals(b.data);}
 function drawArrow(image,arrow){
  const {width,height,data}=image;
  if(!Array.isArray([arrow.start,arrow.tip,arrow.y])||![arrow.start,arrow.tip,arrow.y].every(Number.isInteger)||arrow.start<0||arrow.tip>=width||arrow.start>=arrow.tip||arrow.y<9||arrow.y>=height-9||data.length!==width*height*4)throw Error('Invalid arrow');
@@ -53,16 +46,13 @@ function drawArrow(image,arrow){
 async function main(){
  let worker;
  try{
-  const [original,fieldCrop,outdir]=process.argv.slice(2),kind=process.env.CI_SCHEME_KIND,langPath=process.env.CI_TESS_LANG;
-  if(![original,fieldCrop,outdir,langPath].every(p=>typeof p==='string'&&path.isAbsolute(p))||!Object.hasOwn(EXPECTED,kind))throw Error('Missing fixture');
+  const [original,rawCrop,fieldCrop,reconstructed,outdir]=process.argv.slice(2),kind=process.env.CI_SCHEME_KIND,langPath=process.env.CI_TESS_LANG;
+  if(![original,rawCrop,fieldCrop,reconstructed,outdir,langPath].every(p=>typeof p==='string'&&path.isAbsolute(p))||!Object.hasOwn(EXPECTED,kind))throw Error('Missing fixture');
   const {PNG}=require('./winbox-ocr-deps/node_modules/pngjs');
-  const source=PNG.sync.read(fs.readFileSync(original)),fields=PNG.sync.read(fs.readFileSync(fieldCrop));
-  if(fields.width!==crop.width*crop.scale||fields.height!==crop.height*crop.scale)throw Error('Unexpected crop');
+  const source=PNG.sync.read(fs.readFileSync(original)),raw=PNG.sync.read(fs.readFileSync(rawCrop)),fields=PNG.sync.read(fs.readFileSync(fieldCrop)),redo=PNG.sync.read(fs.readFileSync(reconstructed));
+  if(!sameCrop(source,raw)||!sameImage(fields,redo))throw Error('Inconsistent screenshots');
   const {createWorker}=require('./winbox-ocr-deps/node_modules/tesseract.js');worker=await createWorker('eng',1,{langPath,cacheMethod:'none'});
   const {data}=await worker.recognize(fieldCrop);const arrows=arrowPlan(data.words,EXPECTED[kind],source.width,source.height);
-  const scores=bitmapRegionScores(source,fields,data.words,EXPECTED[kind]);
-  console.log('CI_ARROW_DIFF='+(scores?scores.map(n=>Math.min(999,Math.round(n))).join(','):'error'));
-  if(!scores||scores.some(n=>n>20))throw Error('Inconsistent original and OCR crop');
   fs.mkdirSync(outdir,{recursive:true});
   for(const arrow of arrows){const image=new PNG({width:source.width,height:source.height});source.data.copy(image.data);drawArrow(image,arrow);fs.writeFileSync(path.join(outdir,arrow.label.toLowerCase()+'.png'),PNG.sync.write(image));}
   console.log('CI_ARROW_RESEARCH=3');
@@ -70,4 +60,4 @@ async function main(){
  finally{if(worker)await worker.terminate();}
 }
 if(require.main===module)main();
-module.exports={arrowPlan,drawArrow,sameBitmapRegions,bitmapRegionScores,EXPECTED};
+module.exports={arrowPlan,drawArrow,sameCrop,sameImage,EXPECTED};

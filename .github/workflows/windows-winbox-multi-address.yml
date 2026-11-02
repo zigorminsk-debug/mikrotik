@@ -13,6 +13,7 @@ on:
       - 'tools/winbox-tesseract-ci.js'
       - 'tools/winbox-glyph-diagnostic-ci.js'
       - 'tools/winbox-arrow-research-ci.js'
+      - 'tools/winbox-resize-fixture.ps1'
       - 'tools/test-winbox-arrow-research-ci.js'
       - 'tools/export-winbox-arrow-research.py'
       - 'tools/test-winbox-glyph-diagnostic-ci.js'
