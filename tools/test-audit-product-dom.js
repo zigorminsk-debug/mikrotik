@@ -8,7 +8,7 @@ const assert=require('assert'),path=require('path'),{JSDOM,VirtualConsole}=requi
   w.scrollTo=()=>{};w.HTMLElement.prototype.scrollIntoView=()=>{};
   w.routerOS={physicalInterfaces:async()=>({ok:true,interfaces:[]}),auditIp:async input=>{calls++;assert.equal(input.password,'mock-password');return await new Promise(r=>{resolve=r;});}};
  }});
- const w=dom.window;await new Promise(r=>w.addEventListener('load',r));w.location.hash='lab';await new Promise(r=>setTimeout(r,30));const id=w.Lab.place('router',200,120);w.Lab.openSettings(id);const d=w.document;
+ const w=dom.window;await new Promise(r=>w.addEventListener('load',r));w.location.hash='intro';await new Promise(r=>setTimeout(r,20));assert(w.document.querySelector('img[src="assets/img/own/audit-ip-button-windows.png"]'));w.location.hash='lab';await new Promise(r=>setTimeout(r,30));const id=w.Lab.place('router',200,120);w.Lab.openSettings(id);const d=w.document;
  assert(d.getElementById('lm_physical_audit'));assert(!d.querySelector('#lm_physical_audit button[type=submit]').disabled);
  d.getElementById('audit-ip').value='192.168.88.1';d.getElementById('audit-pin').value='AA:'.repeat(31)+'AA';d.getElementById('audit-user').value='readonly';d.getElementById('audit-password').value='mock-password';
  d.querySelector('#lm_physical_audit form').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));assert.equal(d.getElementById('audit-password').value,'');await new Promise(r=>setTimeout(r,0));assert.equal(calls,1);assert(!JSON.stringify(w.Lab.state).includes('mock-password'));
