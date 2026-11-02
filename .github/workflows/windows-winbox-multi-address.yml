@@ -120,6 +120,36 @@ jobs:
           $dir = Join-Path $env:RUNNER_TEMP 'qemu-candidate'
           node tools/test-winbox-multi-address.js "$env:QEMU_EXE" "$env:CHR_IMAGE" (Join-Path $dir 'scheme-sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe') "$env:WINBOX_EXE"
           if ($LASTEXITCODE -ne 0) { throw 'Scheme WinBox research failed' }
+      - name: Export unverified disposable LAN on failure 0–9
+        if: failure()
+        shell: pwsh
+        run: |
+          if (Test-Path (Join-Path $env:RUNNER_TEMP 'lab-scheme-detail-lan.jpg')) { python tools/export-winbox-multi-address.py 0 lan; if ($LASTEXITCODE -ne 0) { throw 'Diagnostic export failed' } }
+      - name: Export unverified disposable LAN on failure 10–19
+        if: failure()
+        shell: pwsh
+        run: |
+          if (Test-Path (Join-Path $env:RUNNER_TEMP 'lab-scheme-detail-lan.jpg')) { python tools/export-winbox-multi-address.py 10 lan; if ($LASTEXITCODE -ne 0) { throw 'Diagnostic export failed' } }
+      - name: Export unverified disposable LAN on failure 20–23
+        if: failure()
+        shell: pwsh
+        run: |
+          if (Test-Path (Join-Path $env:RUNNER_TEMP 'lab-scheme-detail-lan.jpg')) { python tools/export-winbox-multi-address.py 20 lan; if ($LASTEXITCODE -ne 0) { throw 'Diagnostic export failed' } }
+      - name: Export unverified disposable WAN on failure 0–9
+        if: failure()
+        shell: pwsh
+        run: |
+          if (Test-Path (Join-Path $env:RUNNER_TEMP 'lab-scheme-detail-wan.jpg')) { python tools/export-winbox-multi-address.py 0 wan; if ($LASTEXITCODE -ne 0) { throw 'Diagnostic export failed' } }
+      - name: Export unverified disposable WAN on failure 10–19
+        if: failure()
+        shell: pwsh
+        run: |
+          if (Test-Path (Join-Path $env:RUNNER_TEMP 'lab-scheme-detail-wan.jpg')) { python tools/export-winbox-multi-address.py 10 wan; if ($LASTEXITCODE -ne 0) { throw 'Diagnostic export failed' } }
+      - name: Export unverified disposable WAN on failure 20–23
+        if: failure()
+        shell: pwsh
+        run: |
+          if (Test-Path (Join-Path $env:RUNNER_TEMP 'lab-scheme-detail-wan.jpg')) { python tools/export-winbox-multi-address.py 20 wan; if ($LASTEXITCODE -ne 0) { throw 'Diagnostic export failed' } }
       - name: Export verified disposable LAN screenshot 0–9
         run: python tools/export-winbox-multi-address.py 0 lan
       - name: Export verified disposable LAN screenshot 10–19
