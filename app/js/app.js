@@ -250,8 +250,8 @@ function renderSection(sec) {
   contentEl.appendChild(head);
   if (sec.id === 'ros-interfaces' && window.INTERFACES_GUIDE) contentEl.appendChild(renderTabbedGuide('Interfaces',window.INTERFACES_GUIDE,window.INTERFACES_PRACTICE,'wb'));
   if (sec.id === 'ros-wireguard' && window.WIREGUARD_GUIDE) contentEl.appendChild(renderTabbedGuide('WireGuard',window.WIREGUARD_GUIDE,window.WIREGUARD_PRACTICE,'wb-wireguard'));
-  if (sec.id === 'ros-ppp' && window.PPP_GUIDE) contentEl.appendChild(renderTabbedGuide('PPP — выбранные вкладки',window.PPP_GUIDE,window.PPP_PRACTICE,'wb-ppp'));
-  if (sec.id === 'ros-bridge' && window.BRIDGE_GUIDE) contentEl.appendChild(renderTabbedGuide('Bridge — выбранные вкладки',window.BRIDGE_GUIDE,window.BRIDGE_PRACTICE,'wb-bridge'));
+  if (sec.id === 'ros-ppp' && window.PPP_GUIDE) contentEl.appendChild(renderTabbedGuide('PPP',window.PPP_GUIDE,window.PPP_PRACTICE,'wb-ppp'));
+  if (sec.id === 'ros-bridge' && window.BRIDGE_GUIDE) contentEl.appendChild(renderTabbedGuide('Bridge',window.BRIDGE_GUIDE,window.BRIDGE_PRACTICE,'wb-bridge'));
   contentEl.appendChild(renderGuideLab(sec));
   (sec.steps || []).forEach(function (st, i) { contentEl.appendChild(renderStep(st, i)); });
 }

@@ -18,8 +18,8 @@ android {
         applicationId "by.mikrotik.tutor"
         minSdk 26
         targetSdk 34
-        versionCode 54
-        versionName "1.19.28"
+        versionCode 55
+        versionName "1.19.29"
     }
 
     signingConfigs {

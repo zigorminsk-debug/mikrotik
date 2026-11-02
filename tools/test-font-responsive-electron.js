@@ -43,6 +43,16 @@ app.whenReady().then(async()=>{
     must(tabs[12].getAttribute('aria-selected')==='true'&&document.activeElement===tabs[12],'last tab not reachable by keyboard');
     const tabRect=tabs[12].getBoundingClientRect(), barRect=tabs[12].parentNode.getBoundingClientRect();
     must(tabRect.left>=barRect.left-1&&tabRect.right<=barRect.right+1,'last tab did not scroll into view');
+    for(const [section,count,last] of [['ros-ppp',8,'L2TP Secrets'],['ros-bridge',9,'MDB']]){
+     location.hash=section;await new Promise(r=>setTimeout(r,120));
+     const group=[...document.querySelectorAll('.wb-tab')];must(group.length===count,section+' tabs missing');
+     group[0].focus();group[0].dispatchEvent(new KeyboardEvent('keydown',{key:'End',bubbles:true}));
+     const end=group[count-1],panel=document.getElementById(end.getAttribute('aria-controls'));await new Promise(r=>setTimeout(r,80));
+     must(end.textContent===last&&document.activeElement===end&&end.getAttribute('aria-selected')==='true'&&!panel.hidden,section+' last tab not reachable');
+     const r=end.getBoundingClientRect(),bar=end.parentNode.getBoundingClientRect();must(r.left>=bar.left-1&&r.right<=bar.right+1,section+' tab not scrolled into view');
+     panel.querySelector('.wb-field').open=true;panel.querySelector('.wb-practice').open=true;
+     must(panel.scrollWidth<=panel.clientWidth+1&&document.documentElement.scrollWidth<=innerWidth+1,section+' content overflows horizontally');
+    }
     window.confirm=()=>true;window.routerOS={launch:async()=>({ok:true}),ping:async()=>({ok:false,cancelled:true})};
     location.hash='lab';await new Promise(r=>setTimeout(r,100));$('lab_example_chr_isolated').click();window.Lab.run({instant:true});await new Promise(r=>setTimeout(r,100));
     must(document.querySelector('.lab-ping-availability').textContent.includes('на Android реальный ping'),'Android ping limitation missing');
