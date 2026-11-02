@@ -6,12 +6,13 @@ const {createHash,timingSafeEqual}=require('crypto'),{Transform}=require('stream
 const IMAGE_NAME='cirros-0.6.3-x86_64-disk.img';
 const URL_IMAGE='https://github.com/cirros-dev/cirros/releases/download/0.6.3/'+IMAGE_NAME;
 const ASSET_PATH='/github-production-release-asset-2e65be/219785102/6f5bab50-4c03-4330-a8c6-7b6cb1564e3f';
+const RELEASE_ASSET_PATH='/github-production-release-asset/219785102/6f5bab50-4c03-4330-a8c6-7b6cb1564e3f';
 const SHA256='7d6355852aeb6dbcd191bcda7cd74f1536cfe5cbf8a10495a7283a8396e4b75b';
 const IMAGE_BYTES=21692416;
 function allowed(url){
  return url.protocol==='https:'&&!url.username&&!url.password&&(!url.port||url.port==='443') &&
   ((url.hostname==='github.com'&&url.pathname===new URL(URL_IMAGE).pathname&&!url.search) ||
-   (['objects.githubusercontent.com','release-assets.githubusercontent.com'].includes(url.hostname)&&url.pathname===ASSET_PATH));
+   (['objects.githubusercontent.com','release-assets.githubusercontent.com'].includes(url.hostname)&&[ASSET_PATH,RELEASE_ASSET_PATH].includes(url.pathname)));
 }
 async function hashFile(file){const h=createHash('sha256');await pipeline(fs.createReadStream(file),new Transform({transform(chunk,_enc,cb){h.update(chunk);cb();}}));return h.digest('hex');}
 function matches(hash){return typeof hash==='string'&&/^[0-9a-f]{64}$/.test(hash)&&timingSafeEqual(Buffer.from(hash,'hex'),Buffer.from(SHA256,'hex'));}
@@ -37,4 +38,4 @@ async function ensureLinuxImage(cacheRoot,consent){
   await fsp.rm(result,{force:true});await fsp.rename(image,result);return result;
  }finally{await fsp.rm(temp,{recursive:true,force:true,maxRetries:5,retryDelay:200});}
 }
-module.exports={ensureLinuxImage,download,allowed,hashFile,matches,URL_IMAGE,ASSET_PATH,SHA256,IMAGE_BYTES};
+module.exports={ensureLinuxImage,download,allowed,hashFile,matches,URL_IMAGE,ASSET_PATH,RELEASE_ASSET_PATH,SHA256,IMAGE_BYTES};
