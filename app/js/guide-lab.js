@@ -11,6 +11,11 @@ var features = {
   'dns-static': {label:'Локальная DNS-запись A', detail:'Требует DNS-кэш.'},
   'publication': {label:'NAT: доступ извне к учебному серверу', detail:'Пример TCP 8443 → 192.168.88.20:443. Правило открывает сервис; в изолированной CHR порт хоста не пробрасывается, сервер и доступ извне не проверяются.'},
   'bridge': {label:'Мост и Ethernet-порты LAN'},
+  'switch-software': {label:'Программный мост и LAN-порты в CHR', detail:'Это программный Bridge в виртуальной CHR без switch-chip; аппаратное ускорение и физические порты не проверяются.'},
+  'switch-offload': {label:'Аппаратное ускорение switch-chip', unavailable:'CHR не эмулирует switch-chip; аппаратное ускорение и скорость физического устройства здесь не проверяются.'},
+  'switch-mirror': {label:'Аппаратное зеркалирование портов', unavailable:'Аппаратное зеркалирование не реализовано в виртуальной CHR.'},
+  'switch-acl': {label:'Аппаратные правила switch ACL', unavailable:'Правила switch-chip зависят от устройства и не реализованы в виртуальной CHR.'},
+
   'guest-vlan': {label:'Гостевой VLAN с изоляцией', detail:'Для изоляции нужен Firewall.'},
   'guest-dhcp': {label:'DHCP гостевого VLAN', detail:'Требует гостевой VLAN.'},
   'ipv6-lan': {label:'Учебный IPv6-адрес LAN', detail:'fd42:7469:6b::1/64 на bridge-lan, без RA; входящий и транзитный IPv6 заблокированы. Клиенты и связность не проверяются.'},
@@ -37,6 +42,7 @@ var catalogs = {
   'ros-ipv6': {choices:['ipv6-lan','ipv6-dhcp','ipv6-route'],defaults:['ipv6-lan'],base:defaults},
   'ros-interfaces': {choices:['bridge','guest-vlan','guest-dhcp'],defaults:['bridge'],base:defaults},
   'ros-bridge': {choices:['bridge','firewall','guest-vlan','guest-dhcp'],defaults:['bridge','firewall'],base:['wan-static','dhcp-lan','nat','dns-cache']},
+  'ros-switch': {choices:['switch-software','firewall','guest-vlan','guest-dhcp','switch-offload','switch-mirror','switch-acl'],defaults:['switch-software','firewall'],base:['wan-static','dhcp-lan','nat','dns-cache']},
   'ros-log': {choices:['log-system','log-interface','log-remote'],defaults:['log-system'],base:defaults},
   'ros-queues': {choices:['simple-queue','queue-tree'],defaults:['simple-queue'],base:defaults},
   'ros-routing': {choices:['route','dynamic-routing'],defaults:['route'],base:defaults},
@@ -58,6 +64,7 @@ function validate(section, ids) {
   if (!ids.length) errors.push('Выберите хотя бы одну доступную функцию раздела.');
   ids.forEach(function(id){if(features[id].unavailable)errors.push(features[id].label+': '+features[id].unavailable);});
   var all=(cat.base||[]).concat(ids), has=function(id){return all.indexOf(id)>=0;};
+  if (section === 'ros-switch' && !has('switch-software')) errors.push('Для учебного примера Switch выберите программный мост CHR; аппаратный switch-chip не эмулируется.');
   if (has('wan-static') && has('wan-dhcp')) errors.push('Статический WAN и DHCP WAN нельзя одновременно назначить одному интерфейсу. Выберите один тип.');
   if (!has('wan-static') && !has('wan-dhcp')) errors.push('Выберите один тип подключения WAN: статический или DHCP.');
   if (has('guest-vlan')&&!has('firewall')) errors.push('Гостевой VLAN требует Firewall для изоляции от основной LAN.');

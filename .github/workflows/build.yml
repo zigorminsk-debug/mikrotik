@@ -72,6 +72,7 @@ jobs:
           node tools/test-lab-dom.js
           node tools/test-lab-ping-dom.js
           node tools/test-guide-lab.js
+          node tools/test-guide-switch.js
           node tools/test-guide-interfaces.js
           node tools/test-guide-wireguard.js
           node tools/test-guide-ppp-bridge.js

@@ -9,6 +9,7 @@ const root = path.join(__dirname, '..');
 const dir = path.join(root, 'app/js');
 const context = vm.createContext({});
 vm.runInContext(fs.readFileSync(path.join(dir, 'guide-core.js'), 'utf8'), context);
+vm.runInContext(fs.readFileSync(path.join(dir, 'guide-switch.js'), 'utf8'), context, {filename:'guide-switch.js'});
 for (const file of fs.readdirSync(dir).filter(f => /^sec-.*\.js$/.test(f)).sort())
   vm.runInContext(fs.readFileSync(path.join(dir, file), 'utf8'), context, {filename:file});
 const clean = text => String(text || '').replace(/\r?\n/g, ' ').replace(/\|/g, '\\|');

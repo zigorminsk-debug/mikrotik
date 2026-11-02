@@ -10,7 +10,7 @@ const engine=require('../app/js/lab-sim'),{makePlan}=require('../windows/chr/pla
  // Use actual device defaults, not a second copy that could drift.
  const saved={};['isp','router','pc','server'].forEach(type=>{const id=w.Lab.place(type,30,30);saved[type]=JSON.parse(JSON.stringify(w.Lab.state.devices.find(d=>d.id===id).cfg));});w.Lab.reset();
  const types=Object.fromEntries(Object.keys(saved).map(type=>[type,{cfg:()=>JSON.parse(JSON.stringify(saved[type]))}]));
- const sections=['intro','ros-ip','ros-interfaces','ros-bridge','ros-routing','ros-system','ros-queues','ros-log','ros-ipv6'];let checked=0,invalid=0;
+ const sections=['intro','ros-ip','ros-interfaces','ros-bridge','ros-switch','ros-routing','ros-system','ros-queues','ros-log','ros-ipv6'];let checked=0,invalid=0;
  for(const section of sections){
   const cat=w.GuideLab.catalog(section);const available=cat.choices.filter(c=>!c.unavailable).map(c=>c.id);
   for(let bits=0;bits<(1<<available.length);bits++){
@@ -42,6 +42,10 @@ const engine=require('../app/js/lab-sim'),{makePlan}=require('../windows/chr/pla
  assert(w.GuideLab.validate('ros-ipv6',['ipv6-route']).errors.some(x=>x.includes('связность')));
  assert(w.GuideLab.validate('ros-log',['log-remote']).errors.some(x=>x.includes('syslog')));
  assert(w.GuideLab.validate('ros-queues',['queue-tree']).errors.some(x=>x.includes('Queue Tree')));
+ assert(w.GuideLab.validate('ros-switch',['firewall']).errors.some(x=>x.includes('программный мост')));
+ assert(w.GuideLab.validate('ros-switch',['switch-software','guest-vlan']).errors.some(x=>x.includes('Firewall')));
+ assert(w.GuideLab.validate('ros-switch',['switch-software','firewall','guest-dhcp']).errors.some(x=>x.includes('требует')));
+ for(const id of ['switch-offload','switch-mirror','switch-acl']) {assert(w.GuideLab.catalog('ros-switch').choices.find(c=>c.id===id).unavailable);assert(w.GuideLab.validate('ros-switch',['switch-software','firewall',id]).errors.length);}
  assert(w.GuideLab.validate('ros-wifi',['wifi']).errors.some(x=>x.includes('Wi-Fi')));
  assert(w.GuideLab.validate('ros-ip',['unknown']).errors.length);
  // Every visible, normal guide section exposes the action, including unimplemented ones.
@@ -59,5 +63,8 @@ const engine=require('../app/js/lab-sim'),{makePlan}=require('../windows/chr/pla
  const original=JSON.stringify(w.Lab.state);w.location.hash='ros-bridge';await new Promise(r=>setTimeout(r,0));root=doc.querySelector('.guide-lab');root.querySelector('button').click();w.confirm=()=>false;root.querySelector('.guide-lab-start').click();assert.equal(JSON.stringify(w.Lab.state),original);assert.equal(w.location.hash,'#ros-bridge');
  assert(!w.Lab.loadGuide('ros-ip',['wan-static','wan-dhcp']).ok);assert.equal(JSON.stringify(w.Lab.state),original);
  w.location.hash='ros-wifi';await new Promise(r=>setTimeout(r,0));root=doc.querySelector('.guide-lab');root.querySelector('button').click();assert(root.querySelector('input[value="wifi"]').disabled);assert(root.textContent.includes('не эмулирует'));assert(root.querySelector('.guide-lab-start').disabled);
+ w.location.hash='ros-switch';await new Promise(r=>setTimeout(r,0));root=doc.querySelector('.guide-lab');root.querySelector('button').click();
+ assert(root.querySelector('input[value="switch-offload"]').disabled);assert(root.querySelector('input[value="switch-mirror"]').disabled);assert(root.querySelector('input[value="switch-acl"]').disabled);
+ assert(root.textContent.includes('не эмулирует switch-chip'));assert(root.querySelector('input[value="switch-software"]').checked);
  assert(!errors.length,errors.join('; '));dom.window.close();console.log('Переходы учебника: '+checked+' допустимых и '+invalid+' конфликтных наборов; план CHR и защита проверены.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

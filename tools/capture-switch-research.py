@@ -120,7 +120,7 @@ scrot -q 40 "$3/switch-menu.jpg"
 xdotool mousemove --sync 180 252
 xdotool click 1
 sleep 5
-xdotool mousemove --sync 443 248
+xdotool mousemove --sync 443 228
 xdotool click 1
 sleep 8
 scrot -q 40 "$3/bridge-ports.jpg"

@@ -3,5 +3,20 @@
     "sha256": "4936541d9d1c3880fc90fb38643de576ccda2e7904b6f6afc09330dab78a6ed3",
     "width": 1440,
     "height": 900
+  },
+  "switch-example-menu.png": {
+    "sha256": "e6da513bec4c5bef4c248c01c8b66ce54ff1b24ed3b602cca3ba119ee75ae541",
+    "width": 1440,
+    "height": 900
+  },
+  "switch-example-host.png": {
+    "sha256": "0d80f854967aa6ce9744d4a9c32688afc6f5ddf0b9942d4e62afb4735193076a",
+    "width": 1440,
+    "height": 900
+  },
+  "switch-example-vlan.png": {
+    "sha256": "b9b2467296d80a6f66a65d58fe3766eea69c7cdea284d831810d5de99500953a",
+    "width": 1440,
+    "height": 900
   }
 }

@@ -65,6 +65,7 @@ first.steps.push({t:'Физический MikroTik: поиск по MAC',b:[
 var newSections = info.map(function(row) {
   var related=[]; row[4].forEach(function(group){related=related.concat(steps(group[0],group[1]));});
   var intro = {t:'Назначение раздела',b:[P(row[3]), WARN('Перед изменениями сохраните резервную копию, проверьте модель и версию RouterOS, держите доступ для восстановления.'), NOTE('Покрытие раздела пока неполное; отдельные оригинальные снимки действий WinBox 4 ещё готовятся.')]};
+  if (row[0] === 'switch') related = related.concat(typeof GUIDE_SWITCH_STEPS !== "undefined" ? GUIDE_SWITCH_STEPS : []);
   if (row[0] === 'wireguard') {
     intro.b.push(OL([
       ACTION('В WinBox 4 откройте WireGuard и вкладку WireGuard. На снимке показан тестовый интерфейс wg-lab с портом UDP 13231.', IMG('assets/img/own/wireguard-list-winbox4.jpg', 'Собственный снимок WinBox 4.4 для Linux на тестовой CHR 7.23.8: интерфейс wg-lab. Закрытый ключ скрыт; наличие интерфейса не подтверждает соединение.')),
