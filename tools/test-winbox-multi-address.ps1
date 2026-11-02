@@ -26,7 +26,7 @@ if(!$record -or $record.port -lt 1 -or $record.port -gt 65535 -or $record.passwo
 if($record.kind -notin @('static','custom')){exit 1}
 if($env:CI_CAPTURE_TARGET -notin @('lan','wan')){exit 1}
 # A renamed-interface negative control is disposable CI only, never a result.
-if($env:CI_NEGATIVE_INTERFACE -and ($env:CI_NEGATIVE_INTERFACE -ne '1' -or $env:CI_CAPTURE_TARGET -ne 'wan')){exit 1}
+if($env:CI_NEGATIVE_INTERFACE -and ($env:CI_NEGATIVE_INTERFACE -cnotin @('etherl','etherI','ether11') -or $env:CI_CAPTURE_TARGET -ne 'wan')){exit 1}
 if($env:CI_CAPTURE_TARGET -eq 'wan'){$targetAddress='198.51.100.2/30';$targetNetwork='198.51.100.0';$targetInterface='ether1'}
 else {$targetAddress=if($record.kind -eq 'custom'){'192.168.73.1/24'}else{'192.168.88.1/24'};$targetNetwork=if($record.kind -eq 'custom'){'192.168.73.0'}else{'192.168.88.0'};$targetInterface='bridge-lan'}
 $stage='start'
@@ -167,7 +167,7 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -PassThru -RedirectStandardError
   $params=New-Object System.Drawing.Imaging.EncoderParameters(1);$params.Param[0]=New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality,[long]40)
   try{
    $hdc=$graphics.GetHdc();try{$ok=[CiMouse]::PrintWindow($handle,$hdc,2)}finally{$graphics.ReleaseHdc($hdc)};if(!$ok){throw 'PrintWindow failed'}
-   $name=if($env:CI_NEGATIVE_INTERFACE -eq '1'){'negative-wan'}else{$env:CI_CAPTURE_TARGET}
+   $name=if($env:CI_NEGATIVE_INTERFACE){'negative-wan'}else{$env:CI_CAPTURE_TARGET}
    $bitmap.Save((Join-Path $env:RUNNER_TEMP ('lab-scheme-detail-'+$name+'.jpg')),$jpeg,$params)
    # Fixed CI window only: isolate the form fields, excluding the table behind
    # the dialog so OCR cannot mistake the list for a confirmed detail view.

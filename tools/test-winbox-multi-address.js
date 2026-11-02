@@ -31,8 +31,8 @@ const {ChrSession}=mod.exports;let session,dom;
  const plan=makePlan(E,state,router.id);assert.deepStrictEqual(plan.blockers,[]);assert.equal(plan.expected.wanAddress,'198.51.100.2/30');assert.equal(plan.expected.wanPort,'ether1');assert.equal(plan.expected.lanAddress,kind==='custom'?'192.168.73.1/24':'192.168.88.1/24');
  session=new ChrSession({qemu:path.resolve(qemu),image:path.resolve(image),tempRoot:path.resolve(work),supervisor:path.resolve(supervisor)});
  const info=await session.start(plan);assert.equal(new URL(info.url).hostname,'127.0.0.1');assert(Number.isInteger(info.ciWinboxPort));
- const capture=(target,negative=false)=>new Promise((resolve,reject)=>{
-  const env={...process.env,CI_WINBOX_EXE:path.resolve(winbox),CI_CAPTURE_DHCP:kind==='dhcp'?'1':'0',CI_CAPTURE_PRINT:'0',CI_BACKGROUND_NAV:'1',CI_DETAIL_NAV:'1',CI_CAPTURE_TARGET:target,CI_NEGATIVE_INTERFACE:negative?'1':''};
+ const capture=(target,negative='')=>new Promise((resolve,reject)=>{
+  const env={...process.env,CI_WINBOX_EXE:path.resolve(winbox),CI_CAPTURE_DHCP:kind==='dhcp'?'1':'0',CI_CAPTURE_PRINT:'0',CI_BACKGROUND_NAV:'1',CI_DETAIL_NAV:'1',CI_CAPTURE_TARGET:target,CI_NEGATIVE_INTERFACE:negative};
   const helper='test-winbox-multi-address.ps1';
   const p=spawn('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',path.join(__dirname,helper)],{env,stdio:['pipe','pipe','ignore'],windowsHide:true});
   p.stdin.on('error',()=>{});p.stdin.end(JSON.stringify({port:info.ciWinboxPort,password:info.password,kind})+'\n');
@@ -40,23 +40,27 @@ const {ChrSession}=mod.exports;let session,dom;
   const timer=setTimeout(()=>{p.kill();reject(Error('WinBox GUI timeout at '+stage));},120000);
   p.once('error',()=>{clearTimeout(timer);reject(Error('WinBox GUI automation failed'));});
   p.once('exit',code=>{clearTimeout(timer);
-   if(negative && code!==0 && stage==='address-detail-ocr' && reason==='detail-unconfirmed' && fields==='1,1,0' && tess==='1,1,0' && glyph==='0') {console.log('::notice title=Real renamed-interface negative control::On disposable CHR, address and network matched but both OCRs rejected the actual etherl interface when expecting ether1. Not a production security proof.');resolve();}
+   if(negative && code!==0 && stage==='address-detail-ocr' && reason==='detail-unconfirmed' && fields==='1,1,0' && tess==='1,1,0' && glyph==='0') {console.log('::notice title=Real renamed-interface negative control::On disposable CHR, address and network matched but both OCRs and the glyph diagnostic rejected the actual '+negative+' interface when expecting ether1. Not a production security proof.');resolve();}
    else if(!negative && code===0 && tess==='1,1,1' && fields.startsWith('1,1,')) {console.log('::notice title=Disposable WinBox detail OCR::Exact fixture address, network and interface were confirmed in the cropped detail form; independent WinRT OCR confirmed address and network. This is not production automation.');resolve();}
-   else reject(Error('WinBox GUI did not complete at '+stage+' ('+reason+'); OCR fixed-fixture counts '+counts+'; partial tokens '+partial+'; strip counts '+strip+'; detail fields '+fields+'; independent OCR '+tess+'; glyph diagnostic '+glyph+'; image is unverified'));
+   else reject(Error('WinBox GUI '+(negative?'negative '+negative+' ':'')+'did not complete at '+stage+' ('+reason+'); OCR fixed-fixture counts '+counts+'; partial tokens '+partial+'; strip counts '+strip+'; detail fields '+fields+'; independent OCR '+tess+'; glyph diagnostic '+glyph+'; image is unverified'));
   });
  });
  // Negative control against real GUI and real RouterOS, not fabricated OCR
- // words: change ether1 to the visually similar etherl on this disposable CHR.
+ // words: change ether1 to several visually similar names on this disposable CHR.
  // Keep expecting ether1 in the capture. REST must reject configuration drift;
  // both OCR engines must reject it independently before restoring the fixture.
  const get=makeReader(Number(new URL(info.url).port),'admin',info.password);
- await session.console.command('/interface ethernet set [find where name=ether1] name=etherl');
- const changed=await get('/rest/ip/address');
- assert(changed.some(x=>x.address==='198.51.100.2/30' && x.interface==='etherl'),'Negative fixture did not rename the actual WAN interface');
- await assert.rejects(()=>verifyConfiguration(plan.expected,get));
- await capture('wan',true);
- await session.console.command('/interface ethernet set [find where name=etherl] name=ether1');
- await verifyConfiguration(plan.expected,get);
+ for(const lookalike of ['etherl','etherI','ether11']) {
+  // Constants, not user-supplied RouterOS syntax. Restore and verify after
+  // every trial, so one negative fixture cannot affect the next.
+  await session.console.command('/interface ethernet set [find where name=ether1] name='+lookalike);
+  const changed=await get('/rest/ip/address');
+  assert(changed.some(x=>x.address==='198.51.100.2/30' && x.interface===lookalike),'Negative fixture did not rename the actual WAN interface');
+  await assert.rejects(()=>verifyConfiguration(plan.expected,get));
+  await capture('wan',lookalike);
+  await session.console.command('/interface ethernet set [find where name='+lookalike+'] name=ether1');
+  await verifyConfiguration(plan.expected,get);
+ }
  await capture('lan');await capture('wan');
  const picture=path.join(process.env.RUNNER_TEMP,'lab-scheme-winbox.jpg');assert(fs.existsSync(picture)&&fs.statSync(picture).size>5000);if(kind==='dhcp'){const p=path.join(process.env.RUNNER_TEMP,'lab-scheme-dhcp.jpg');assert(fs.existsSync(p)&&fs.statSync(p).size>5000);}
  for(const target of ['lan','wan']){const p=path.join(process.env.RUNNER_TEMP,'lab-scheme-detail-'+target+'.jpg');assert(fs.existsSync(p)&&fs.statSync(p).size>5000);}
