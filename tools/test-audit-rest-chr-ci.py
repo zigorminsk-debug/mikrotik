@@ -21,12 +21,6 @@ def command(text,timeout=60):
  settle();vm.sendline(':do { '+text+'; :put ('+literal(ok)+') } on-error={ :put ('+literal(bad)+') }')
  if vm.expect([re.escape(ok),re.escape(bad)],timeout=timeout)!=0:raise RuntimeError('CHR rejected fixture command')
 
-def fingerprint():
- start='AUDITPIN'+secrets.token_hex(8);end='AUDITEND'+secrets.token_hex(8)
- settle();vm.sendline(':put ('+literal(start)+' . [/certificate get [/certificate find where name="audit-ci"] fingerprint] . '+literal(end)+')')
- vm.expect(re.escape(start)+r'([0-9A-Fa-f]{64})'+re.escape(end),timeout=60)
- value=vm.match.group(1)
- return ':'.join(value[i:i+2] for i in range(0,64,2))
 stage='boot/login'
 try:
  vm.expect(r'(?i)login:');vm.sendline('admin');vm.expect(r'(?i)password:');vm.sendline('')
@@ -50,10 +44,8 @@ try:
               '/user group add name=audit-ci policy=read,api,rest-api',
               '/user add name=ci-audit group=audit-ci password="'+password+'"']):
   stage='configure-'+str(index+1);command(text,120)
- stage='read-certificate-fingerprint'
- pin=fingerprint()
  stage='collector-and-write-denial'
- result=subprocess.run(['node','tools/test-audit-rest-chr-ci.js'],input=json.dumps({'port':port,'fingerprint':pin,'user':user,'password':password}),text=True,timeout=180)
+ result=subprocess.run(['node','tools/test-audit-rest-chr-ci.js'],input=json.dumps({'port':port,'user':user,'password':password}),text=True,timeout=180)
  if result.returncode:raise RuntimeError('HTTPS collector test failed')
 except Exception as error:
  print('::error title=Audit CHR fixture stage::'+stage+'; exception class: '+type(error).__name__,flush=True)
