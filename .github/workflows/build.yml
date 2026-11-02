@@ -39,6 +39,7 @@ jobs:
       - name: Актуальность инвентаризации снимков и истории выпусков
         run: |
           node tools/audit-screens.js --check
+          node tools/audit-guide-procedures.js --check
           node tools/generate-release-history.js --check
       - name: Тесты графической лаборатории
         run: node tools/test-lab.js
@@ -79,6 +80,7 @@ jobs:
           node tools/test-lab-ping-dom.js
           node tools/test-lab-ping-matrix.js
           node tools/test-guide-lab.js
+          node tools/test-guide-practical-setup.js
           node tools/test-guide-switch.js
           node tools/test-guide-interfaces.js
           node tools/test-guide-wireguard.js

@@ -12,6 +12,7 @@ vm.runInContext(fs.readFileSync(path.join(dir, 'guide-core.js'), 'utf8'), contex
 vm.runInContext(fs.readFileSync(path.join(dir, 'guide-switch.js'), 'utf8'), context, {filename:'guide-switch.js'});
 for (const file of fs.readdirSync(dir).filter(f => /^sec-.*\.js$/.test(f)).sort())
   vm.runInContext(fs.readFileSync(path.join(dir, file), 'utf8'), context, {filename:file});
+vm.runInContext(fs.readFileSync(path.join(dir, 'guide-practical-setup.js'), 'utf8'), context, {filename:'guide-practical-setup.js'});
 const clean = text => String(text || '').replace(/\r?\n/g, ' ').replace(/\|/g, '\\|');
 const out = ['# Инвентаризация иллюстраций учебника', '',
   'Создаётся командой `node tools/audit-screens.js` для видимых разделов меню. Это инвентаризация, а не доказательство соответствия: изображения внутри раздела могут показывать другие значения, версию или действие.', '',

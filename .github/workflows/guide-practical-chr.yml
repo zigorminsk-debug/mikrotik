@@ -1,0 +1,32 @@
+# Disposable fixture only, not product VPN setup and not a physical router.
+name: Guide practical RouterOS research
+on:
+  push:
+    branches: ['**']
+    paths:
+      - '.github/workflows/guide-practical-chr.yml'
+      - 'tools/test-guide-practical-chr.py'
+      - 'app/js/guide-practical-setup.js'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  chr-parameters:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install QEMU and serial console support
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 python3-pexpect unzip
+      - name: Download official CHR for disposable CI
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/guide-practical"
+          cd "$RUNNER_TEMP/guide-practical"
+          curl -fL --retry 2 -o chr.zip https://download.mikrotik.com/routeros/7.23.8/chr-7.23.8.img.zip
+          echo 'ac01ec7c092f4cab8136212e8ebfd613e0a37844c406317fa228d1ad446ce62c  chr.zip' | sha256sum -c -
+          unzip -o chr.zip
+      - name: Verify selected configuration properties only
+        run: /usr/bin/python3 tools/test-guide-practical-chr.py "$RUNNER_TEMP/guide-practical"
