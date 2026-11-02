@@ -80,7 +80,7 @@ var canvas, svg, hintEl, emptyEl, inspectEl, logBox, logLines, resultsEl,
     modeBtns, palBtns, runBtn, resetBtn, skipBtn, modal, lmTitle, lmBody, lmErr,
     lmSave, lmCancel, lmClose;
 // The result action must use exactly the state that was model-checked.
-var checkedStateJson = null, checkedLaunchPending = false, liveRouterId = null, liveClients = [], liveStateJson = null;
+var checkedStateJson = null, checkedLaunchPending = false, liveRouterId = null, liveClients = [], liveStateJson = null, pingMatrixRun = null, pingUiBusy = false;
 
 function $(id) { return document.getElementById(id); }
 
@@ -507,6 +507,7 @@ function invalidate() {
   if (playCtl) { clearTimeout(playCtl.timer); playCtl = null; playToken++; }
   currentRes = null;
   checkedStateJson = null;
+  if (pingMatrixRun) pingMatrixRun.stopped = true;
   flowEnabled = false;
   if ($('lab-flow-status')) $('lab-flow-status').hidden = true;
   lastModel = null;
@@ -547,6 +548,7 @@ function skip() {
 function run(opts) {
   opts = opts || {};
   var instant = !!opts.instant || typeof window !== 'undefined' && window.LAB_INSTANT === true;
+  if (pingMatrixRun) pingMatrixRun.stopped = true;
   if (playCtl) { clearTimeout(playCtl.timer); playCtl = null; }
   playToken++;
   flowEnabled = false;
@@ -610,7 +612,10 @@ function renderResults(res) {
       '<label>Адрес из схемы <select id="lab-ping-preset"><option value="">Ввести вручную</option>' + pingTargets.map(function(x) {return '<option value="'+esc(x.ip)+'">'+esc(x.device.name)+' — '+esc(x.ip)+(x.device.type==='router'?' (адрес CHR)':' (адрес схемы; узел запускается отдельно)')+'</option>';}).join('') + '</select></label>' +
       '<label>IPv4 или DNS-имя <input id="lab-ping-target" type="text" autocomplete="off" placeholder="IP или DNS-имя"></label>' +
       '<button type="button" class="btn" id="lab-ping-run"' + (!(window.routerOS && typeof window.routerOS.ping === 'function') ? ' disabled' : '') + '>Отправить ping</button></div>' +
-      '<div id="lab-ping-result" class="fs-hint" role="status" aria-live="polite">' + (!(window.routerOS && typeof window.routerOS.ping === 'function') ? 'Доступно только в установленном Windows-приложении после запуска CHR.' : 'Сначала запустите выбранную CHR и оставьте её окно открытым.') + '</div></div>' +
+      '<div id="lab-ping-result" class="fs-hint" role="status" aria-live="polite">' + (!(window.routerOS && typeof window.routerOS.ping === 'function') ? 'Доступно только в установленном Windows-приложении после запуска CHR.' : 'Сначала запустите выбранную CHR и оставьте её окно открытым.') + '</div>' +
+      '<div class="lab-ping-matrix"><h4>Проверить связи запущенных VM</h4><p class="fs-hint">По очереди проверяются все направления между CHR и запущенными Linux VM. На каждое направление требуется отдельное подтверждение Windows; отмена прекращает оставшиеся проверки. Только адреса при запуске, без DNS и интернета. После изменения схемы или настроек VM запустите лабораторию заново.</p>' +
+      '<button type="button" class="btn" id="lab-matrix-start" disabled>Проверить все направления</button> <button type="button" class="btn ghost" id="lab-matrix-stop" disabled>Остановить оставшиеся</button>' +
+      '<p id="lab-matrix-status" class="fs-hint" role="status" aria-live="polite">Запустите CHR с Linux-клиентами.</p><ol id="lab-matrix-results"></ol></div></div>' +
       '</div></div>';
     if (res.warnings.length) {
       html += '<div class="res-card"><div class="res-head">⚠ Предупреждения: ' + res.warnings.length + '</div><div class="res-body"><ul class="check-list">' +
@@ -659,26 +664,62 @@ function renderResults(res) {
   }
   if(liveStateJson && liveStateJson===checkedStateJson && liveClients.length && pingPreset){showLiveClients(liveClients,JSON.parse(liveStateJson));$('lab-checked-chr-status').textContent='CHR и Linux-клиенты из последнего запуска доступны, пока открыто окно CHR.';$('lab-ping-result').textContent='Выберите запущенную VM и IPv4 или DNS-имя для проверки.';}
   else if(liveStateJson && liveStateJson!==checkedStateJson){liveRouterId=null;liveClients=[];liveStateJson=null;}
+  var matrixStart=$('lab-matrix-start'),matrixStop=$('lab-matrix-stop'),matrixStatus=$('lab-matrix-status'),matrixResults=$('lab-matrix-results');
+  function matrixReady(){return !!(window.routerOS && typeof window.routerOS.ping==='function' && typeof window.routerOS.pingClient==='function' && liveStateJson && liveStateJson===checkedStateJson && liveRouterId && liveClients.length && !pingMatrixRun && !pingUiBusy);}
+  function updateMatrix(){var button=$('lab-matrix-start');if(button)button.disabled=!matrixReady();}
+  updateMatrix();
+  if(matrixStop) matrixStop.addEventListener('click',function(){if(pingMatrixRun){pingMatrixRun.stopped=true;matrixStop.disabled=true;matrixStatus.textContent='Остановка: уже открытое подтверждение или выполняющийся ping завершится; остальные не отправятся.';}});
+  if(matrixStart) matrixStart.addEventListener('click',async function(){
+    if(!matrixReady() || !checkedStateJson || JSON.stringify(state)!==checkedStateJson || !currentRes || currentRes.errors.length)return;
+    var snapshotText=checkedStateJson,snapshot=JSON.parse(snapshotText),router=snapshot.devices.find(function(d){return d.id===liveRouterId&&d.type==='router';});
+    var nodes=router?[{id:router.id,name:router.name,ip:router.cfg.gw,client:false}]:[];
+    liveClients.forEach(function(c){var d=snapshot.devices.find(function(x){return x.id===c.id&&(x.type==='pc'||x.type==='server');});if(d)nodes.push({id:c.id,name:d.name,ip:c.address,client:true});});
+    if(nodes.length!==liveClients.length+1 || nodes.length<2 || nodes.length>5 || nodes.some(function(n,i){return !LabEngine.validIp(n.ip)||nodes.findIndex(function(x){return x.id===n.id||x.ip===n.ip;})!==i;})){
+      matrixStatus.textContent='Адреса или устройства неоднозначны; перезапустите виртуальную лабораторию.';return;
+    }
+    var pairs=[];nodes.forEach(function(a){nodes.forEach(function(b){if(a.id!==b.id)pairs.push({from:a,to:b});});});
+    var run={stopped:false},routerId=liveRouterId;pingMatrixRun=run;matrixStart.disabled=true;matrixStop.disabled=false;
+    if(pingButton)pingButton.disabled=true;matrixResults.textContent='';
+    var rows=pairs.map(function(pair){var li=document.createElement('li');li.textContent=pair.from.name+' → '+pair.to.name+' ('+pair.to.ip+'): ожидает';matrixResults.appendChild(li);return li;});
+    function valid(){return !run.stopped && matrixStatus.isConnected && checkedStateJson===snapshotText && liveStateJson===snapshotText && liveRouterId===routerId && JSON.stringify(state)===snapshotText;}
+    try{
+      for(var i=0;i<pairs.length;i++){
+        if(!valid())break;
+        var pair=pairs[i],prefix=pair.from.name+' → '+pair.to.name+' ('+pair.to.ip+'): ';
+        rows[i].textContent=prefix+'ожидание отдельного подтверждения';matrixStatus.textContent='Направление '+(i+1)+' из '+pairs.length+'. Подтвердите или отмените запрос в Windows.';
+        var answer;
+        try{answer=await (pair.from.client?window.routerOS.pingClient(routerId,pair.from.id,JSON.parse(snapshotText),pair.to.ip):window.routerOS.ping(routerId,JSON.parse(snapshotText),pair.to.ip));}
+        catch(_){answer=null;}
+        if(!matrixStatus.isConnected)break;
+        if(answer&&answer.cancelled){rows[i].textContent=prefix+'отменено';run.stopped=true;break;}
+        if(!answer||!answer.ok||answer.address!==pair.to.ip||answer.sent!==3||!Number.isInteger(answer.received)||answer.received<0||answer.received>3){rows[i].textContent=prefix+'результат неизвестен'+(answer&&answer.message?' — '+answer.message:'');run.stopped=true;break;}
+        rows[i].textContent=prefix+'получено '+answer.received+' из 3'+(answer.received===0?' (ICMP может блокироваться)':'');
+      }
+      if(matrixStatus.isConnected)matrixStatus.textContent=valid()?'Все выбранные направления проверены. Ноль ответов не доказывает недоступность; реальные принтеры, провайдеры, VPN и интернет не проверялись.':'Проверка остановлена; оставшиеся направления не отправлялись. Результат открытого при остановке запроса может быть неизвестен.';
+    }finally{if(pingMatrixRun===run)pingMatrixRun=null;if(matrixStop.isConnected)matrixStop.disabled=true;var activePing=$('lab-ping-run');if(activePing)activePing.disabled=false;updateMatrix();}
+  });
   if(pingPreset) pingPreset.addEventListener('change',function(){if(pingPreset.value)$('lab-ping-target').value=pingPreset.value;});
   var pingButton=$('lab-ping-run');
+  if(pingButton && (pingUiBusy || pingMatrixRun)) pingButton.disabled=true;
   if(pingButton && window.routerOS && typeof window.routerOS.ping === 'function') pingButton.addEventListener('click',function(){
+    if(pingMatrixRun || pingUiBusy)return;
     var status=$('lab-ping-result'),select=$('lab-ping-source'),source=select.value,target=$('lab-ping-target').value.trim(), client=select.selectedOptions[0] && select.selectedOptions[0].dataset.kind==='client';
     if(!checkedStateJson || JSON.stringify(state)!==checkedStateJson || !currentRes || currentRes.errors.length){status.textContent='Схема изменилась; снова запустите проверку и виртуальную CHR.';return;}
     var nameOk=target.length>0 && target.length<=253 && !/^(?:\d+\.){3}\d+$/.test(target) && target.split('.').every(function(part){return part.length>0 && part.length<=63 && /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$/.test(part);});
     if(!LabEngine.validIp(target) && !nameOk){status.textContent='Укажите IPv4 или DNS-имя без URL и пробелов, например 192.168.88.1 или example.com.';return;}
-    pingButton.disabled=true;status.textContent='Ожидание подтверждения и ответа виртуального устройства…';
+    pingUiBusy=true;pingButton.disabled=true;updateMatrix();status.textContent='Ожидание подтверждения и ответа виртуального устройства…';
     Promise.resolve().then(function(){return client ? window.routerOS.pingClient(liveRouterId,source,JSON.parse(checkedStateJson),target) : window.routerOS.ping(source,JSON.parse(checkedStateJson),target);}).then(function(result){
       if(!status.isConnected)return;
       if(result && result.ok && result.sent===3 && Number.isInteger(result.received) && result.received>=0 && result.received<=3){
         status.textContent=(client?'Виртуальный Linux-клиент':'Виртуальная CHR')+(result.address?' → '+result.address:'')+': отправлено 3, получено '+result.received+'. '+(result.received===0?'Ответов нет; ICMP может блокироваться'+(liveClients.length?'.':', а виртуальные клиенты не запущены.'):result.received<3?'Часть запросов осталась без ответа.':'Получены ответы на все три запроса.')+' Это не проверка устройств, которых нет в виртуальной сети.';
       } else if(result && result.cancelled)status.textContent='Проверка отменена; ping не отправлялся.'+' Если имя уже разрешено, DNS-запрос мог быть выполнен.';
       else status.textContent=(result && result.message)||'Результат проверки неизвестен.';
-    }).catch(function(){if(status.isConnected)status.textContent='Связь с Windows-компонентом прервалась; результат неизвестен.';}).finally(function(){if(pingButton.isConnected)pingButton.disabled=false;});
+    }).catch(function(){if(status.isConnected)status.textContent='Связь с Windows-компонентом прервалась; результат неизвестен.';}).finally(function(){pingUiBusy=false;var button=$('lab-ping-run');if(button&&!pingMatrixRun)button.disabled=false;updateMatrix();});
   });
   Array.prototype.slice.call(resultsEl.querySelectorAll('.lab-checked-launch')).forEach(function(button) {
     button.addEventListener('click', function() {
       var status = $('lab-checked-chr-status');
-      if (checkedLaunchPending) return;
+      if (checkedLaunchPending || pingMatrixRun) return;
       if (!checkedStateJson || JSON.stringify(state) !== checkedStateJson || !currentRes || currentRes.errors.length) {
         status.textContent = 'Схема изменилась после проверки. Нажмите «Запустить модель» ещё раз.'; return;
       }
@@ -695,7 +736,7 @@ function renderResults(res) {
           var clientList=withClients && Array.isArray(result.clients) ? result.clients : [];
           if(withClients && (clientList.length<1 || clientList.length>4 || clientList.some(function(c,i){return !c || !LabEngine.validIp(c.address) || !snapshot.devices.some(function(d){return d.id===c.id && (d.type==='pc'||d.type==='server');}) || clientList.findIndex(function(x){return x.id===c.id;})!==i;}))) {status.textContent='Список виртуальных клиентов некорректен; закройте окно CHR.';return;}
           liveRouterId=routerId;liveClients=clientList;liveStateJson=withClients?checkedStateJson:null;
-          showLiveClients(clientList,snapshot);
+          showLiveClients(clientList,snapshot);updateMatrix();
           status.textContent = withClients ? 'CHR и Linux-клиенты запущены. Адреса и источники добавлены в ping; при закрытии окна диски удаляются.' : 'Виртуальная CHR открыта. При закрытии её окна временный диск удаляется.';
           var pingStatus=$('lab-ping-result');if(pingStatus)pingStatus.textContent=withClients ? 'Выберите запущенную VM и IPv4 или DNS-имя для проверки.' : 'Выберите CHR и адрес для проверки.';
         } else if (result && result.cancelled) status.textContent = 'Запуск отменён.';
@@ -1201,7 +1242,9 @@ function init() {
   canvas = $('lab-canvas');
   if (!canvas) return;
   if (window.routerOS && typeof window.routerOS.onClosed === 'function') window.routerOS.onClosed(function() {
+    if(pingMatrixRun)pingMatrixRun.stopped=true;
     liveRouterId=null;liveClients=[];liveStateJson=null;
+    var matrix=$('lab-matrix-start');if(matrix)matrix.disabled=true;
     if(resultsEl){Array.prototype.slice.call(resultsEl.querySelectorAll('[data-live-client]')).forEach(function(o){o.remove();});}
     var status=$('lab-checked-chr-status');if(status)status.textContent='Виртуальная лаборатория закрыта; клиентские VM больше не запущены.';
     var pingStatus=$('lab-ping-result');if(pingStatus)pingStatus.textContent='Лаборатория закрыта. Для реального ping запустите VM снова.';
