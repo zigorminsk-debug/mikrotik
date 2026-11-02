@@ -17,6 +17,12 @@ const state={devices:[
 if(mode==='hub'){state.devices.push({id:'switch',type:'switch',name:'Switch',cfg:{}});state.links.push({a:'router',b:'switch'},{a:'switch',b:'pc'},{a:'switch',b:'server'});}
 else state.links.push({a:'router',b:'pc'},{a:'router',b:'server'});
 let stage='preflight';const opts={engine,state,routerId:'router',qemu,chrImage,linuxImage,tempRoot,supervisor};const lab=new ExperimentalLab(opts);
+async function diagnostics(guest){
+ const token='CI'+randomBytes(16).toString('hex'),start=token+'S',end=token+'E',a=token.slice(0,16),b=token.slice(16),c=guest.console;
+ await c.settle();c.send(`printf '%s%sS\\n' '${a}' '${b}'; cat /etc/resolv.conf; printf '%s%sE\\n' '${a}' '${b}'`);
+ const raw=await c.expect(new RegExp(start+'[\\s\\S]{0,1000}?'+end),30000);
+ console.log('::notice title=Disposable CI DNS configuration::'+raw.slice(start.length,-end.length).trim().replace(/[\r\n%]/g,' '));
+}
 async function nic(guest,up){
  const token='CI'+randomBytes(16).toString('hex'),a=token.slice(0,16),b=token.slice(16),c=guest.console;
  await c.settle();c.send('sudo ip link set eth0 '+(up?'up':'down')+`; result=$?; printf '%s%s%sEND\\n' '${a}' '${b}' "$result"`);
@@ -28,7 +34,7 @@ async function nic(guest,up){
  assert(pc&&server);assert(/^192\.168\.73\./.test(pc.address));assert.equal(pc.mode,'dhcp');assert.equal(server.address,'192.168.73.20');assert.equal(server.mode,'static');
  stage='Linux DNS and chosen gateway';assert.equal(await lab.guests.get('pc').hasGateway('192.168.73.1'),true);assert.equal(await lab.guests.get('server').hasGateway('192.168.73.1'),true);assert.equal(await lab.guests.get('pc').hasGateway('192.168.73.2'),false);
  const resolved=await lab.resolveClient('pc','server.lab');assert.deepStrictEqual(resolved,{ok:true,address:server.address});assert.deepStrictEqual(await lab.pingClient('pc',resolved.address),{sent:3,received:3});
- assert.deepStrictEqual(await lab.resolveClient('server','server.lab'),{ok:false,reason:'dns'}); // selected static DNS is an absent host, not replaced by the router
+ await diagnostics(lab.guests.get('server'));const unavailable=await lab.resolveClient('server','server.lab');await diagnostics(lab.guests.get('server'));assert.deepStrictEqual(unavailable,{ok:false,reason:'dns'}); // chosen static DNS is an absent host
  stage='PC to server';assert.deepStrictEqual(await lab.pingClient('pc',server.address),{sent:3,received:3});
  stage='server to PC';assert.deepStrictEqual(await lab.pingClient('server',pc.address),{sent:3,received:3});
  stage='router to clients';assert.equal((await lab.router.ping(pc.address)).received,3);assert.equal((await lab.router.ping(server.address)).received,3);
