@@ -1,7 +1,7 @@
 {
   "name": "mikrotik-guide",
   "productName": "MikroTik Guide",
-  "version": "1.19.24",
+  "version": "1.19.25",
   "description": "Учебник по настройке роутеров MikroTik со скриншотами и интерактивным стендом моделирования",
   "main": "main.js",
   "author": "zigorminsk-debug",

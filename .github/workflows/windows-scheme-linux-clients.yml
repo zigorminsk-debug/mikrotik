@@ -6,6 +6,9 @@ on:
     paths:
       - '.github/workflows/windows-scheme-linux-clients.yml'
       - 'tools/test-experimental-lab-windows.js'
+      - 'tools/test-ui-linux-lab-windows.js'
+      - 'app/js/lab.js'
+      - 'app/index.html'
       - 'windows/chr/experimental-lab.js'
       - 'windows/chr/linux-image.js'
       - 'tools/test-linux-image.js'
@@ -94,3 +97,13 @@ jobs:
           $dir = Join-Path $env:RUNNER_TEMP 'qemu-candidate'
           node tools/test-experimental-lab-windows.js "$env:QEMU_EXE" "$env:CHR_IMAGE" "$env:LINUX_IMAGE" (Join-Path $dir 'linux-sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe')
           if ($LASTEXITCODE -ne 0) { throw 'Linux endpoints experiment failed' }
+      - name: Install UI test dependencies
+        if: matrix.mode == 'hub'
+        run: npm ci --prefix tools --no-audit --no-fund
+      - name: Exercise actual lab UI with real isolated guests
+        if: matrix.mode == 'hub'
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'qemu-candidate'
+          node tools/test-ui-linux-lab-windows.js "$env:QEMU_EXE" "$env:CHR_IMAGE" "$env:LINUX_IMAGE" (Join-Path $dir 'ui-linux-sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe')
+          if ($LASTEXITCODE -ne 0) { throw 'UI-to-Linux lab test failed' }

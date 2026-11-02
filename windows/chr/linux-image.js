@@ -38,4 +38,4 @@ async function ensureLinuxImage(cacheRoot,consent){
   await fsp.rm(result,{force:true});await fsp.rename(image,result);return result;
  }finally{await fsp.rm(temp,{recursive:true,force:true,maxRetries:5,retryDelay:200});}
 }
-module.exports={ensureLinuxImage,download,allowed,hashFile,matches,URL_IMAGE,ASSET_PATH,RELEASE_ASSET_PATH,SHA256,IMAGE_BYTES};
+module.exports={ensureLinuxImage,download,allowed,hashFile,matches,URL_IMAGE,ASSET_PATH,RELEASE_ASSET_PATH,SHA256,IMAGE_BYTES,IMAGE_NAME};

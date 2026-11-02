@@ -10,6 +10,8 @@ const { validateDualInternet } = require('./chr/online');
 const { networkWarning } = require('./chr/network-warning');
 const { ensureImage } = require('./chr/download');
 const { ChrSession } = require('./chr/session');
+const { ExperimentalLab } = require('./chr/experimental-lab');
+const { ensureLinuxImage, IMAGE_NAME: LINUX_IMAGE_NAME } = require('./chr/linux-image');
 const {validTarget} = require('./chr/ping');
 const {validName} = require('./chr/resolve');
 const physicalDiscovery = require('./physical/mndp');
@@ -33,22 +35,34 @@ async function removeStale(root, pattern) {
 async function staleSessions() {
   await removeStale(sessionsRoot(), /^session-[A-Za-z0-9_-]+$/);
   await removeStale(path.join(app.getPath('userData'), 'chr-cache'), /^\.chr-[A-Za-z0-9_-]+$/);
+  await removeStale(path.join(app.getPath('userData'), 'linux-cache'), /^\.linux-[A-Za-z0-9_-]+$/);
 }
 async function closeChr() {
   const s = active; active = null; activeMeta = null;
   if (chrWindow && !chrWindow.isDestroyed()) { const w = chrWindow; chrWindow = null; w.destroy(); }
   if (s) await s.stop();
 }
-async function licenseConsent(online) {
+async function licenseConsent(online, withClients = false) {
   while (mainWindow && !mainWindow.isDestroyed()) {
     const answer = await dialog.showMessageBox(mainWindow, {
       type:'info', title:'Лицензия RouterOS CHR',
       message:'Перед первой загрузкой ознакомьтесь с условиями MikroTik.',
-      detail:'Официальный образ CHR 7.23.8 будет загружен с download.mikrotik.com и проверен по SHA-256. ' + (online ? 'ВМ сможет обращаться к интернету, компьютеру и локальной сети через Windows.' : 'ВМ изолирована от физической сети и интернета.') + ' Выбранные клиентские устройства и провайдеры не запускаются как ВМ. Все изменения в CHR удаляются при закрытии окна. Бесплатная лицензия CHR ограничивает скорость.',
+      detail:'Официальный образ CHR 7.23.8 будет загружен с download.mikrotik.com и проверен по SHA-256. ' + (online ? 'ВМ сможет обращаться к интернету, компьютеру и локальной сети через Windows.' : 'ВМ изолирована от физической сети и интернета.') + (withClients ? ' ПК и сервер будут отдельными одноразовыми Linux-VM; провайдеры и принтеры не эмулируются.' : ' Выбранные клиентские устройства и провайдеры не запускаются как ВМ.') + ' Все изменения в CHR удаляются при закрытии окна. Бесплатная лицензия CHR ограничивает скорость.',
       buttons:['Открыть условия MikroTik', 'Согласен и запустить', 'Отмена'], defaultId:0, cancelId:2, noLink:true
     });
     if (answer.response === 0) { await shell.openExternal('https://mikrotik.com/software/legal'); continue; }
     return answer.response === 1;
+  }
+  return false;
+}
+async function linuxConsent() {
+  while (mainWindow && !mainWindow.isDestroyed()) {
+    const answer=await dialog.showMessageBox(mainWindow,{type:'warning',title:'Изолированные Linux-клиенты',
+      message:'Загрузить и запустить одноразовые Linux-клиенты выбранной схемы?',
+      detail:'Образ CirrOS 0.6.3 (около 21 МБ) будет загружен с GitHub проекта и проверен по SHA-256. Ознакомьтесь с исходниками и условиями компонентов у разработчиков. Образ не входит в установщик; полнота лицензий и исходников образа не проверена. У Linux публичный пароль и sudo. ВМ не подключаются к физической сети или интернету, но другие программы на этом компьютере могут внедрять пакеты в виртуальную сеть. Используйте только учебные данные. ПК и сервер — Linux без приложений; принтер, провайдер и VPN не эмулируются. Все диски удаляются при закрытии CHR.',
+      buttons:['Исходники CirrOS','Согласен и запустить','Отмена'],defaultId:2,cancelId:2,noLink:true});
+    if(answer.response===0){await shell.openExternal('https://github.com/cirros-dev/cirros/tree/0.6.3');continue;}
+    return answer.response===1;
   }
   return false;
 }
@@ -70,8 +84,9 @@ function openChrWindow(info, vm) {
   });
   win.loadURL(info.url).catch(() => { if (!win.isDestroyed()) win.close(); });
 }
-ipcMain.handle('chr:launch', async (event, routerId, state) => {
+ipcMain.handle('chr:launch', async (event, routerId, state, withClients = false) => {
   if (process.platform !== 'win32' || !mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame) return {ok:false, message:'Виртуальная CHR доступна только в окне приложения Windows.'};
+  if (withClients !== true && withClients !== false) return {ok:false,message:'Недопустимый режим запуска.'};
   if (cleanupFailed) return {ok:false, message:'Не удалось очистить временные данные CHR. Закройте приложение и проверьте папки chr-sessions и chr-cache в его данных.'};
   if (launching || active) return {ok:false, message:'Виртуальная CHR уже запущена или запускается. Закройте её окно перед новым запуском.'};
   if (!app.isPackaged) return {ok:false, message:'Для виртуальной CHR требуется собранный Windows-установщик с QEMU.'};
@@ -85,6 +100,12 @@ ipcMain.handle('chr:launch', async (event, routerId, state) => {
     const plan = makePlan(engine, state, routerId, {allowDualStaticWan:true});
     if (plan.blockers.length) return {ok:false, message:plan.blockers.join('\n')};
     const online = Array.isArray(plan.expected.wans) && plan.expected.wans.length === 2;
+    const qemu = path.join(process.resourcesPath, 'qemu', 'qemu-system-x86_64.exe');
+    const supervisor = path.join(process.resourcesPath, 'chr-supervisor.exe');
+    const paths = {engine,state,routerId,qemu,chrImage:path.join(app.getPath('userData'),'chr-cache','chr-7.23.8.img'),linuxImage:path.join(app.getPath('userData'),'linux-cache',LINUX_IMAGE_NAME),tempRoot:sessionsRoot(),supervisor};
+    // Preflight before a network request or a confirmation, using only data
+    // generated by the private planner; never accept commands or paths via IPC.
+    if(withClients)new ExperimentalLab(paths);
     const dhcpWan = Array.isArray(plan.expected.wans) && plan.expected.wans.length === 1 && plan.expected.wans[0].kind === 'dhcp';
     if (online) {
       if (!validateDualInternet(plan.expected)) return {ok:false, message:'Этот интернет-режим пока поддерживает только два виртуальных статических WAN: ether1 — 10.0.2.20/24, шлюз 10.0.2.2; ether4 — 10.0.3.20/24, шлюз 10.0.3.2; DNS 10.0.2.3 и 10.0.3.3. Порты зависят от порядка подключения на схеме. Программа не заменяет выбранные адреса. Настоящие независимые провайдеры, DHCP и PPPoE пока не поддерживаются.'};
@@ -92,24 +113,28 @@ ipcMain.handle('chr:launch', async (event, routerId, state) => {
       if (networkChoice.response !== 1 || quitting || !mainWindow || mainWindow.isDestroyed()) return {ok:false, cancelled:true};
     }
     status('Ознакомьтесь с условиями лицензии MikroTik.');
-    if (!await licenseConsent(online)) return {ok:false, cancelled:true};
-    const qemu = path.join(process.resourcesPath, 'qemu', 'qemu-system-x86_64.exe');
-    const supervisor = path.join(process.resourcesPath, 'chr-supervisor.exe');
+    if (!await licenseConsent(online,withClients)) return {ok:false, cancelled:true};
+    if(withClients && !await linuxConsent())return {ok:false,cancelled:true};
     await Promise.all([fs.access(qemu), fs.access(supervisor)]);
     status('Проверка или загрузка официального образа CHR. При первом запуске это может занять несколько минут…');
     const image = await ensureImage(path.join(app.getPath('userData'), 'chr-cache'), true);
     if (quitting || !mainWindow || mainWindow.isDestroyed()) return {ok:false, cancelled:true};
-    const vm = new ChrSession({qemu, image, supervisor, tempRoot:sessionsRoot(), internetConsent:online});
+    let linuxImage;
+    if(withClients){status('Проверка или загрузка образа Linux-клиентов…');linuxImage=await ensureLinuxImage(path.join(app.getPath('userData'),'linux-cache'),true);}
+    if (quitting || !mainWindow || mainWindow.isDestroyed()) return {ok:false, cancelled:true};
+    const vm = withClients ? new ExperimentalLab({...paths,chrImage:image,linuxImage}) : new ChrSession({qemu, image, supervisor, tempRoot:sessionsRoot(), internetConsent:online});
     active = vm;
-    status('Запуск CHR, применение и проверка настроек. Это может занять несколько минут…');
-    const info = await vm.start(plan);
+    status(withClients?'Запуск CHR и Linux-клиентов. Это может занять несколько минут…':'Запуск CHR, применение и проверка настроек. Это может занять несколько минут…');
+    const started = await vm.start(plan);
+    const info = withClients ? started.router : started;
+    const clients = withClients ? started.clients : [];
     vm.exitPromise.then(() => {
-      if (active === vm && !quitting) closeChr().then(() => { if (mainWindow && !mainWindow.isDestroyed()) dialog.showErrorBox('Виртуальная RouterOS', 'Виртуальная CHR неожиданно завершилась.'); }).catch(() => { if (mainWindow && !mainWindow.isDestroyed()) dialog.showErrorBox('Очистка CHR', 'Не удалось очистить временные данные CHR.'); });
+      if (active === vm && !quitting) closeChr().then(() => { if (mainWindow && !mainWindow.isDestroyed()) dialog.showErrorBox('Виртуальная лаборатория', withClients ? 'CHR или один из Linux-клиентов неожиданно завершился; все ВМ остановлены.' : 'Виртуальная CHR неожиданно завершилась.'); }).catch(() => { if (mainWindow && !mainWindow.isDestroyed()) dialog.showErrorBox('Очистка CHR', 'Не удалось очистить временные данные CHR.'); });
     });
     if (quitting || !mainWindow || mainWindow.isDestroyed()) { await closeChr(); return {ok:false, cancelled:true}; }
     const choice = await dialog.showMessageBox(mainWindow, {type:'info', title:'Виртуальная RouterOS готова',
-      message:online ? 'Настройки проверены в CHR с двумя виртуальными WAN.' : 'Базовые настройки проверены в изолированной CHR.',
-      detail:'Логин: admin\nВременный пароль: ' + info.password + '\n\nПри закрытии окна виртуальный диск будет удалён. ' + (online ? 'Оба WAN используют сеть Windows. Клиенты и независимые провайдеры схемы не эмулируются; доступ к компьютеру и локальной сети возможен.' : 'Интернет, клиенты и провайдеры схемы не эмулируются.') + (dhcpWan ? ' WAN получил DHCP-аренду от изолированной сети QEMU 10.0.2.0/24; это не физический провайдер и не подтверждение маршрута по умолчанию или интернета.' : '') + (plan.expected.ntp ? ' Параметры NTP и часовой пояс проверены, но синхронизация времени и доступность сервера не проверялись.' : ''),
+      message:withClients ? 'Виртуальная CHR и Linux-клиенты запущены в изолированной сети.' : online ? 'Настройки проверены в CHR с двумя виртуальными WAN.' : 'Базовые настройки проверены в изолированной CHR.',
+      detail:'Логин: admin\nВременный пароль: ' + info.password + '\n\nПри закрытии окна виртуальный диск будет удалён. ' + (withClients ? 'Виртуальные клиенты: '+clients.map(c=>c.address).join(', ')+'. Это Linux без прикладных сервисов, а не принтер или физический ПК. Интернет, провайдер и VPN не эмулируются; локальные процессы могут внедрять пакеты.' : online ? 'Оба WAN используют сеть Windows. Клиенты и независимые провайдеры схемы не эмулируются; доступ к компьютеру и локальной сети возможен.' : 'Интернет, клиенты и провайдеры схемы не эмулируются.') + (dhcpWan ? ' WAN получил DHCP-аренду от изолированной сети QEMU 10.0.2.0/24; это не физический провайдер и не подтверждение маршрута по умолчанию или интернета.' : '') + (plan.expected.ntp ? ' Параметры NTP и часовой пояс проверены, но синхронизация времени и доступность сервера не проверялись.' : ''),
       buttons:['Скопировать пароль и открыть', 'Открыть без копирования', 'Закрыть CHR'], defaultId:0, cancelId:2, noLink:true});
     if (choice.response === 2 || active !== vm || quitting) { await closeChr(); return {ok:false, cancelled:true}; }
     if (choice.response === 0) {
@@ -117,8 +142,8 @@ ipcMain.handle('chr:launch', async (event, routerId, state) => {
       setTimeout(() => { try { if (clipboard.readText() === info.password) clipboard.clear(); } catch (_) {} }, 60000).unref();
     }
     openChrWindow(info, vm);
-    activeMeta = {routerId, digest};
-    return {ok:true};
+    activeMeta = {routerId, digest, clients};
+    return {ok:true, clients};
   } catch (error) {
     try { await closeChr(); } catch (_) { return {ok:false, message:'Ошибка CHR; не удалось очистить временные данные. Закройте приложение и удалите папку chr-sessions из его данных.'}; }
     return {ok:false, message:'Не удалось открыть виртуальную RouterOS: ' + (error && error.message ? error.message : 'неизвестная ошибка')};
@@ -150,7 +175,7 @@ ipcMain.handle('chr:ping', async (event, routerId, state, target) => {
     }
     const answer=await dialog.showMessageBox(mainWindow,{type:'warning',title:'Реальная проверка из виртуальной CHR',
       message:'Отправить три ICMP-запроса на '+address+(address===target?'':' (имя '+target+')')+'?',
-      detail:'Источник — запущенная виртуальная RouterOS, не нарисованный ПК и не физический MikroTik. В изолированном режиме внешняя сеть недоступна; в интернет-режиме запрос может попасть в локальную сеть или интернет через Windows. Виртуальные ПК, серверы, принтеры, провайдеры и VPN между офисами пока не запускаются. Ноль ответов не доказывает отсутствие сети: ICMP может быть заблокирован.',
+      detail:'Источник — запущенная виртуальная RouterOS, не физический MikroTik. В изолированном режиме внешняя сеть недоступна; в интернет-режиме запрос может попасть в локальную сеть или интернет через Windows. '+(meta.clients.length ? 'Для текущей схемы запущены указанные Linux-клиенты. Принтеры, провайдеры и VPN не эмулируются. ' : 'Нарисованные ПК, серверы, принтеры, провайдеры и VPN не запущены. ')+'Ноль ответов не доказывает отсутствие сети: ICMP может быть заблокирован.',
       buttons:['Отмена','Отправить'],defaultId:0,cancelId:0,noLink:true});
     if(answer.response!==1 || active!==vm || activeMeta!==meta || quitting) return {ok:false,cancelled:true};
     const result=await vm.ping(address);
@@ -158,6 +183,26 @@ ipcMain.handle('chr:ping', async (event, routerId, state, target) => {
     return {ok:true,address,sent:result.sent,received:result.received};
   } catch (_) { return {ok:false,message:'Ошибка или тайм-аут проверки в виртуальной CHR; результат неизвестен. Закройте окно и запустите CHR заново.'}; }
   finally { pingBusy=false; }
+});
+// Probes from a specifically launched guest only; never execute a renderer
+// command or use the Windows host ping implementation.
+ipcMain.handle('chr:ping-client',async(event,routerId,clientId,state,target)=>{
+  if(!trustedMain(event)||!app.isPackaged)return {ok:false,message:'Проверка доступна только в окне установленного приложения Windows.'};
+  if(pingBusy)return {ok:false,message:'Проверка уже выполняется.'};
+  if(!validTarget(target))return {ok:false,message:'Для Linux-клиента укажите одиночный IPv4; DNS-имена пока не поддерживаются.'};
+  const vm=active,meta=activeMeta;
+  if(!vm||!meta||routerId!==meta.routerId||!meta.clients.some(c=>c.id===clientId)||typeof vm.pingClient!=='function')return {ok:false,message:'Запустите виртуальные клиенты этой схемы и оставьте окно CHR открытым.'};
+  try{if(stateHash(state)!==meta.digest)return {ok:false,message:'Схема изменилась после запуска. Проверьте её и запустите лабораторию заново.'};}catch(_){return {ok:false,message:'Недопустимая схема.'};}
+  pingBusy=true;
+  try{
+    const answer=await dialog.showMessageBox(mainWindow,{type:'warning',title:'Реальный ping из Linux-клиента',message:'Отправить три ICMP-запроса на '+target+'?',
+      detail:'Источник — отдельная одноразовая Linux VM выбранной схемы. Сеть изолирована от физических интерфейсов и интернета, но другие процессы Windows могут подделывать пакеты. Ноль ответов не доказывает недоступность: ICMP может блокироваться.',buttons:['Отмена','Отправить'],defaultId:0,cancelId:0,noLink:true});
+    if(answer.response!==1||active!==vm||activeMeta!==meta||quitting)return {ok:false,cancelled:true};
+    const result=await vm.pingClient(clientId,target);
+    if(active!==vm||activeMeta!==meta)return {ok:false,message:'Лаборатория закрылась во время проверки; результат неизвестен.'};
+    return {ok:true,address:target,sent:result.sent,received:result.received};
+  }catch(_){return {ok:false,message:'Ошибка или тайм-аут проверки Linux-клиента; результат неизвестен. Перезапустите лабораторию.'};}
+  finally{pingBusy=false;}
 });
 // Local read-only MNDP discovery. MAC and identity advertisements are unauthenticated.
 let physicalScanning = false;

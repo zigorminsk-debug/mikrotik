@@ -9,7 +9,7 @@ const windows = [], handlers = {}, choices = [], downloads = [], opened = [], cr
 let onlineValid = true, physicalCalls = 0;
 const physicalNic={name:'Test Ethernet',address:'192.168.88.5'};
 let saveChoice = {canceled:true}, openChoice = {canceled:true};
-const winboxRuns=[], clipboardWrites=[];
+const winboxRuns=[], clipboardWrites=[], labs=[], linuxDownloads=[];
 const mockSpawn=(...args)=>{winboxRuns.push(args);const p=new EventEmitter();p.unref=()=>{};setImmediate(()=>p.emit('spawn'));return p;};
 let plan = {blockers:[],groups:[{id:'iface',commands:['/interface print']}],expected:{}};
 class Window extends EventEmitter {
@@ -30,6 +30,14 @@ class Session {
   async ping(target){this.pingCalls=(this.pingCalls||[]).concat(target);return {sent:3,received:2};}
   async resolve(name){this.resolveCalls=(this.resolveCalls||[]).concat(name);return {ok:true,address:'192.168.88.20'};}
 }
+class Lab {
+ constructor(opts){this.opts=opts;if(opts.state&&opts.state.blocked)throw Error('Клиент не поддерживается');this.exitPromise=new Promise(r=>{this.exit=r;});labs.push(this);}
+ async start(){return {router:{url:'http://127.0.0.1:18765/',user:'admin',password:'TEMPORARY_TEST_PASSWORD'},clients:[{id:'pc',address:'192.168.88.10',type:'pc',mode:'static'}]};}
+ async stop(){this.stopped=true;}
+ async pingClient(id,target){this.calls=(this.calls||[]).concat([[id,target]]);return {sent:3,received:3};}
+ async ping(){return {sent:3,received:3};}
+ async resolve(){return {ok:false,reason:'dns'};}
+}
 const app=new EventEmitter();Object.assign(app,{isPackaged:true,getPath:()=>'/test-data',requestSingleInstanceLock:()=>true,whenReady:()=>Promise.resolve(),quit:()=>{}});
 const electron={app,BrowserWindow:Window,shell:{openExternal:async url=>opened.push(url)},
   dialog:{showMessageBox:async(_win,options)=>{dialogs.push(options);return {response:choices.shift()};},showErrorBox:(_title,msg)=>errors.push(msg),showSaveDialog:async()=>saveChoice,showOpenDialog:async()=>openChoice},
@@ -43,6 +51,8 @@ const req=name=>{
   if(name==='./chr/network-warning')return require('../windows/chr/network-warning');
   if(name==='./chr/download')return {ensureImage:async(root,consent)=>{downloads.push({root,consent});return '/image/chr-7.23.8.img';}};
   if(name==='./chr/session')return {ChrSession:Session};
+  if(name==='./chr/experimental-lab')return {ExperimentalLab:Lab};
+  if(name==='./chr/linux-image')return {IMAGE_NAME:'cirros-0.6.3-x86_64-disk.img',ensureLinuxImage:async(root,consent)=>{linuxDownloads.push({root,consent});return '/image/cirros-0.6.3-x86_64-disk.img';}};
   if(name==='./chr/ping')return require('../windows/chr/ping');
   if(name==='./chr/resolve')return require('../windows/chr/resolve');
   if(name==='child_process')return {spawn:mockSpawn};
@@ -126,5 +136,18 @@ vm.runInNewContext(source,{require:req,process:{platform:'win32',resourcesPath:'
   assert(dialogs.at(-1).detail.includes('синхронизация времени и доступность сервера не проверялись'));
   assert.deepStrictEqual(created[1].plan.expected.ntp, plan.expected.ntp);
   windows[2].destroy(); await new Promise(resolve=>setImmediate(resolve)); assert(created[1].stopped);
-  console.log('Windows мост: только главное окно, согласие, изоляция WebFig и остановка проверены.');
+  plan={blockers:[],groups:[{id:'iface',commands:['/interface print']}],expected:{wans:[{kind:'static'}]}};
+  assert(!(await call({sender:{},senderFrame:{}},'r',{},true)).ok);assert(!(await call(good,'r',{},'yes')).ok);
+  assert(!(await call(good,'r',{blocked:true},true)).ok);assert.equal(linuxDownloads.length,0);
+  choices.push(1,2);assert((await call(good,'r',{},true)).cancelled);assert.equal(linuxDownloads.length,0);
+  choices.push(1,0,1,1);const live=await call(good,'r',{},true);assert(live.ok);assert.equal(live.clients[0].id,'pc');assert.equal(linuxDownloads.length,1);assert(linuxDownloads[0].consent);assert(opened.includes('https://github.com/cirros-dev/cirros/tree/0.6.3'));
+  assert(dialogs.some(d=>d.title==='Изолированные Linux-клиенты'&&d.defaultId===2&&d.detail.includes('подделывать')===false&&d.detail.includes('внедрять')));
+  const pingClient=handlers['chr:ping-client'],lab=labs.at(-1);assert(pingClient);
+  assert(!(await pingClient({sender:{},senderFrame:{}},'r','pc',{},'192.168.88.20')).ok);
+  assert(!(await pingClient(good,'r','pc',{},'example.com')).ok);assert(!(await pingClient(good,'r','invalid',{},'192.168.88.20')).ok);
+  assert(!(await pingClient(good,'r','pc',{modified:true},'192.168.88.20')).ok);
+  choices.push(0);assert((await pingClient(good,'r','pc',{},'192.168.88.20')).cancelled);assert(!lab.calls);
+  choices.push(1);assert.equal((await pingClient(good,'r','pc',{},'192.168.88.20')).received,3);assert.equal(lab.calls[0][1],'192.168.88.20');
+  windows.at(-1).destroy();await new Promise(resolve=>setImmediate(resolve));assert(lab.stopped);assert(!(await pingClient(good,'r','pc',{},'192.168.88.20')).ok);
+  console.log('Windows мост: отдельные согласия CHR/Linux, источник реального ping, изоляция WebFig и остановка проверены на моках.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

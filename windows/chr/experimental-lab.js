@@ -1,7 +1,7 @@
 'use strict';
-// CI-only integration experiment. Never expose through IPC: UDP loopback is
-// not a trust boundary; image authenticity/rights and process isolation need
-// separate review before this can be a user-facing feature.
+// Isolated one-router lab controller. IPC must use private planners, verified
+// images and explicit warnings: UDP loopback does not protect the experiment
+// from other local processes. Never connect these guests to host LAN or NAT.
 const dgram=require('dgram');
 const {randomBytes}=require('crypto');
 const {makePlan}=require('./plan');
