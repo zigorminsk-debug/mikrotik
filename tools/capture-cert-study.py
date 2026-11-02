@@ -136,7 +136,7 @@ sleep 4
 # Reopen the stored template and display the Sign dialog, without confirming it.
 xdotool mousemove --sync 444 302 click --repeat 2 --delay 150 1
 sleep 3
-xdotool mousemove --sync 956 264 click 1
+xdotool mousemove --sync 956 408 click 1
 sleep 3
 scrot -q 30 "$3/cert-sign.jpg"
 kill "$pid" 2>/dev/null || true
