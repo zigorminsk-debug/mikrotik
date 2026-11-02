@@ -40,8 +40,11 @@ try:
  stage='configure'
  for index,text in enumerate([':if ([:len [/ip address find where address="10.0.2.15/24"]] = 0) do={/ip address add address=10.0.2.15/24 interface=ether1}',
               '/system identity set name=audit-fixture',
+              '/certificate add name=audit-ca common-name=audit-ca key-usage=key-cert-sign,crl-sign days-valid=2',
+              '/certificate sign audit-ca',
+              ':delay 3s',
               '/certificate add name=audit-ci common-name=audit-ci key-usage=digital-signature,key-encipherment,tls-server days-valid=1',
-              '/certificate sign audit-ci',
+              '/certificate sign audit-ci ca=audit-ca',
               ':delay 3s',
               '/ip service set www-ssl certificate=audit-ci disabled=no',
               '/user group add name=audit-ci policy=read,api,rest-api',
