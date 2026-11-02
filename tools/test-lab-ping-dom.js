@@ -19,6 +19,7 @@ const {JSDOM,VirtualConsole}=require('jsdom');
  const client=w.Lab.state.devices.find(d=>d.type==='pc'),source=$('lab-ping-source');source.value=client.id;assert(source.selectedOptions[0].textContent.includes('Linux VM'));assert([...$('lab-ping-preset').options].some(o=>o.value==='192.168.88.10'&&o.textContent.includes('при запуске')));
  $('lab-ping-target').value='example.com';$('lab-ping-run').click();assert.equal(clientCalls.length,0);assert($('lab-ping-result').textContent.includes('DNS-имена'));
  $('lab-ping-target').value='192.168.88.1';$('lab-ping-run').click();await new Promise(r=>setTimeout(r,30));assert.equal(clientCalls.length,1);assert.equal(clientCalls[0][1],client.id);assert.equal(clientCalls[0][3],'192.168.88.1');assert($('lab-ping-result').textContent.includes('Виртуальный Linux-клиент'));
- assert(closedHandler);closedHandler();assert(![...source.options].some(o=>o.dataset.kind==='client'));assert($('lab-ping-result').textContent.includes('Лаборатория закрыта'));
+ w.Lab.run({instant:true});assert([...$('lab-ping-source').options].some(o=>o.dataset.kind==='client'),'client source should survive rechecking the unchanged scheme');
+ assert(closedHandler);closedHandler();assert(![...$('lab-ping-source').options].some(o=>o.dataset.kind==='client'));assert($('lab-ping-result').textContent.includes('Лаборатория закрыта'));
  assert(!errors.length,errors.join('; '));dom.window.close();console.log('Ping UI: CHR, виртуальные Linux-клиенты, источники, адреса и честные результаты проверены на моках.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

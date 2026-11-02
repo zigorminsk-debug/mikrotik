@@ -80,7 +80,7 @@ var canvas, svg, hintEl, emptyEl, inspectEl, logBox, logLines, resultsEl,
     modeBtns, palBtns, runBtn, resetBtn, skipBtn, modal, lmTitle, lmBody, lmErr,
     lmSave, lmCancel, lmClose;
 // The result action must use exactly the state that was model-checked.
-var checkedStateJson = null, checkedLaunchPending = false, liveRouterId = null, liveClients = [];
+var checkedStateJson = null, checkedLaunchPending = false, liveRouterId = null, liveClients = [], liveStateJson = null;
 
 function $(id) { return document.getElementById(id); }
 
@@ -649,8 +649,16 @@ function renderResults(res) {
   }
   resultsEl.innerHTML = html;
   resultsEl.hidden = false;
-  liveRouterId=null; liveClients=[];
   var pingPreset=$('lab-ping-preset');
+  function showLiveClients(clientList,snapshot){
+    Array.prototype.slice.call(resultsEl.querySelectorAll('[data-live-client]')).forEach(function(o){o.remove();});
+    clientList.forEach(function(c){var d=snapshot.devices.find(function(item){return item.id===c.id;}),name=d?d.name:c.id;
+      var src=document.createElement('option');src.value=c.id;src.textContent=name+' · Linux VM';src.dataset.kind='client';src.dataset.liveClient='1';$('lab-ping-source').appendChild(src);
+      var dst=document.createElement('option');dst.value=c.address;dst.textContent=name+' — '+c.address+' (Linux VM при запуске)';dst.dataset.liveClient='1';pingPreset.appendChild(dst);
+    });
+  }
+  if(liveStateJson && liveStateJson===checkedStateJson && liveClients.length && pingPreset){showLiveClients(liveClients,JSON.parse(liveStateJson));$('lab-checked-chr-status').textContent='CHR и Linux-клиенты из последнего запуска доступны, пока открыто окно CHR.';$('lab-ping-result').textContent='Выберите запущенную VM и IPv4 для проверки.';}
+  else if(liveStateJson && liveStateJson!==checkedStateJson){liveRouterId=null;liveClients=[];liveStateJson=null;}
   if(pingPreset) pingPreset.addEventListener('change',function(){if(pingPreset.value)$('lab-ping-target').value=pingPreset.value;});
   var pingButton=$('lab-ping-run');
   if(pingButton && window.routerOS && typeof window.routerOS.ping === 'function') pingButton.addEventListener('click',function(){
@@ -687,12 +695,8 @@ function renderResults(res) {
         if (result && result.ok) {
           var clientList=withClients && Array.isArray(result.clients) ? result.clients : [];
           if(withClients && (clientList.length<1 || clientList.length>4 || clientList.some(function(c,i){return !c || !LabEngine.validIp(c.address) || !snapshot.devices.some(function(d){return d.id===c.id && (d.type==='pc'||d.type==='server');}) || clientList.findIndex(function(x){return x.id===c.id;})!==i;}))) {status.textContent='Список виртуальных клиентов некорректен; закройте окно CHR.';return;}
-          liveRouterId=routerId;liveClients=clientList;
-          Array.prototype.slice.call(resultsEl.querySelectorAll('[data-live-client]')).forEach(function(o){o.remove();});
-          clientList.forEach(function(c){var d=snapshot.devices.find(function(item){return item.id===c.id;}),name=d?d.name:c.id;
-            var src=document.createElement('option');src.value=c.id;src.textContent=name+' · Linux VM';src.dataset.kind='client';src.dataset.liveClient='1';$('lab-ping-source').appendChild(src);
-            var dst=document.createElement('option');dst.value=c.address;dst.textContent=name+' — '+c.address+' (Linux VM при запуске)';dst.dataset.liveClient='1';pingPreset.appendChild(dst);
-          });
+          liveRouterId=routerId;liveClients=clientList;liveStateJson=withClients?checkedStateJson:null;
+          showLiveClients(clientList,snapshot);
           status.textContent = withClients ? 'CHR и Linux-клиенты запущены. Адреса и источники добавлены в ping; при закрытии окна диски удаляются.' : 'Виртуальная CHR открыта. При закрытии её окна временный диск удаляется.';
           var pingStatus=$('lab-ping-result');if(pingStatus)pingStatus.textContent=withClients ? 'Выберите запущенную VM и IPv4 для проверки.' : 'Выберите CHR и адрес для проверки.';
         } else if (result && result.cancelled) status.textContent = 'Запуск отменён.';
@@ -1198,7 +1202,7 @@ function init() {
   canvas = $('lab-canvas');
   if (!canvas) return;
   if (window.routerOS && typeof window.routerOS.onClosed === 'function') window.routerOS.onClosed(function() {
-    liveRouterId=null;liveClients=[];
+    liveRouterId=null;liveClients=[];liveStateJson=null;
     if(resultsEl){Array.prototype.slice.call(resultsEl.querySelectorAll('[data-live-client]')).forEach(function(o){o.remove();});}
     var status=$('lab-checked-chr-status');if(status)status.textContent='Виртуальная лаборатория закрыта; клиентские VM больше не запущены.';
     var pingStatus=$('lab-ping-result');if(pingStatus)pingStatus.textContent='Лаборатория закрыта. Для реального ping запустите VM снова.';

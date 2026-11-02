@@ -11,6 +11,7 @@ const base=path.resolve('/tmp/isolated-lab'),opts={qemu:path.join(base,'qemu-sys
  assert.deepStrictEqual(await g.ping('192.168.88.20'),{sent:3,received:3});assert(sent.includes('ping -c 3 -W 2 192.168.88.20'));
  await assert.rejects(g.ping('192.168.88.20; reboot'),/IPv4/);assert(!g.failed);
  response='192.168.88.10';assert.equal(await g.address(),'192.168.88.10');
+ response='0';assert(await g.hasDns('192.168.88.1'));await assert.rejects(g.hasDns('1.1.1.1;reboot'),/DNS/);
  response='0';sentCommands=[];await g.setStatic('192.168.88.10','192.168.88.1','192.168.88.1');assert(sentCommands[0].includes('192.168.88.10/24')&&sentCommands[0].includes('default via 192.168.88.1'));assert(sent.includes('grep -Fx')&&sent.includes('nameserver 192.168.88.1'));
  await assert.rejects(g.setStatic('192.168.88.10','1.1.1.1;reboot','192.168.88.1'),/IPv4/);await assert.rejects(g.setStatic('192.168.88.10','192.168.88.1','1.1.1.1;reboot'),/IPv4/);assert(!g.failed);
  let resolve;g.console.expect=()=>new Promise(ok=>{resolve=ok;});const pending=g.ping('192.168.88.20');await new Promise(r=>setImmediate(r));await assert.rejects(g.address(),/занят/);const parts=[...sent.matchAll(/'([A-Za-z0-9]+)'/g)].map(x=>x[1]);const i=parts.findIndex(x=>x.startsWith('LINUX'));resolve(parts[i]+parts[i+1]+'R1END');assert.equal((await pending).received,1);

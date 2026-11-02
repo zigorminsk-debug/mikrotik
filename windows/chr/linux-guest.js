@@ -54,6 +54,10 @@ class LinuxGuest {
   }
   async operation(fn){if(!this.started||this.closed||!this.console||this.failed)throw Error('Клиент недоступен; перезапустите лабораторию');if(this.busy)throw Error('Клиент занят');this.busy=true;try{return await fn();}catch(error){this.failed=true;throw error;}finally{this.busy=false;}}
   async address(){return this.operation(()=>shellResult(this.console,"result=$(ip -4 addr show dev eth0 | awk '/inet / {split($2,a,\"/\");print a[1];exit}')",'ip'));}
+  async hasDns(dns){
+    if(!validTarget(dns))throw Error('Недопустимый DNS клиента');
+    return this.operation(async()=>await shellResult(this.console,`grep -Fx 'nameserver ${dns}' /etc/resolv.conf >/dev/null; result=$?`,'status')===0);
+  }
   async setStatic(ip,gateway,dns){
     if(!validTarget(ip)||(gateway!==''&&!validTarget(gateway))||!validTarget(dns))throw Error('Недопустимые настройки IPv4 клиента');
     return this.operation(async()=>{

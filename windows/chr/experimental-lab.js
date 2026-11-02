@@ -9,6 +9,7 @@ const {endpointPlan}=require('./endpoint-plan');
 const {ChrSession}=require('./session');
 const {LinuxGuest}=require('./linux-guest');
 const {EthernetHub}=require('./ethernet-hub');
+const {validTarget}=require('./ping');
 async function reservePort(used){
   for(let attempt=0;attempt<30;attempt++){
     const socket=dgram.createSocket('udp4');
@@ -25,6 +26,7 @@ class ExperimentalLab {
     const blockers=[...this.plan.blockers,...this.endpoints.blockers];
     // A generic Linux guest is not a printer. Do not silently substitute one.
     if(state.devices.some(x=>x.type==='printer'))blockers.push('Виртуальный принтер пока не реализован; Linux-клиент не заменяет печатающее устройство.');
+    if(!blockers.length&&!validTarget(this.plan.expected.lanClientDns))blockers.push('DNS, который выдаёт DHCP, недопустим для виртуального Linux-клиента; он не будет заменён автоматически.');
     if(!blockers.length){
       const number=ip=>ip.split('.').reduce((n,x)=>n*256+Number(x),0);
       const [first,last]=this.plan.expected.lanPool.split('-').map(number);
@@ -61,6 +63,7 @@ class ExperimentalLab {
       const guest=new LinuxGuest({qemu:this.paths.qemu,image:this.paths.linuxImage,tempRoot:this.paths.tempRoot,supervisor:this.paths.supervisor,localPort:port,hubPort,mac});
       this.guests.set(endpoint.id,guest);await guest.start();this.track(guest);this.check();
       if(endpoint.mode==='static')await guest.setStatic(endpoint.ip,endpoint.gateway,endpoint.dns);
+      else if(!await guest.hasDns(this.plan.expected.lanClientDns))throw Error('DNS, полученный Linux-клиентом по DHCP, не совпал со схемой');
       const address=await guest.address();this.check();
       if(endpoint.mode==='static'&&address!==endpoint.ip)throw Error('Адрес Linux-клиента не совпал с выбранной схемой');
       endpoint.actualAddress=address;
