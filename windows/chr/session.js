@@ -23,7 +23,7 @@ async function temporaryPort() {
   const s = net.createServer(); const port = await bind(s); await closeServer(s); return port;
 }
 class ChrSession {
-  constructor({qemu, image, tempRoot, supervisor, diagnostic, diagnoseManagement = false, testInternet = false, testBackupInternet = false, internetConsent = false}) {
+  constructor({qemu, image, tempRoot, supervisor, diagnostic, diagnoseManagement = false, testInternet = false, testBackupInternet = false, internetConsent = false, experimentalIsolatedLinks = []}) {
     if (![qemu, image, tempRoot, supervisor].every(x => typeof x === 'string' && path.isAbsolute(x))) throw new Error('Неверные пути CHR');
     if (path.basename(qemu).toLowerCase() !== 'qemu-system-x86_64.exe' || path.basename(image) !== 'chr-7.23.8.img' || path.basename(supervisor).toLowerCase() !== 'chr-supervisor.exe') throw new Error('Неверные компоненты CHR');
     this.qemu = qemu; this.image = image; this.root = tempRoot; this.supervisor = supervisor;
@@ -34,18 +34,37 @@ class ChrSession {
     this.internetConsent = internetConsent === true;
     if (this.internetConsent && (this.testInternet || this.testBackupInternet)) throw new Error('Несовместимые режимы интернет-сети');
     if (this.testBackupInternet && !this.testInternet) throw new Error('Резервный сетевой тест требует основной сетевой тест');
+    // Experimental internal adapter for the isolated CI topology; it is not
+    // exposed through IPC. Both socket ends are always loopback and this is
+    // not a security boundary against other local processes.
+    if (!Array.isArray(experimentalIsolatedLinks) || experimentalIsolatedLinks.length > 4 || (experimentalIsolatedLinks.length && (this.internetConsent || this.testInternet || this.testBackupInternet))) throw new Error('Несовместимая виртуальная сеть');
+    const names = new Set(), udpPorts = new Set();
+    this.isolatedLinks = new Map();
+    for (const link of experimentalIsolatedLinks) {
+      if (!link || !/^ether[2-5]$/.test(link.name) || !Number.isInteger(link.localPort) || link.localPort < 1 || link.localPort > 65535 || !Number.isInteger(link.hubPort) || link.hubPort < 1 || link.hubPort > 65535 || link.localPort === link.hubPort || names.has(link.name) || udpPorts.has(link.localPort) || udpPorts.has(link.hubPort)) throw new Error('Недопустимое виртуальное соединение CHR');
+      names.add(link.name);udpPorts.add(link.localPort);udpPorts.add(link.hubPort);this.isolatedLinks.set(link.name,{localPort:link.localPort,hubPort:link.hubPort});
+    }
+
     this.proc = null; this.server = null; this.console = null; this.socket = null; this.directory = null;
-    this.pinging = false; this.probeFailed = false; this.closed = false; this.started = false; this.exitPromise = null; this.acceptTimer = null; this.stopPromise = null;
+    this.pinging = false; this.probeFailed = false; this.closed = false; this.started = false; this.exitPromise = null; this.acceptTimer = null; this.stopPromise = null; this.startWork = null;
+    this.cancelled = new Promise(resolve => { this.cancel = resolve; });
   }
-  async start(plan) {
-    if (this.started || this.closed) throw new Error('Сессия CHR уже использована');
+  start(plan) {
+    if (this.started || this.closed) return Promise.reject(new Error('Сессия CHR уже использована'));
     this.started = true;
+    this.startWork = this.startOnce(plan);
+    return this.startWork.catch(async error => {
+      await this.stop();
+      throw new Error('Не удалось запустить или настроить виртуальную CHR: ' + error.message);
+    });
+  }
+  async startOnce(plan) {
     if (!plan || !plan.expected || !Array.isArray(plan.groups) || plan.groups.length > 100) throw new Error('Недопустимый план CHR');
     const commands = plan.groups.flatMap(g => Array.isArray(g.commands) ? g.commands : []);
     if (!commands.length || commands.length > 100 || commands.some(s => typeof s !== 'string' || !s.startsWith('/') || /[\r\n\0]/.test(s) || s.length > 8192)) throw new Error('Недопустимые команды CHR');
     if (this.internetConsent && !validateDualInternet(plan.expected)) throw new Error('Неподдерживаемые параметры сетей для CHR');
-    try {
       await fs.mkdir(this.root, {recursive:true, mode:0o700});
+      if (this.closed) throw new Error('Сессия остановлена');
       this.directory = await fs.mkdtemp(path.join(this.root, 'session-'));
       if (this.closed) throw new Error('Сессия остановлена');
       const disk = path.join(this.directory, 'disk.img');
@@ -63,14 +82,15 @@ class ChrSession {
       if ((this.testInternet || this.internetConsent) && (plan.expected.wanPort !== 'ether1' || plan.expected.wanAddress !== '10.0.2.20/24' || plan.expected.wanGateway !== '10.0.2.2')) throw new Error('Недопустимые параметры сетевого теста');
       if ((this.testBackupInternet || this.internetConsent) && (!Array.isArray(plan.expected.lanPorts) || plan.expected.lanPorts.some(p => p.name === 'ether4'))) throw new Error('ether4 должен быть свободен для сетевого теста');
       for (let i = 0; i < 5; i++) {
-        const netdev = (this.testInternet || this.internetConsent) && i === 0 ? `user,id=n${i},net=10.0.2.0/24,host=10.0.2.2` : (this.testBackupInternet || this.internetConsent) && i === 3 ? `user,id=n${i},net=10.0.3.0/24,host=10.0.3.2` : `user,id=n${i},restrict=on`;
+        const link = this.isolatedLinks.get('ether' + (i + 1));
+        const netdev = link ? `socket,id=n${i},udp=127.0.0.1:${link.hubPort},localaddr=127.0.0.1:${link.localPort}` : (this.testInternet || this.internetConsent) && i === 0 ? `user,id=n${i},net=10.0.2.0/24,host=10.0.2.2` : (this.testBackupInternet || this.internetConsent) && i === 3 ? `user,id=n${i},net=10.0.3.0/24,host=10.0.3.2` : `user,id=n${i},restrict=on`;
         args.push('-netdev', netdev, '-device', `e1000,netdev=n${i}`);
       }
       // Dedicated management port; the only host forward binds to loopback.
       args.push('-netdev', `user,id=mgmt,restrict=on,net=172.31.254.0/24,host=172.31.254.2,hostfwd=tcp:127.0.0.1:${managementPort}-172.31.254.15:80`, '-device', 'e1000,netdev=mgmt');
       const accepted = new Promise((resolve, reject) => {
         this.acceptTimer = setTimeout(() => reject(new Error('Тайм-аут запуска консоли CHR')), 60000);
-        this.server.once('connection', socket => { clearTimeout(this.acceptTimer); this.acceptTimer = null; resolve(socket); });
+        this.server.once('connection', socket => { clearTimeout(this.acceptTimer); this.acceptTimer = null; if (this.closed) { socket.destroy(); reject(new Error('Сессия остановлена')); return; } this.socket = socket; resolve(socket); });
         this.server.once('error', () => { clearTimeout(this.acceptTimer); this.acceptTimer = null; reject(new Error('Ошибка консоли CHR')); });
       });
       this.proc = spawn(this.supervisor, [disk, this.qemu, ...args], {stdio:['pipe','ignore','ignore'], windowsHide:true});
@@ -79,7 +99,8 @@ class ChrSession {
         this.proc.once('error', () => resolve({error:true}));
         this.proc.once('exit', (code, signal) => resolve({code,signal}));
       });
-      this.socket = await Promise.race([accepted, this.exitPromise.then(() => { throw new Error('QEMU завершился до запуска CHR'); })]);
+      this.socket = await Promise.race([accepted, this.exitPromise.then(() => { throw new Error('QEMU завершился до запуска CHR'); }), this.cancelled.then(() => { throw new Error('Сессия остановлена'); })]);
+      if (this.closed) { this.socket.destroy(); throw new Error('Сессия остановлена'); }
       // Stop accepting new console connections. Existing connection stays open.
       this.server.close();
       this.console = new ChrConsole(this.socket);
@@ -129,12 +150,8 @@ class ChrSession {
         }
       }
       if (verificationError) throw verificationError;
+      if (this.closed) throw new Error('Сессия остановлена');
       return { url:`http://127.0.0.1:${managementPort}/`, user:'admin', password };
-    } catch (error) {
-      await this.stop();
-      // Do not leak command output, user data or internal process arguments.
-      throw new Error('Не удалось запустить или настроить виртуальную CHR: ' + error.message);
-    }
   }
   async resolve(name) {
     if (!this.started || this.closed || !this.console) throw new Error('Виртуальная CHR не запущена.');
@@ -165,11 +182,15 @@ class ChrSession {
     return this.stopPromise;
   }
   async stopOnce() {
-    this.closed = true;
+    this.closed = true; this.cancel();
     if (this.acceptTimer) { clearTimeout(this.acceptTimer); this.acceptTimer = null; }
     if (this.console) this.console.close(); else if (this.socket) this.socket.destroy();
     if (this.server && this.server.listening) this.server.close();
     if (this.proc && this.proc.exitCode === null && this.proc.signalCode === null) this.proc.stdin.end();
+    // The disk operation may still be in flight; never remove its directory
+    // until the start task has observed cancellation and finished.
+    if (this.startWork) await this.startWork.catch(() => {});
+    if (this.server && this.server.listening) this.server.close();
     if (this.exitPromise) {
       let timer;
       const result = await Promise.race([this.exitPromise, new Promise(resolve => { timer = setTimeout(() => resolve(null), 10000); })]);

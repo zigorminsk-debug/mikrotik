@@ -24,25 +24,33 @@ class LinuxGuest {
     if(path.basename(qemu).toLowerCase()!=='qemu-system-x86_64.exe'||path.basename(image)!=='cirros-0.6.3-x86_64-disk.img'||path.basename(supervisor).toLowerCase()!=='chr-supervisor.exe')throw Error('Недопустимые компоненты виртуального клиента');
     if(!portOk(localPort)||!portOk(hubPort)||localPort===hubPort||!macOk(mac))throw Error('Недопустимое изолированное соединение клиента');
     Object.assign(this,{qemu,image,tempRoot,supervisor,localPort,hubPort,mac});
-    this.server=null;this.proc=null;this.exitPromise=null;this.console=null;this.directory=null;this.stopPromise=null;this.closed=false;this.started=false;this.busy=false;this.failed=false;
+    this.server=null;this.socket=null;this.proc=null;this.exitPromise=null;this.console=null;this.directory=null;this.stopPromise=null;this.startWork=null;this.closed=false;this.started=false;this.busy=false;this.failed=false;
     this.cancelled=new Promise(resolve=>{this.cancel=resolve;});
   }
-  async start(){
-    if(this.started||this.closed)throw Error('Клиент уже использован');this.started=true;
-    try {
-      await fs.mkdir(this.tempRoot,{recursive:true});this.directory=await fs.mkdtemp(path.join(this.tempRoot,'session-'));if(this.closed)throw Error('Клиент остановлен');
+  start(){
+    if(this.started||this.closed)return Promise.reject(Error('Клиент уже использован'));
+    this.started=true;
+    // Keep the underlying start distinct from its error-cleanup wrapper: stop
+    // must wait for pending filesystem operations, but must not deadlock on
+    // the wrapper that itself calls stop after a start failure.
+    this.startWork=this.startOnce();
+    return this.startWork.catch(async error=>{await this.stop();throw Error('Не удалось запустить изолированный Linux-клиент: '+error.message);});
+  }
+  async startOnce(){
+      await fs.mkdir(this.tempRoot,{recursive:true});if(this.closed)throw Error('Клиент остановлен');
+      this.directory=await fs.mkdtemp(path.join(this.tempRoot,'session-'));if(this.closed)throw Error('Клиент остановлен');
       const disk=path.join(this.directory,'disk.img');await fs.copyFile(this.image,disk,constants.COPYFILE_EXCL);if(this.closed)throw Error('Клиент остановлен');
       this.server=net.createServer();this.server.on('listening',()=>{if(this.closed&&this.server.listening)this.server.close();});
       await Promise.race([new Promise((ok,no)=>{this.server.once('error',no);this.server.listen(0,'127.0.0.1',ok);}),this.cancelled.then(()=>{throw Error('Клиент остановлен');})]);if(this.closed)throw Error('Клиент остановлен');
       const args=['-machine','pc,accel=tcg','-m','256','-smp','1','-display','none','-monitor','none','-no-reboot','-serial',`tcp:127.0.0.1:${this.server.address().port}`,'-drive',`file=${disk.replace(/,/g,',,')},format=qcow2,if=virtio`,'-netdev',`socket,id=lan,udp=127.0.0.1:${this.hubPort},localaddr=127.0.0.1:${this.localPort}`,'-device',`e1000,netdev=lan,mac=${this.mac}`];
-      let timer;const accepted=new Promise((ok,no)=>{timer=setTimeout(()=>no(Error('Тайм-аут консоли клиента')),60000);this.server.once('connection',ok);this.server.once('error',no);});
+      let timer;const accepted=new Promise((ok,no)=>{timer=setTimeout(()=>no(Error('Тайм-аут консоли клиента')),60000);this.server.once('connection',socket=>{if(this.closed){socket.destroy();no(Error('Клиент остановлен'));return;}this.socket=socket;ok(socket);});this.server.once('error',no);});
       this.proc=spawn(this.supervisor,[disk,this.qemu,...args],{stdio:['pipe','ignore','ignore'],windowsHide:true});this.proc.stdin.on('error',()=>{});
       this.exitPromise=new Promise(ok=>{this.proc.once('error',ok);this.proc.once('exit',ok);});
       const socket=await Promise.race([accepted,this.exitPromise.then(()=>{throw Error('QEMU завершился до запуска клиента');}),this.cancelled.then(()=>{throw Error('Клиент остановлен');})]).finally(()=>clearTimeout(timer));
+      if(this.closed){socket.destroy();throw Error('Клиент остановлен');}
       this.server.close();this.console=new ChrConsole(socket,{timeout:240000});
       await this.console.expect(/login:\s*$/im,240000);await this.console.settle();this.console.send('cirros');await this.console.expect(/password:\s*$/im,30000);await this.console.settle();this.console.send('gocubsgo');await this.console.expect(/\$\s*$/m,30000);await this.console.settle();
       if(this.closed)throw Error('Клиент остановлен');
-    } catch(error){await this.stop();throw Error('Не удалось запустить изолированный Linux-клиент: '+error.message);}
   }
   async operation(fn){if(!this.started||this.closed||!this.console||this.failed)throw Error('Клиент недоступен; перезапустите лабораторию');if(this.busy)throw Error('Клиент занят');this.busy=true;try{return await fn();}catch(error){this.failed=true;throw error;}finally{this.busy=false;}}
   async address(){return this.operation(()=>shellResult(this.console,"result=$(ip -4 addr show dev eth0 | awk '/inet / {split($2,a,\"/\");print a[1];exit}')",'ip'));}
@@ -64,6 +72,16 @@ class LinuxGuest {
     });
   }
   stop(){if(!this.stopPromise){this.stopPromise=this.stopOnce();this.stopPromise.catch(()=>{this.stopPromise=null;});}return this.stopPromise;}
-  async stopOnce(){this.closed=true;this.cancel();if(this.console)this.console.close();if(this.server&&this.server.listening)this.server.close();if(this.proc&&this.proc.exitCode===null&&this.proc.signalCode===null)this.proc.stdin.end();if(this.exitPromise){let timer;const done=await Promise.race([this.exitPromise.then(()=>true),new Promise(ok=>{timer=setTimeout(()=>ok(false),10000);})]);clearTimeout(timer);if(!done){this.proc.kill();await this.exitPromise;}}if(this.directory)await fs.rm(this.directory,{recursive:true,force:true,maxRetries:5,retryDelay:200});}
+  async stopOnce(){
+    this.closed=true;this.cancel();
+    if(this.console)this.console.close();else if(this.socket)this.socket.destroy();
+    if(this.server&&this.server.listening)this.server.close();
+    if(this.proc&&this.proc.exitCode===null&&this.proc.signalCode===null)this.proc.stdin.end();
+    // start may still be making/copying a disk. Wait until it observes closed
+    // before deleting the directory, or a late copy can leave private data.
+    if(this.startWork)await this.startWork.catch(()=>{});
+    if(this.exitPromise){let timer;const done=await Promise.race([this.exitPromise.then(()=>true),new Promise(ok=>{timer=setTimeout(()=>ok(false),10000);})]);clearTimeout(timer);if(!done){this.proc.kill();await this.exitPromise;}}
+    if(this.directory)await fs.rm(this.directory,{recursive:true,force:true,maxRetries:5,retryDelay:200});
+  }
 }
 module.exports={LinuxGuest,portOk,macOk,shellResult};

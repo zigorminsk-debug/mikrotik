@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 'use strict';
-const assert=require('assert'),path=require('path');
+const assert=require('assert'),path=require('path'),fs=require('fs').promises,os=require('os');
 const {LinuxGuest,portOk,macOk}=require('../windows/chr/linux-guest');
 const base=path.resolve('/tmp/isolated-lab'),opts={qemu:path.join(base,'qemu-system-x86_64.exe'),image:path.join(base,'cirros-0.6.3-x86_64-disk.img'),tempRoot:base,supervisor:path.join(base,'chr-supervisor.exe'),localPort:2001,hubPort:2002,mac:'52:54:00:00:02:01'};
 (async()=>{
@@ -15,5 +15,24 @@ const base=path.resolve('/tmp/isolated-lab'),opts={qemu:path.join(base,'qemu-sys
  await assert.rejects(g.setStatic('192.168.88.10','1.1.1.1;reboot'),/IPv4/);assert(!g.failed);
  let resolve;g.console.expect=()=>new Promise(ok=>{resolve=ok;});const pending=g.ping('192.168.88.20');await new Promise(r=>setImmediate(r));await assert.rejects(g.address(),/занят/);const parts=[...sent.matchAll(/'([A-Za-z0-9]+)'/g)].map(x=>x[1]);const i=parts.findIndex(x=>x.startsWith('LINUX'));resolve(parts[i]+parts[i+1]+'R1END');assert.equal((await pending).received,1);
  g.console.expect=async()=>{throw Error('timeout');};await assert.rejects(g.ping('192.168.88.20'),/timeout/);assert(g.failed);await assert.rejects(g.address(),/перезапустите/);await g.stop();
- console.log('Linux guest: безопасные аргументы, результаты, конкуренция и ошибка проверены на моках; реальная VM проверяется отдельно в CI.');
+ // Stop must not resolve while a disk operation can still recreate data.
+ for(const phase of ['mkdir','mkdtemp','copyFile']){
+   const root=await fs.mkdtemp(path.join(os.tmpdir(),'linux-cancel-test-'));
+   const image=path.join(root,'cirros-0.6.3-x86_64-disk.img');await fs.writeFile(image,'fixture');
+   const sessions=path.join(root,'sessions');const guest=new LinuxGuest({...opts,image,tempRoot:sessions});
+   const original=fs[phase];let release,entered;const gate=new Promise(r=>{release=r;}),arrived=new Promise(r=>{entered=r;});
+   fs[phase]=async function(...args){
+     if(phase==='mkdir'){const value=await original.apply(fs,args);entered();await gate;return value;}
+     if(phase==='mkdtemp'){const value=await original.apply(fs,args);entered();await gate;return value;}
+     entered();await gate;return original.apply(fs,args);
+   };
+   try {
+     const starting=guest.start();await arrived;let stopped=false;
+     const stopping=guest.stop();assert.strictEqual(guest.stop(),stopping);stopping.then(()=>{stopped=true;});
+     await new Promise(r=>setTimeout(r,30));assert.equal(stopped,false,'stop must wait during '+phase);
+     release();await assert.rejects(starting,/остановлен/);await stopping;
+     const files=await fs.readdir(sessions).catch(e=>e.code==='ENOENT'?[]:Promise.reject(e));assert.deepStrictEqual(files,[],'temporary guest directory remains after '+phase);
+   } finally {fs[phase]=original;release();await fs.rm(root,{recursive:true,force:true});}
+ }
+ console.log('Linux guest: проверены аргументы, ошибки, конкуренция и очистка при остановке на этапах mkdir/mkdtemp/copyFile; реальная VM проверяется отдельно в CI.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
