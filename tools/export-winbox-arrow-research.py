@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Test fixture only: export small annotated JPEG in check annotations for review.
 import base64,os,pathlib,sys
-if len(sys.argv)!=3 or sys.argv[1] not in ('address','network','interface'):raise SystemExit('Invalid fixture')
+if len(sys.argv)!=3 or sys.argv[1] not in ('original','address','network','interface'):raise SystemExit('Invalid fixture')
 name=sys.argv[1]
 start=int(sys.argv[2])
 if start not in (0,10,20):raise SystemExit('Invalid chunk')
