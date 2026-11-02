@@ -18,5 +18,10 @@
     "sha256": "b9b2467296d80a6f66a65d58fe3766eea69c7cdea284d831810d5de99500953a",
     "width": 1440,
     "height": 900
+  },
+  "lab-matrix-button-windows.png": {
+    "sha256": "098ff0636d688773f31f63e061ecb480b78815d41ab8f17ec888570e64c051ac",
+    "width": 1024,
+    "height": 720
   }
 }

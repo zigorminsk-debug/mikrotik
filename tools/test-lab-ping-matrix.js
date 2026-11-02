@@ -9,7 +9,7 @@ const delay=()=>new Promise(r=>setTimeout(r,20));
   w.routerOS={onClosed:fn=>{closed=fn;},launch:async()=>({ok:true}),launchClients:async(id,state)=>({ok:true,clients:[{id:state.devices.find(d=>d.type==='pc').id,address:'192.168.88.10',type:'pc',mode:'static'}]}),
    ping:(...a)=>{calls.push(['chr',...a]);return handler('chr',a);},pingClient:(...a)=>{calls.push(['client',...a]);return handler('client',a);}};
  }});
- const w=dom.window;await new Promise(r=>w.addEventListener('load',r));w.location.hash='lab';await delay();const d=w.document,$=id=>d.getElementById(id);
+ const w=dom.window;await new Promise(r=>w.addEventListener('load',r));w.location.hash='intro';await delay();assert(w.document.querySelector('img[src="assets/img/own/lab-matrix-button-windows.png"]'), 'missing illustrated tutorial action');w.location.hash='lab';await delay();const d=w.document,$=id=>d.getElementById(id);
  $('lab_example_chr_isolated').click();w.Lab.run({instant:true});assert($('lab-matrix-start').disabled);
  d.querySelector('.lab-checked-launch[data-clients="true"]').click();await delay();assert(!$('lab-matrix-start').disabled);assert($('lab-matrix-status').textContent.includes('готовы к проверке'));
  const client=w.Lab.state.devices.find(x=>x.type==='pc'),router=w.Lab.state.devices.find(x=>x.type==='router');
