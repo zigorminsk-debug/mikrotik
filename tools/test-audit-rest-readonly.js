@@ -23,7 +23,7 @@ const {TOPICS,validIp,validate,sanitize,collect}=require('../windows/audit/rest-
   });
   await new Promise(r=>server.listen(0,'127.0.0.1',r));const port=server.address().port;
   const opts={host:'127.0.0.1',port,fingerprint,user:'readonly',password:'fixture-only'};
-  assert(!validIp('127.0.0.1'));assert(validIp('127.0.0.1',true));for(const ip of ['localhost','192.168.1.01','0.0.0.0','192.168.1.255','169.254.1.1','224.1.1.1','::1'])assert(!validIp(ip));assert(validIp('192.168.88.1'));
+  assert(!validIp('127.0.0.1'));assert(validIp('127.0.0.1',true));for(const ip of ['localhost','192.168.1.01','0.0.0.0','224.1.1.1','255.255.255.255','::1'])assert(!validIp(ip));assert(validIp('192.168.88.1'));assert(validIp('192.168.1.0'));assert(validIp('192.168.1.255'));assert(validIp('169.254.1.1'));
   assert.throws(()=>validate({...opts,fingerprint:'wrong'},true));assert.throws(()=>validate({...opts,user:'bad:user'},true));assert.throws(()=>validate({...opts,fingerprint:'aa'.repeat(32)},true));
   const topic=TOPICS.find(x=>x.id==='interfaces');
   await assert.rejects(()=>collect({...opts,fingerprint:'00:'.repeat(31)+'00'},{allowLoopback:true,topics:[topic]}),/отпечаток/i);assert.equal(requests.length,0,'Credentials must never reach an untrusted certificate');

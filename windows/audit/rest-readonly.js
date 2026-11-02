@@ -27,7 +27,9 @@ const MAX_BYTES=1024*1024,MAX_ROWS=2000,MAX_VALUE=512,MAX_TOTAL_BYTES=2*1024*102
 function validIp(host,allowLoopback=false){
  if(typeof host!=='string'||net.isIP(host)!==4||host.length>15)return false;
  const p=host.split('.');if(p.some(x=>x.length>1&&x[0]==='0'))return false;
- const n=p.map(Number);return n[0]>0&&n[0]<224&&(allowLoopback||n[0]!==127)&&!(n[0]===169&&n[1]===254)&&n[3]!==0&&n[3]!==255;
+ // A .0 or .255 address can be a valid host on /16, /23 or /31. The
+ // destination's prefix is unknown here; the user must verify the target.
+ const n=p.map(Number);return n[0]>0&&n[0]<224&&(allowLoopback||n[0]!==127);
 }
 function validate(o,allowLoopback){
  if(!o||!validIp(o.host,allowLoopback)||!Number.isInteger(o.port)||o.port<1||o.port>65535)throw Error('Недопустимый адрес или порт.');
