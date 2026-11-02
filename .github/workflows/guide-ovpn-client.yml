@@ -18,7 +18,7 @@ jobs:
       - name: Install QEMU and serial console support
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-system-x86 python3-pexpect unzip openvpn iputils-ping
+          sudo apt-get install -y qemu-system-x86 python3-pexpect unzip openvpn iputils-ping sshpass openssh-client
       - name: Download official CHR for disposable CI
         run: |
           set -euo pipefail

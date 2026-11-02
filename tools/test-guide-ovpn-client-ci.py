@@ -12,7 +12,7 @@ def lit(v):return '"'+v[:16]+'" . "'+v[16:]+'"'
 with tempfile.TemporaryDirectory(prefix='guide-ovpn-ci-') as d:
  base=pathlib.Path(d);disk=base/'chr.img';shutil.copyfile(images[0],disk)
  password='CI-Temporary-Router-42!';authpass='CI-Temporary-VPN-42!';keypass='CI-Temporary-Key-42!'
- vm=pexpect.spawn('qemu-system-x86_64',['-machine','pc,accel=tcg','-m','256','-smp','1','-nographic','-no-reboot','-drive',f'file={disk},format=raw,if=ide','-netdev','user,id=n0,restrict=on,hostfwd=tcp:127.0.0.1:18194-:1194','-device','e1000,netdev=n0','-netdev','user,id=n1,restrict=on','-device','e1000,netdev=n1'],encoding='utf-8',timeout=180,dimensions=(50,160),echo=False)
+ vm=pexpect.spawn('qemu-system-x86_64',['-machine','pc,accel=tcg','-m','256','-smp','1','-nographic','-no-reboot','-drive',f'file={disk},format=raw,if=ide','-netdev','user,id=n0,restrict=on,hostfwd=tcp:127.0.0.1:18194-:1194,hostfwd=tcp:127.0.0.1:12222-:22','-device','e1000,netdev=n0','-netdev','user,id=n1,restrict=on','-device','e1000,netdev=n1'],encoding='utf-8',timeout=180,dimensions=(50,160),echo=False)
  def settle():
   while True:
    try:vm.read_nonblocking(size=65536,timeout=1)
@@ -20,13 +20,14 @@ with tempfile.TemporaryDirectory(prefix='guide-ovpn-ci-') as d:
  def cmd(c):
   t=secrets.token_hex(16);yes='PASS'+t;no='FAIL'+t;settle();vm.sendline(':do { '+c+'; :put ('+lit(yes)+') } on-error={ :put ('+lit(no)+') }')
   if vm.expect([re.escape(yes),re.escape(no)],timeout=120)!=0:raise RuntimeError('CHR rejected fixture command')
- def readpem(filename,kind):
-  token='END'+secrets.token_hex(16);settle();vm.sendline(':put [/file get "'+filename+'" contents]; :put ('+lit(token)+')');vm.expect(re.escape(token),timeout=60);raw=vm.before
-  m=re.search(r'-----BEGIN ('+kind+r')-----[\s\S]+?-----END \1-----',raw)
-  if not m:
-   if filename=='cert_export_guide-ca.crt':print('::notice title=CI public CA export diagnostic::'+repr(raw[:1000]).replace('%','%25').replace('\n','%0A').replace('\r','%0D'))
-   raise RuntimeError('PEM not found')
-  return m.group(0).replace('\r','')+'\n'
+ def copy_file(remote, local):
+  # One-off localhost SSH into the disposable CI guest. Host-key checks are
+  # intentionally not a production trust model; output is never logged.
+  result=subprocess.run(['sshpass','-p',password,'scp','-O','-q','-P','12222',
+   '-o','StrictHostKeyChecking=no','-o','UserKnownHostsFile=/dev/null','-o','ConnectTimeout=15',
+   'admin@127.0.0.1:'+remote,str(base/local)],capture_output=True,timeout=45)
+  if result.returncode:raise RuntimeError('Disposable file transfer failed')
+  (base/local).chmod(0o600)
  proc=None;stage='boot'
  try:
   vm.expect(r'(?i)login:');vm.sendline('admin');vm.expect(r'(?i)password:');vm.sendline('')
@@ -38,7 +39,7 @@ with tempfile.TemporaryDirectory(prefix='guide-ovpn-ci-') as d:
    else:break
   else:raise RuntimeError('login')
   cmds=[
-   '/ip dhcp-client set [find where interface=ether1] disabled=no',
+   '/ip dhcp-client set [find where interface=ether1] disabled=no', '/ip service enable ssh',
    '/interface bridge add name=guide-lan', '/interface bridge port add bridge=guide-lan interface=ether2',
    '/ip address add address=192.168.88.1/24 interface=guide-lan',
    '/certificate add name=guide-ca common-name=guide-ca key-size=2048 key-usage=key-cert-sign,crl-sign days-valid=30',
@@ -55,11 +56,10 @@ with tempfile.TemporaryDirectory(prefix='guide-ovpn-ci-') as d:
    '/interface ovpn-server server add name=guide-ovpn protocol=tcp port=1194 mode=ip certificate=guide-server require-client-certificate=yes default-profile=guide-vpn auth=sha256 cipher=aes256-cbc disabled=no',
   ]
   for i,c in enumerate(cmds):stage='setup-'+str(i+1);cmd(c)
-  stage='export-ca';ca=readpem('cert_export_guide-ca.crt','CERTIFICATE')
-  stage='export-client';client=readpem('cert_export_guide-client.crt','CERTIFICATE')
-  stage='export-key';key=readpem('cert_export_guide-client.key','(?:RSA |ENCRYPTED )?PRIVATE KEY')
-  if 'ENCRYPTED' not in key:raise RuntimeError('Client key is not encrypted')
-  for name,content in [('ca.crt',ca),('client.crt',client),('client.key',key),('auth.txt','guide-user\n'+authpass+'\n'),('pass.txt',keypass+'\n')]:
+  for remote,local in [('cert_export_guide-ca.crt','ca.crt'),('cert_export_guide-client.crt','client.crt'),('cert_export_guide-client.key','client.key')]:
+   stage='export-'+local;copy_file(remote,local)
+  if 'ENCRYPTED' not in (base/'client.key').read_text():raise RuntimeError('Client key not encrypted')
+  for name,content in [('auth.txt','guide-user\n'+authpass+'\n'),('pass.txt',keypass+'\n')]:
    p=base/name;p.write_text(content);p.chmod(0o600)
   common='\n'.join(['client','dev tun','proto tcp-client','remote 127.0.0.1 18194','nobind','persist-key','persist-tun',f'ca {base}/ca.crt',f'cert {base}/client.crt',f'key {base}/client.key',f'askpass {base}/pass.txt',f'auth-user-pass {base}/auth.txt','remote-cert-tls server','verify-x509-name vpn.example.org name','cipher AES-256-CBC','data-ciphers AES-256-CBC','auth SHA256','route 192.168.88.0 255.255.255.0','verb 3'])+'\n'
   def run(config,seconds):
