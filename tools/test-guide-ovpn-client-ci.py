@@ -78,7 +78,7 @@ with tempfile.TemporaryDirectory(prefix='guide-ovpn-ci-') as d:
     except queue.Empty:continue
     output+=line
     if 'Initialization Sequence Completed' in line:return p,output
-    if 'AUTH_FAILED' in line or 'VERIFY ERROR' in line or 'certificate required' in line.lower():break
+    if 'AUTH_FAILED' in line or 'VERIFY ERROR' in line or 'VERIFY X509NAME ERROR' in line or 'certificate required' in line.lower():break
    p.terminate()
    try:p.communicate(timeout=10)
    except subprocess.TimeoutExpired:p.kill();p.communicate()
@@ -93,13 +93,14 @@ with tempfile.TemporaryDirectory(prefix='guide-ovpn-ci-') as d:
   proc.terminate();proc.communicate(timeout=10);proc=None
   stage='wrong-server-name';bad,log=run(common.replace('vpn.example.org name','wrong.example.org name'),35)
   if bad:bad.terminate();bad.communicate(timeout=10);raise RuntimeError('Incorrect server name accepted')
-  if 'VERIFY ERROR' not in log:raise RuntimeError('Negative name control inconclusive')
+  if 'VERIFY ERROR' not in log and 'VERIFY X509NAME ERROR' not in log:raise RuntimeError('Negative name control inconclusive')
   stage='wrong-password';(base/'auth.txt').write_text('guide-user\nwrong-password\n');bad,log=run(common,40)
   if bad:bad.terminate();bad.communicate(timeout=10);raise RuntimeError('Incorrect password accepted')
   if 'AUTH_FAILED' not in log:raise RuntimeError('Negative password control inconclusive')
   print('::notice title=Disposable OpenVPN::RouterOS 7.23.8 generated CA/server/client certificates; OpenVPN Linux connected and pinged router LAN address via tunnel. Wrong server name and wrong PPP password were rejected. Loopback-forwarded CI only; no WinBox, separate LAN host, public WAN or physical router tested.')
  except Exception as e:
-  print('::error title=Disposable OpenVPN::Stage '+stage+'; exception '+type(e).__name__+'; serial and client logs withheld.',flush=True);sys.exit(1)
+  detail=str(e) if type(e) is RuntimeError else type(e).__name__
+  print('::error title=Disposable OpenVPN::Stage '+stage+'; '+detail+'; serial and client logs withheld.',flush=True);sys.exit(1)
  finally:
   if proc:
    proc.terminate()
