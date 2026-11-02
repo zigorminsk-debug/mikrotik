@@ -11,7 +11,7 @@ const delay=()=>new Promise(r=>setTimeout(r,20));
  }});
  const w=dom.window;await new Promise(r=>w.addEventListener('load',r));w.location.hash='lab';await delay();const d=w.document,$=id=>d.getElementById(id);
  $('lab_example_chr_isolated').click();w.Lab.run({instant:true});assert($('lab-matrix-start').disabled);
- d.querySelector('.lab-checked-launch[data-clients="true"]').click();await delay();assert(!$('lab-matrix-start').disabled);
+ d.querySelector('.lab-checked-launch[data-clients="true"]').click();await delay();assert(!$('lab-matrix-start').disabled);assert($('lab-matrix-status').textContent.includes('готовы к проверке'));
  const client=w.Lab.state.devices.find(x=>x.type==='pc'),router=w.Lab.state.devices.find(x=>x.type==='router');
  handler=(kind,args)=>Promise.resolve({ok:true,address:args.at(-1),sent:3,received:kind==='chr'?3:0});
  $('lab-matrix-start').click();await delay();assert.equal(calls.length,2);assert.equal(calls[0][0],'chr');assert.equal(calls[0].at(-1),'192.168.88.10');assert.equal(calls[1][0],'client');assert.equal(calls[1][2],client.id);assert.equal(calls[1].at(-1),router.cfg.gw);

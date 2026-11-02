@@ -666,7 +666,7 @@ function renderResults(res) {
   else if(liveStateJson && liveStateJson!==checkedStateJson){liveRouterId=null;liveClients=[];liveStateJson=null;}
   var matrixStart=$('lab-matrix-start'),matrixStop=$('lab-matrix-stop'),matrixStatus=$('lab-matrix-status'),matrixResults=$('lab-matrix-results');
   function matrixReady(){return !!(window.routerOS && typeof window.routerOS.ping==='function' && typeof window.routerOS.pingClient==='function' && liveStateJson && liveStateJson===checkedStateJson && liveRouterId && liveClients.length && !pingMatrixRun && !pingUiBusy);}
-  function updateMatrix(){var button=$('lab-matrix-start');if(button)button.disabled=!matrixReady();}
+  function updateMatrix(){var button=$('lab-matrix-start'),status=$('lab-matrix-status'),rows=$('lab-matrix-results'),ready=matrixReady();if(button)button.disabled=!ready;if(ready&&status&&rows&&!rows.children.length)status.textContent='Запущенные устройства готовы к проверке; каждый ping потребует отдельного подтверждения.';}
   updateMatrix();
   if(matrixStop) matrixStop.addEventListener('click',function(){if(pingMatrixRun){pingMatrixRun.stopped=true;matrixStop.disabled=true;matrixStatus.textContent='Остановка: уже открытое подтверждение или выполняющийся ping завершится; остальные не отправятся.';}});
   if(matrixStart) matrixStart.addEventListener('click',async function(){
@@ -1245,6 +1245,7 @@ function init() {
     if(pingMatrixRun)pingMatrixRun.stopped=true;
     liveRouterId=null;liveClients=[];liveStateJson=null;
     var matrix=$('lab-matrix-start');if(matrix)matrix.disabled=true;
+    var matrixStatus=$('lab-matrix-status');if(matrixStatus)matrixStatus.textContent='Лаборатория закрыта. Запустите CHR с Linux-клиентами заново.';
     if(resultsEl){Array.prototype.slice.call(resultsEl.querySelectorAll('[data-live-client]')).forEach(function(o){o.remove();});}
     var status=$('lab-checked-chr-status');if(status)status.textContent='Виртуальная лаборатория закрыта; клиентские VM больше не запущены.';
     var pingStatus=$('lab-ping-result');if(pingStatus)pingStatus.textContent='Лаборатория закрыта. Для реального ping запустите VM снова.';
