@@ -7,6 +7,9 @@ on:
       - '.github/workflows/windows-scheme-linux-clients.yml'
       - 'tools/test-experimental-lab-windows.js'
       - 'windows/chr/experimental-lab.js'
+      - 'windows/chr/linux-image.js'
+      - 'tools/test-linux-image.js'
+      - 'tools/test-linux-image-integration.js'
       - 'windows/chr/endpoint-plan.js'
       - 'windows/chr/session.js'
       - 'windows/chr/plan.js'
@@ -72,23 +75,15 @@ jobs:
         run: |
           cl /nologo /O2 /W3 tools/windows/chr-supervisor.c "/Fo$env:RUNNER_TEMP/chr-supervisor.obj" /link "/OUT:$env:RUNNER_TEMP/chr-supervisor.exe"
           if ($LASTEXITCODE -ne 0) { throw 'Supervisor compilation failed' }
-      - name: Download CirrOS 0.6.3 test image and verify upstream checksum
+      - name: Test controlled Linux image download and verified cache
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-          $dir = Join-Path $env:RUNNER_TEMP 'qemu-candidate'
-          $base = 'https://github.com/cirros-dev/cirros/releases/download/0.6.3'
-          $image = Join-Path $dir 'cirros-0.6.3-x86_64-disk.img'
-          $sums = Join-Path $dir 'SHA256SUMS'
-          Invoke-WebRequest -Uri "$base/SHA256SUMS" -OutFile $sums
-          Invoke-WebRequest -Uri "$base/cirros-0.6.3-x86_64-disk.img" -OutFile $image
-          $entry = @(Get-Content $sums | Where-Object { $_ -match '^([a-f0-9]{64})\s+\*?cirros-0\.6\.3-x86_64-disk\.img$' })
-          if ($entry.Count -ne 1) { throw 'No unique upstream checksum' }
-          $expected = ($entry[0] -split '\s+')[0]
-          $hash = (Get-FileHash -Algorithm SHA256 $image).Hash.ToLowerInvariant()
-          if ($hash -ne $expected -or $hash -ne '7d6355852aeb6dbcd191bcda7cd74f1536cfe5cbf8a10495a7283a8396e4b75b') { throw 'CirrOS checksum mismatch' }
-          Write-Output "::notice title=CirrOS test image SHA256::$hash"
-          "LINUX_IMAGE=$image" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          node tools/test-linux-image.js
+          if ($LASTEXITCODE -ne 0) { throw 'Linux image unit checks failed' }
+          $dir = Join-Path $env:RUNNER_TEMP 'linux-image-cache'
+          node tools/test-linux-image-integration.js "$dir"
+          if ($LASTEXITCODE -ne 0) { throw 'Linux image download test failed' }
+          "LINUX_IMAGE=$(Join-Path $dir 'cirros-0.6.3-x86_64-disk.img')" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Verify virtual Ethernet hub unit checks
         run: node tools/test-ethernet-hub.js
       - name: Verify real ICMP between Linux guests and RouterOS
