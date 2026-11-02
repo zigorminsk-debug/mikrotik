@@ -14,5 +14,8 @@ assert(!field([w('Interface',0,200),w('bridge-lan',150,300)],'Interface','bridge
 assert(!field([w('Interface',0,200),w('bridge-lan',150,200,20)],'Interface','bridge-lan'));
 assert(!field([w('Interface',150,200),w('bridge-lan',0,200)],'Interface','bridge-lan'));
 assert(!field([w('Interface',0,200),w('bridge-Ian',150,200)],'Interface','bridge-lan'));
+// The OCR engine may confuse Latin l and digit 1. Never accept the guess.
+assert(!field([w('Interface',0,200),w('etherl',150,200)],'Interface','ether1'));
+assert(!field([w('Interface',0,200),w('ether1',150,200)],'Interface','etherl'));
 assert.deepStrictEqual(verify(null),[false,false,false]);
 console.log('CI-only Tesseract fixture: exact fields and negative cases verified.');
