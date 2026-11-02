@@ -64,6 +64,7 @@ class ExperimentalLab {
       this.guests.set(endpoint.id,guest);await guest.start();this.track(guest);this.check();
       if(endpoint.mode==='static')await guest.setStatic(endpoint.ip,endpoint.gateway,endpoint.dns);
       else if(!await guest.hasDns(this.plan.expected.lanClientDns))throw Error('DNS, полученный Linux-клиентом по DHCP, не совпал со схемой');
+      if(!await guest.hasGateway(endpoint.mode==='static'?endpoint.gateway:this.plan.expected.lanGateway))throw Error('Шлюз Linux-клиента не совпал со схемой');
       const address=await guest.address();this.check();
       if(endpoint.mode==='static'&&address!==endpoint.ip)throw Error('Адрес Linux-клиента не совпал с выбранной схемой');
       endpoint.actualAddress=address;
@@ -71,6 +72,7 @@ class ExperimentalLab {
     this.exitPromise=Promise.race([this.router,...this.guests.values()].map(vm=>vm.exitPromise));
     return {router:info,clients:members.map(({endpoint})=>({id:endpoint.id,type:endpoint.type,mode:endpoint.mode,address:endpoint.actualAddress}))};
   }
+  async resolveClient(id,name){this.check();const guest=this.guests.get(id);if(!guest)throw Error('Виртуальный клиент не найден');return guest.resolve(name);}
   async pingClient(id,address){this.check();const guest=this.guests.get(id);if(!guest)throw Error('Виртуальный клиент не найден');return guest.ping(address);}
   async ping(address){this.check();return this.router.ping(address);}
   async resolve(name){this.check();return this.router.resolve(name);}

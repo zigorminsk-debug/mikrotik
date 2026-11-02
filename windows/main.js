@@ -198,18 +198,28 @@ ipcMain.handle('chr:ping', async (event, routerId, state, target) => {
 ipcMain.handle('chr:ping-client',async(event,routerId,clientId,state,target)=>{
   if(!trustedMain(event)||!app.isPackaged)return {ok:false,message:'Проверка доступна только в окне установленного приложения Windows.'};
   if(pingBusy)return {ok:false,message:'Проверка уже выполняется.'};
-  if(!validTarget(target))return {ok:false,message:'Для Linux-клиента укажите одиночный IPv4; DNS-имена пока не поддерживаются.'};
+  if(!validTarget(target)&&!validName(target))return {ok:false,message:'Укажите одиночный IPv4 или DNS-имя без URL. IPv6 и специальные адреса не поддерживаются.'};
   const vm=active,meta=activeMeta;
   if(!vm||!meta||routerId!==meta.routerId||!meta.clients.some(c=>c.id===clientId)||typeof vm.pingClient!=='function')return {ok:false,message:'Запустите виртуальные клиенты этой схемы и оставьте окно CHR открытым.'};
   try{if(stateHash(state)!==meta.digest)return {ok:false,message:'Схема изменилась после запуска. Проверьте её и запустите лабораторию заново.'};}catch(_){return {ok:false,message:'Недопустимая схема.'};}
   pingBusy=true;
   try{
-    const answer=await dialog.showMessageBox(mainWindow,{type:'warning',title:'Реальный ping из Linux-клиента',message:'Отправить три ICMP-запроса на '+target+'?',
+    let address=target;
+    if(!validTarget(target)){
+      const lookup=await dialog.showMessageBox(mainWindow,{type:'warning',title:'Разрешение DNS в Linux-клиенте',message:'Запросить IPv4 для имени «'+target+'»?',
+        detail:'DNS-запрос выполнит выбранная Linux VM с её настройками DNS. Клиентская сеть изолирована от физической сети и интернета, но другие локальные процессы могут внедрять пакеты. Результат не подтверждает доступность узла. После получения адреса потребуется отдельное подтверждение ping.',buttons:['Отмена','Разрешить DNS'],defaultId:0,cancelId:0,noLink:true});
+      if(lookup.response!==1||active!==vm||activeMeta!==meta||quitting)return {ok:false,cancelled:true};
+      const resolved=await vm.resolveClient(clientId,target);
+      if(active!==vm||activeMeta!==meta||quitting)return {ok:false,message:'Лаборатория закрылась во время DNS-запроса; результат неизвестен.'};
+      if(!resolved||!resolved.ok||!validTarget(resolved.address))return {ok:false,message:resolved&&(resolved.reason==='address'||resolved.ok)?'DNS вернул специальный или неподдерживаемый адрес; ping не отправлен.':'DNS в Linux-клиенте не вернул IPv4. Проверьте имя, DNS и подключение; ping не отправлен.'};
+      address=resolved.address;
+    }
+    const answer=await dialog.showMessageBox(mainWindow,{type:'warning',title:'Реальный ping из Linux-клиента',message:'Отправить три ICMP-запроса на '+address+(address===target?'':' (имя '+target+')')+'?',
       detail:'Источник — отдельная одноразовая Linux VM выбранной схемы. Сеть изолирована от физических интерфейсов и интернета, но другие процессы Windows могут подделывать пакеты. Ноль ответов не доказывает недоступность: ICMP может блокироваться.',buttons:['Отмена','Отправить'],defaultId:0,cancelId:0,noLink:true});
     if(answer.response!==1||active!==vm||activeMeta!==meta||quitting)return {ok:false,cancelled:true};
-    const result=await vm.pingClient(clientId,target);
+    const result=await vm.pingClient(clientId,address);
     if(active!==vm||activeMeta!==meta)return {ok:false,message:'Лаборатория закрылась во время проверки; результат неизвестен.'};
-    return {ok:true,address:target,sent:result.sent,received:result.received};
+    return {ok:true,address,sent:result.sent,received:result.received};
   }catch(_){return {ok:false,message:'Ошибка или тайм-аут проверки Linux-клиента; результат неизвестен. Перезапустите лабораторию.'};}
   finally{pingBusy=false;}
 });

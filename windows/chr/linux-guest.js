@@ -1,10 +1,10 @@
 'use strict';
-// Experimental disposable CirrOS guest controller. NOT wired to IPC or the UI.
+// Disposable CirrOS guest controller for the isolated Windows lab.
 // It is safe only in an explicitly isolated QEMU topology; CirrOS has public
 // credentials. Never connect this guest to a Windows LAN or user-mode NAT.
 const fs=require('fs').promises,constants=require('fs').constants,path=require('path'),net=require('net');
 const {spawn}=require('child_process'),{randomBytes}=require('crypto');
-const {ChrConsole}=require('./console'),{validTarget}=require('./ping');
+const {ChrConsole}=require('./console'),{validTarget}=require('./ping'),{validName}=require('./resolve');
 function portOk(port){return Number.isInteger(port)&&port>0&&port<=65535;}
 function macOk(mac){return typeof mac==='string'&&/^52:54:00:(?:[0-9a-f]{2}:){2}[0-9a-f]{2}$/i.test(mac);}
 async function shellResult(console,command,kind) {
@@ -15,6 +15,7 @@ async function shellResult(console,command,kind) {
   const value=raw.slice(token.length+1,-3);
   if(kind==='count' && /^[0-3]$/.test(value))return Number(value);
   if(kind==='ip' && validTarget(value))return value;
+  if(kind==='dns' && (value==='0' || /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(value)))return value;
   if(kind==='status' && /^(?:0|1)$/.test(value))return Number(value);
   throw Error('Некорректный ответ виртуального клиента');
 }
@@ -58,6 +59,15 @@ class LinuxGuest {
     if(!validTarget(dns))throw Error('Недопустимый DNS клиента');
     return this.operation(async()=>await shellResult(this.console,`grep -Fx 'nameserver ${dns}' /etc/resolv.conf >/dev/null; result=$?`,'status')===0);
   }
+  async hasGateway(gateway){
+    if(gateway!==''&&!validTarget(gateway))throw Error('Недопустимый шлюз клиента');
+    // No gateway means no default route; do not infer route validity from ping.
+    return this.operation(async()=>{
+      const check=gateway ? `awk '$1=="default" {total++; if ($2=="via" && $3=="${gateway}") found++} END {exit !(total==1 && found==1)}'` : `awk '$1=="default" {total++} END {exit (total!=0)}'`;
+      const cmd=`routes=$(ip -4 route show default dev eth0); result=$?; if [ "$result" = 0 ]; then printf '%s\\n' "$routes" | ${check}; result=$?; fi`;
+      return await shellResult(this.console,cmd,'status')===0;
+    });
+  }
   async setStatic(ip,gateway,dns){
     if(!validTarget(ip)||(gateway!==''&&!validTarget(gateway))||!validTarget(dns))throw Error('Недопустимые настройки IPv4 клиента');
     return this.operation(async()=>{
@@ -66,6 +76,19 @@ class LinuxGuest {
       const cmd='sudo dhcpcd -k eth0 >/dev/null 2>&1 || true; sudo ip addr flush dev eth0 && sudo ip addr add '+ip+'/24 dev eth0 && sudo ip link set eth0 up'+(gateway?' && sudo ip route add default via '+gateway:'')+` && sudo sh -c 'printf "nameserver %s\\n" "${dns}" > /etc/resolv.conf'; result=$?`;
       if(await shellResult(this.console,cmd,'status')!==0)throw Error('Не удалось назначить адрес или DNS клиенту');
       if(await shellResult(this.console,`grep -Fx 'nameserver ${dns}' /etc/resolv.conf >/dev/null; result=$?`,'status')!==0)throw Error('DNS клиента не совпал с выбранной схемой');
+    });
+  }
+  async resolve(name){
+    if(!validName(name))throw Error('Укажите корректное DNS-имя без URL, пробелов и команд.');
+    return this.operation(async()=>{
+      // Only the name, validated above, is interpolated. Ignore the DNS server
+      // address in nslookup output; read the first A answer after a Name line.
+      // Bounded retries avoid leaving the serial console occupied indefinitely.
+      const cmd="out=$(nslookup -timeout=2 -retry=1 -type=a "+name+" 2>/dev/null); result=$(printf '%s\\n' \"$out\" | awk '$1==\"Name:\" {answer=1; next} answer && $1==\"Address:\" && $2 ~ /^[0-9.]+$/ {print $2; exit}'); [ -n \"$result\" ] || result=0";
+      const address=await shellResult(this.console,cmd,'dns');
+      if(address==='0')return {ok:false,reason:'dns'};
+      if(!validTarget(address))return {ok:false,reason:'address'};
+      return {ok:true,address};
     });
   }
   async ping(ip){

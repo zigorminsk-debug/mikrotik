@@ -604,7 +604,7 @@ function renderResults(res) {
       (window.routerOS && typeof window.routerOS.launch === 'function' ? resultRouters.map(function(d) { return '<button type="button" class="btn lab-checked-launch" data-router-id="' + esc(d.id) + '">Открыть CHR: ' + esc(d.name) + '</button> ' + (typeof window.routerOS.launchClients === 'function' ? '<button type="button" class="btn lab-checked-launch" data-clients="true" data-router-id="' + esc(d.id) + '">CHR и Linux-клиенты: ' + esc(d.name) + '</button> ' : ''); }).join('') : '') +
       '<div id="lab-checked-chr-status" class="fs-hint" aria-live="polite"></div>' +
       '<div class="lab-ping"><h3>Реальный ping из виртуальных устройств</h3>' +
-      '<p>Запустите CHR или CHR с Linux-клиентами и выберите источник и адрес. По отдельному подтверждению выбранная VM отправит три ICMP-запроса; модель и Windows-хост пакеты не отправляют. DNS-имена пока разрешает только CHR, с отдельным подтверждением DNS и затем ping. Изменения в WebFig не сверяются с моделью.</p>' +
+      '<p>Запустите CHR или CHR с Linux-клиентами и выберите источник и адрес. По отдельному подтверждению выбранная VM отправит три ICMP-запроса; модель и Windows-хост пакеты не отправляют. DNS-имя разрешается выбранной VM с отдельным подтверждением DNS и затем ping. Изменения в WebFig не сверяются с моделью.</p>' +
       '<p class="fs-hint">Нарисованные ПК и серверы становятся отдельными Linux VM только при запуске с клиентами; приложения сервера не эмулируются. Принтеры, провайдеры и VPN пока не запускаются. Клиенты и CHR без интернета изолированы от физической сети, но другие локальные процессы могут внедрять пакеты. Интернет-режим доступен только для CHR и требует отдельного согласия.</p>' +
       '<div class="lab-ping-controls"><label>Источник <select id="lab-ping-source">' + resultRouters.map(function(d){return '<option value="'+esc(d.id)+'">'+esc(d.name)+' · CHR</option>';}).join('') + '</select></label>' +
       '<label>Адрес из схемы <select id="lab-ping-preset"><option value="">Ввести вручную</option>' + pingTargets.map(function(x) {return '<option value="'+esc(x.ip)+'">'+esc(x.device.name)+' — '+esc(x.ip)+(x.device.type==='router'?' (адрес CHR)':' (адрес схемы; узел запускается отдельно)')+'</option>';}).join('') + '</select></label>' +
@@ -666,13 +666,12 @@ function renderResults(res) {
     if(!checkedStateJson || JSON.stringify(state)!==checkedStateJson || !currentRes || currentRes.errors.length){status.textContent='Схема изменилась; снова запустите проверку и виртуальную CHR.';return;}
     var nameOk=target.length>0 && target.length<=253 && !/^(?:\d+\.){3}\d+$/.test(target) && target.split('.').every(function(part){return part.length>0 && part.length<=63 && /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?$/.test(part);});
     if(!LabEngine.validIp(target) && !nameOk){status.textContent='Укажите IPv4 или DNS-имя без URL и пробелов, например 192.168.88.1 или example.com.';return;}
-    if(client && !LabEngine.validIp(target)){status.textContent='Для Linux-клиента укажите IPv4; DNS-имена пока не поддерживаются.';return;}
     pingButton.disabled=true;status.textContent='Ожидание подтверждения и ответа виртуального устройства…';
     Promise.resolve().then(function(){return client ? window.routerOS.pingClient(liveRouterId,source,JSON.parse(checkedStateJson),target) : window.routerOS.ping(source,JSON.parse(checkedStateJson),target);}).then(function(result){
       if(!status.isConnected)return;
       if(result && result.ok && result.sent===3 && Number.isInteger(result.received) && result.received>=0 && result.received<=3){
         status.textContent=(client?'Виртуальный Linux-клиент':'Виртуальная CHR')+(result.address?' → '+result.address:'')+': отправлено 3, получено '+result.received+'. '+(result.received===0?'Ответов нет; ICMP может блокироваться'+(liveClients.length?'.':', а виртуальные клиенты не запущены.'):result.received<3?'Часть запросов осталась без ответа.':'Получены ответы на все три запроса.')+' Это не проверка устройств, которых нет в виртуальной сети.';
-      } else if(result && result.cancelled)status.textContent='Проверка отменена; ping не отправлялся.'+(client?'':' Если имя уже разрешено, DNS-запрос мог быть выполнен.');
+      } else if(result && result.cancelled)status.textContent='Проверка отменена; ping не отправлялся.'+' Если имя уже разрешено, DNS-запрос мог быть выполнен.';
       else status.textContent=(result && result.message)||'Результат проверки неизвестен.';
     }).catch(function(){if(status.isConnected)status.textContent='Связь с Windows-компонентом прервалась; результат неизвестен.';}).finally(function(){if(pingButton.isConnected)pingButton.disabled=false;});
   });

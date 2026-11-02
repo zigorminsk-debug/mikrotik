@@ -10,7 +10,7 @@ if(!qemu||!chrImage||!linuxImage||!tempRoot||!supervisor)throw Error('Expected f
 const mode=process.env.CI_L2_MODE;if(!['direct','hub'].includes(mode))throw Error('CI mode is required');
 const state={devices:[
  {id:'isp',type:'isp',name:'ISP',cfg:{kind:'static',priority:'primary',ip:'198.51.100.2/30',gw:'198.51.100.1',dns:'1.1.1.1'}},
- {id:'router',type:'router',name:'Router',cfg:{lan:'192.168.73.0/24',gw:'192.168.73.1',dhcp:true,nat:true,firewall:true,vpn:false}},
+ {id:'router',type:'router',name:'Router',cfg:{lan:'192.168.73.0/24',gw:'192.168.73.1',dhcp:true,nat:true,firewall:true,vpn:false,dnsStatic:true,dnsStaticName:'server.lab',dnsStaticIp:'192.168.73.20'}},
  {id:'pc',type:'pc',name:'PC',cfg:{mode:'dhcp',segment:'main'}},
  {id:'server',type:'server',name:'Server',cfg:{mode:'static',ip:'192.168.73.20/24',gw:'192.168.73.1',dns:'192.168.73.53',segment:'main'}}
 ],links:[{a:'isp',b:'router'}]};
@@ -26,6 +26,9 @@ async function nic(guest,up){
  stage='start router and clients from scheme';const info=await lab.start();
  const pc=info.clients.find(x=>x.id==='pc'),server=info.clients.find(x=>x.id==='server');
  assert(pc&&server);assert(/^192\.168\.73\./.test(pc.address));assert.equal(pc.mode,'dhcp');assert.equal(server.address,'192.168.73.20');assert.equal(server.mode,'static');
+ stage='Linux DNS and chosen gateway';assert.equal(await lab.guests.get('pc').hasGateway('192.168.73.1'),true);assert.equal(await lab.guests.get('server').hasGateway('192.168.73.1'),true);assert.equal(await lab.guests.get('pc').hasGateway('192.168.73.2'),false);
+ const resolved=await lab.resolveClient('pc','server.lab');assert.deepStrictEqual(resolved,{ok:true,address:server.address});assert.deepStrictEqual(await lab.pingClient('pc',resolved.address),{sent:3,received:3});
+ assert.deepStrictEqual(await lab.resolveClient('server','server.lab'),{ok:false,reason:'dns'}); // selected static DNS is an absent host, not replaced by the router
  stage='PC to server';assert.deepStrictEqual(await lab.pingClient('pc',server.address),{sent:3,received:3});
  stage='server to PC';assert.deepStrictEqual(await lab.pingClient('server',pc.address),{sent:3,received:3});
  stage='router to clients';assert.equal((await lab.router.ping(pc.address)).received,3);assert.equal((await lab.router.ping(server.address)).received,3);
@@ -33,5 +36,5 @@ async function nic(guest,up){
  stage='close and erase';await lab.stop();assert.deepStrictEqual(await fs.readdir(tempRoot),[]);
  stage='cancel during startup';const cancelled=new ExperimentalLab(opts),starting=cancelled.start().then(()=>{throw Error('Expected startup cancellation');},e=>e);
  await new Promise(ok=>setTimeout(ok,2000));await cancelled.stop();const outcome=await starting;assert(outcome instanceof Error);assert.deepStrictEqual(await fs.readdir(tempRoot),[]);
- console.log('::notice title=Real scheme-based virtual clients::Actual application planner and CHR controller with two real Linux guests in '+mode+' topology, non-default LAN, DHCP and static; bidirectional ICMP, NIC negative/recovery, start cancellation and cleanup passed. Isolated CI only, no UI, VPN, external networking or physical devices.');
+ console.log('::notice title=Real scheme-based virtual clients::Actual application planner and CHR controller with two real Linux guests in '+mode+' topology, non-default LAN, DHCP and static; Linux DNS success and unavailable DNS, gateway readback, bidirectional ICMP, NIC negative/recovery, start cancellation and cleanup passed. Isolated CI only, no UI, VPN, external networking or physical devices.');
 })().catch(e=>{console.log('::error title=Scheme-based Linux clients::'+stage+': '+String(e.message).replace(/[\r\n%]/g,' '));process.exitCode=1;}).finally(async()=>{try{await lab.stop();}catch(_){console.log('::error title=Cleanup::Disposable lab cleanup failed');process.exitCode=1;}});

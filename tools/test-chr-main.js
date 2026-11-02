@@ -34,6 +34,7 @@ class Lab {
  constructor(opts){this.opts=opts;if(opts.state&&opts.state.blocked)throw Error('Клиент не поддерживается');this.exitPromise=new Promise(r=>{this.exit=r;});labs.push(this);}
  async start(){return {router:{url:'http://127.0.0.1:18765/',user:'admin',password:'TEMPORARY_TEST_PASSWORD'},clients:[{id:'pc',address:'192.168.88.10',type:'pc',mode:'static'}]};}
  async stop(){this.stopped=true;}
+ async resolveClient(id,name){this.lookups=(this.lookups||[]).concat([[id,name]]);return {ok:true,address:'192.168.88.20'};}
  async pingClient(id,target){this.calls=(this.calls||[]).concat([[id,target]]);return {sent:3,received:3};}
  async ping(){return {sent:3,received:3};}
  async resolve(){return {ok:false,reason:'dns'};}
@@ -144,10 +145,15 @@ vm.runInNewContext(source,{require:req,process:{platform:'win32',resourcesPath:'
   assert(dialogs.some(d=>d.title==='Изолированные Linux-клиенты'&&d.defaultId===2&&d.detail.includes('подделывать')===false&&d.detail.includes('внедрять')));
   const pingClient=handlers['chr:ping-client'],lab=labs.at(-1);assert(pingClient);
   assert(!(await pingClient({sender:{},senderFrame:{}},'r','pc',{},'192.168.88.20')).ok);
-  assert(!(await pingClient(good,'r','pc',{},'example.com')).ok);assert(!(await pingClient(good,'r','invalid',{},'192.168.88.20')).ok);
+  assert(!(await pingClient(good,'r','pc',{},'example.com;bad')).ok);assert(!(await pingClient(good,'r','invalid',{},'192.168.88.20')).ok);
   assert(!(await pingClient(good,'r','pc',{modified:true},'192.168.88.20')).ok);
   choices.push(0);assert((await pingClient(good,'r','pc',{},'192.168.88.20')).cancelled);assert(!lab.calls);
   choices.push(1);assert.equal((await pingClient(good,'r','pc',{},'192.168.88.20')).received,3);assert.equal(lab.calls[0][1],'192.168.88.20');
+  choices.push(0);assert((await pingClient(good,'r','pc',{},'server.lab')).cancelled);assert(!lab.lookups);
+  choices.push(1,0);assert((await pingClient(good,'r','pc',{},'server.lab')).cancelled);assert.equal(lab.lookups.length,1);assert.equal(lab.calls.length,1);
+  choices.push(1,1);const namedClient=await pingClient(good,'r','pc',{},'server.lab');assert.equal(namedClient.address,'192.168.88.20');assert.equal(lab.calls.length,2);assert(dialogs.at(-1).message.includes('server.lab'));
+  lab.resolveClient=async()=>({ok:false,reason:'dns'});choices.push(1);assert((await pingClient(good,'r','pc',{},'missing.lab')).message.includes('DNS'));assert.equal(lab.calls.length,2);
+  lab.resolveClient=async()=>({ok:true,address:'127.0.0.1'});choices.push(1);assert((await pingClient(good,'r','pc',{},'bad.lab')).message.includes('специальный'));assert.equal(lab.calls.length,2);
   let finishCleanup;lab.stop=()=>new Promise(resolve=>{lab.stopped=true;finishCleanup=resolve;});
   windows.at(-1).destroy();await new Promise(resolve=>setImmediate(resolve));assert(lab.stopped);assert(!(await pingClient(good,'r','pc',{},'192.168.88.20')).ok);
   assert((await call(good,'r',{},true)).message.includes('очищается'),'launch must wait for disk cleanup');finishCleanup();await new Promise(resolve=>setImmediate(resolve));
