@@ -1,0 +1,23 @@
+#!/usr/bin/env node
+'use strict';
+// CI only. One disposable CHR on loopback; parameters arrive on stdin.
+const assert=require('assert'),fs=require('fs'),https=require('https');
+const {TOPICS,collect}=require('../windows/audit/rest-readonly');
+(async()=>{
+ const input=JSON.parse(fs.readFileSync(0,'utf8'));
+ const options={host:'127.0.0.1',port:input.port,fingerprint:input.fingerprint,user:input.user,password:input.password};
+ const sections=TOPICS.filter(t=>['system','identity','interfaces','addresses','filter','nat'].includes(t.id));
+ const bad='00:'.repeat(31)+'00';await assert.rejects(()=>collect({...options,fingerprint:bad},{allowLoopback:true,topics:sections}),/отпечаток/i);
+ const output=await collect(options,{allowLoopback:true,topics:sections,timeout:30000});
+ assert.equal(output.sections.length,sections.length);for(const x of output.sections)assert.equal(x.status,'ok',x.id+': '+x.status);
+ const identity=output.sections.find(x=>x.id==='identity');assert(identity.rows.some(r=>r.name==='audit-fixture'));
+ const addr=output.sections.find(x=>x.id==='addresses');assert(addr.rows.some(r=>r.address==='10.0.2.15/24'&&r.interface==='ether1'));
+ assert.equal(output.complete,false);assert(!JSON.stringify(output).includes(input.password));
+ // Deliberate write attempt ONLY against this disposable local fixture. Verify
+ // the dedicated account is actually denied and the identity stays unchanged.
+ const writeStatus=await new Promise((resolve,reject)=>{const body=JSON.stringify({name:'should-not-be-written'});const req=https.request({host:'127.0.0.1',port:input.port,path:'/rest/system/identity/set',method:'POST',rejectUnauthorized:false,headers:{authorization:'Basic '+Buffer.from(input.user+':'+input.password).toString('base64'),'content-type':'application/json','content-length':Buffer.byteLength(body)}},res=>{res.resume();res.on('end',()=>resolve(res.statusCode));});req.on('error',reject);req.end(body);});
+ assert(writeStatus>=400,'Fixture read-only account allowed a write');
+ const identityAgain=await collect(options,{allowLoopback:true,topics:[TOPICS.find(t=>t.id==='identity')],timeout:30000});assert(identityAgain.sections[0].rows.some(r=>r.name==='audit-fixture'));
+
+ console.log('::notice title=Audit IP research::HTTPS read-only collector read six selected sections from isolated RouterOS CHR with a pinned disposable certificate, fixed property lists and no production credentials. Bad pin and a write by the restricted user were rejected. This is not a production router or full audit.');
+})().catch(()=>{console.log('::error title=Audit IP research::Disposable CHR HTTPS audit fixture failed; no credentials or raw output logged.');process.exitCode=1;});
