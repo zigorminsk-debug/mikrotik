@@ -46,7 +46,7 @@ with tempfile.TemporaryDirectory(prefix='audit-source-chr-') as tmp:
   result=subprocess.run(['node','tools/audit-source-compile-ci.js'],input=json.dumps({'port':port,'user':'ci-audit','password':password}),text=True,capture_output=True,timeout=240)
   if result.returncode:
    # Only fixed Russian rejection reasons from preview, no device data or credentials.
-   print(result.stderr[:1000],file=sys.stderr);raise RuntimeError('Source fixture collection or compilation failed')
+   print('::error title=Source compile detail::'+result.stderr.strip()[:1000],flush=True);raise RuntimeError('Source fixture collection or compilation failed')
   plan=result.stdout
  except Exception as error:
   print('::error title=Audit source fixture::Stage '+stage+'; exception class: '+type(error).__name__+'; no serial output logged.',flush=True)
