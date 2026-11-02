@@ -11,6 +11,12 @@ contextBridge.exposeInMainWorld('routerOS', Object.freeze({
   openWinbox: () => ipcRenderer.invoke('physical:open-winbox'),
   copyPhysicalMac: mac => ipcRenderer.invoke('physical:copy-mac', mac),
   saveDiagram: (format, bytes) => ipcRenderer.invoke('diagram:save', format, bytes),
+  onClosed: callback => {
+    if (typeof callback !== 'function') throw new TypeError('Expected callback');
+    const handler = () => callback();
+    ipcRenderer.on('chr:closed', handler);
+    return () => ipcRenderer.removeListener('chr:closed', handler);
+  },
   onStatus: callback => {
     if (typeof callback !== 'function') throw new TypeError('Expected callback');
     const handler = (_event, text) => callback(text);

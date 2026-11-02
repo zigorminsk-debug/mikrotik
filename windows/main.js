@@ -18,10 +18,11 @@ const physicalDiscovery = require('./physical/mndp');
 const {openWinbox} = require('./physical/open-winbox');
 const {spawn} = require('child_process');
 
-let mainWindow = null, chrWindow = null, active = null, activeMeta = null, pingBusy = false, launching = false, quitting = false, cleanupFailed = false;
+let mainWindow = null, chrWindow = null, active = null, activeMeta = null, pingBusy = false, launching = false, quitting = false, cleanupFailed = false, cleanupPromise = null;
 function stateHash(state) { const data=JSON.stringify(state); if(typeof data!=='string'||Buffer.byteLength(data,'utf8')>256000) throw new Error('Недопустимый проект'); return createHash('sha256').update(data).digest('hex'); }
 const sessionsRoot = () => path.join(app.getPath('userData'), 'chr-sessions');
 function publishStatus(text) { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('chr:status', text); }
+function notifyLabClosed() { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('chr:closed'); }
 
 async function removeStale(root, pattern) {
   let entries;
@@ -37,10 +38,18 @@ async function staleSessions() {
   await removeStale(path.join(app.getPath('userData'), 'chr-cache'), /^\.chr-[A-Za-z0-9_-]+$/);
   await removeStale(path.join(app.getPath('userData'), 'linux-cache'), /^\.linux-[A-Za-z0-9_-]+$/);
 }
+function cleanupVm(vm) {
+  if (!cleanupPromise) {
+    const pending=Promise.resolve().then(()=>vm.stop()).catch(error=>{cleanupFailed=true;throw error;});
+    cleanupPromise=pending.finally(()=>{cleanupPromise=null;});
+  }
+  return cleanupPromise;
+}
 async function closeChr() {
   const s = active; active = null; activeMeta = null;
+  if (s) notifyLabClosed();
   if (chrWindow && !chrWindow.isDestroyed()) { const w = chrWindow; chrWindow = null; w.destroy(); }
-  if (s) await s.stop();
+  if (s) await cleanupVm(s); else if (cleanupPromise) await cleanupPromise;
 }
 async function licenseConsent(online, withClients = false) {
   while (mainWindow && !mainWindow.isDestroyed()) {
@@ -80,7 +89,7 @@ function openChrWindow(info, vm) {
   win.webContents.on('will-redirect', (event, url) => { if (!allowed(url)) event.preventDefault(); });
   win.on('closed', () => {
     if (chrWindow === win) chrWindow = null;
-    if (active === vm) { active = null; activeMeta = null; vm.stop().then(() => publishStatus('Виртуальная RouterOS закрыта; временный диск удалён.')).catch(() => { publishStatus('Не удалось удалить временные данные CHR.'); if (mainWindow && !mainWindow.isDestroyed()) dialog.showErrorBox('Очистка CHR', 'Не удалось удалить временные данные CHR. Закройте приложение и удалите папку chr-sessions из его данных.'); }); }
+    if (active === vm) { active = null; activeMeta = null; notifyLabClosed(); cleanupVm(vm).then(() => publishStatus('Виртуальная RouterOS закрыта; временные диски удалены.')).catch(() => { publishStatus('Не удалось удалить временные данные CHR.'); if (mainWindow && !mainWindow.isDestroyed()) dialog.showErrorBox('Очистка CHR', 'Не удалось удалить временные данные CHR. Закройте приложение и удалите папку chr-sessions из его данных.'); }); }
   });
   win.loadURL(info.url).catch(() => { if (!win.isDestroyed()) win.close(); });
 }
@@ -88,7 +97,7 @@ ipcMain.handle('chr:launch', async (event, routerId, state, withClients = false)
   if (process.platform !== 'win32' || !mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame) return {ok:false, message:'Виртуальная CHR доступна только в окне приложения Windows.'};
   if (withClients !== true && withClients !== false) return {ok:false,message:'Недопустимый режим запуска.'};
   if (cleanupFailed) return {ok:false, message:'Не удалось очистить временные данные CHR. Закройте приложение и проверьте папки chr-sessions и chr-cache в его данных.'};
-  if (launching || active) return {ok:false, message:'Виртуальная CHR уже запущена или запускается. Закройте её окно перед новым запуском.'};
+  if (launching || active || cleanupPromise) return {ok:false, message:'Виртуальная лаборатория уже запущена, запускается или очищается. Закройте окно CHR и дождитесь очистки.'};
   if (!app.isPackaged) return {ok:false, message:'Для виртуальной CHR требуется собранный Windows-установщик с QEMU.'};
   launching = true;
   const status = text => { if (!event.sender.isDestroyed()) event.sender.send('chr:status', text); };
@@ -263,7 +272,7 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname,'www','index.html'));
   mainWindow.webContents.setWindowOpenHandler(({url}) => { if (/^https?:/i.test(url)) shell.openExternal(url); return {action:'deny'}; });
   mainWindow.webContents.on('will-navigate', (event, url) => { if (/^https?:/i.test(url)) { event.preventDefault(); shell.openExternal(url); } });
-  mainWindow.on('closed', () => { mainWindow = null; if (!quitting) { quitting = true; closeChr().finally(() => app.quit()); } });
+  mainWindow.on('closed', () => { mainWindow = null; if (!quitting) { quitting = true; closeChr().catch(() => dialog.showErrorBox('Очистка лаборатории', 'Не удалось удалить временные данные. Проверьте chr-sessions в данных приложения.')).finally(() => app.quit()); } });
 }
 if (!app.requestSingleInstanceLock()) app.quit();
 else app.whenReady().then(async () => {
@@ -273,6 +282,6 @@ else app.whenReady().then(async () => {
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 app.on('before-quit', event => {
-  if (!quitting && active) { event.preventDefault(); quitting = true; closeChr().finally(() => app.quit()); }
+  if (!quitting && (active || cleanupPromise)) { event.preventDefault(); quitting = true; closeChr().catch(() => dialog.showErrorBox('Очистка лаборатории', 'Не удалось удалить временные данные. Проверьте chr-sessions в данных приложения.')).finally(() => app.quit()); }
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

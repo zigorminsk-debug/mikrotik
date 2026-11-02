@@ -42,3 +42,9 @@ jobs:
         run: python tools/export-guide-lab.py 10 ready
       - name: Export ready 20–23
         run: python tools/export-guide-lab.py 20 ready
+      - name: Export ping detail 0–9
+        run: python tools/export-guide-lab.py 0 detail
+      - name: Export ping detail 10–19
+        run: python tools/export-guide-lab.py 10 detail
+      - name: Export ping detail 20–23
+        run: python tools/export-guide-lab.py 20 detail

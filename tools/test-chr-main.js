@@ -148,6 +148,8 @@ vm.runInNewContext(source,{require:req,process:{platform:'win32',resourcesPath:'
   assert(!(await pingClient(good,'r','pc',{modified:true},'192.168.88.20')).ok);
   choices.push(0);assert((await pingClient(good,'r','pc',{},'192.168.88.20')).cancelled);assert(!lab.calls);
   choices.push(1);assert.equal((await pingClient(good,'r','pc',{},'192.168.88.20')).received,3);assert.equal(lab.calls[0][1],'192.168.88.20');
+  let finishCleanup;lab.stop=()=>new Promise(resolve=>{lab.stopped=true;finishCleanup=resolve;});
   windows.at(-1).destroy();await new Promise(resolve=>setImmediate(resolve));assert(lab.stopped);assert(!(await pingClient(good,'r','pc',{},'192.168.88.20')).ok);
+  assert((await call(good,'r',{},true)).message.includes('очищается'),'launch must wait for disk cleanup');finishCleanup();await new Promise(resolve=>setImmediate(resolve));
   console.log('Windows мост: отдельные согласия CHR/Linux, источник реального ping, изоляция WebFig и остановка проверены на моках.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

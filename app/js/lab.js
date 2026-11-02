@@ -80,7 +80,7 @@ var canvas, svg, hintEl, emptyEl, inspectEl, logBox, logLines, resultsEl,
     modeBtns, palBtns, runBtn, resetBtn, skipBtn, modal, lmTitle, lmBody, lmErr,
     lmSave, lmCancel, lmClose;
 // The result action must use exactly the state that was model-checked.
-var checkedStateJson = null, checkedLaunchPending = false;
+var checkedStateJson = null, checkedLaunchPending = false, liveRouterId = null, liveClients = [];
 
 function $(id) { return document.getElementById(id); }
 
@@ -649,7 +649,7 @@ function renderResults(res) {
   }
   resultsEl.innerHTML = html;
   resultsEl.hidden = false;
-  var liveRouterId=null, liveClients=[];
+  liveRouterId=null; liveClients=[];
   var pingPreset=$('lab-ping-preset');
   if(pingPreset) pingPreset.addEventListener('change',function(){if(pingPreset.value)$('lab-ping-target').value=pingPreset.value;});
   var pingButton=$('lab-ping-run');
@@ -1196,6 +1196,12 @@ function saveSettings() {
 function init() {
   canvas = $('lab-canvas');
   if (!canvas) return;
+  if (window.routerOS && typeof window.routerOS.onClosed === 'function') window.routerOS.onClosed(function() {
+    liveRouterId=null;liveClients=[];
+    if(resultsEl){Array.prototype.slice.call(resultsEl.querySelectorAll('[data-live-client]')).forEach(function(o){o.remove();});}
+    var status=$('lab-checked-chr-status');if(status)status.textContent='Виртуальная лаборатория закрыта; клиентские VM больше не запущены.';
+    var pingStatus=$('lab-ping-result');if(pingStatus)pingStatus.textContent='Лаборатория закрыта. Для реального ping запустите VM снова.';
+  });
   if (window.routerOS && typeof window.routerOS.onStatus === 'function') window.routerOS.onStatus(function(text) {
     var status = $('lab-chr-status'); status.hidden = false; status.textContent = text;
   });
