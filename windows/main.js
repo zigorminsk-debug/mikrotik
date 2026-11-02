@@ -16,6 +16,10 @@ const {validTarget} = require('./chr/ping');
 const {validName} = require('./chr/resolve');
 const physicalDiscovery = require('./physical/mndp');
 const {openWinbox} = require('./physical/open-winbox');
+const {createAuditHandler} = require('./audit/ipc-handler');
+const {collect:collectAudit} = require('./audit/rest-readonly');
+const {describe:describeAudit} = require('./audit/report');
+const {pathToFileURL} = require('url');
 const {spawn} = require('child_process');
 
 let mainWindow = null, chrWindow = null, active = null, activeMeta = null, pingBusy = false, launching = false, quitting = false, cleanupFailed = false, cleanupPromise = null;
@@ -226,6 +230,20 @@ ipcMain.handle('chr:ping-client',async(event,routerId,clientId,state,target)=>{
 // Local read-only MNDP discovery. MAC and identity advertisements are unauthenticated.
 let physicalScanning = false;
 function trustedMain(event) { return process.platform === 'win32' && mainWindow && event.sender === mainWindow.webContents && event.senderFrame === mainWindow.webContents.mainFrame; }
+// This separate handler additionally verifies the main frame URL: a navigation
+// to another local file must not gain the ability to request credentials.
+function trustedAuditMain(event) {
+  if (!trustedMain(event) || !event.senderFrame || typeof event.senderFrame.url !== 'string') return false;
+  try {
+    const u=new URL(event.senderFrame.url);u.hash='';
+    return u.href===pathToFileURL(path.join(__dirname,'www','index.html')).href;
+  } catch (_) { return false; }
+}
+const auditIp=createAuditHandler({isTrusted:trustedAuditMain,
+  showDialog:options=>dialog.showMessageBox(mainWindow,options),
+  isStopped:()=>quitting || !mainWindow || mainWindow.isDestroyed(),
+  collect:collectAudit,describe:describeAudit});
+ipcMain.handle('physical:audit-ip',auditIp);
 ipcMain.handle('physical:interfaces', async event => {
   if (!trustedMain(event)) return {ok:false,message:'Поиск доступен только в окне приложения Windows.'};
   try { return {ok:true,interfaces:physicalDiscovery.interfaces()}; }

@@ -1,5 +1,5 @@
 'use strict';
-// Research component only; NOT exposed to the app or production routers yet.
+// Limited read-only component. It is not a complete or atomic router backup.
 // Only fixed HTTPS GETs and fixed property lists. TLS peer is pinned BEFORE
 // sending Basic credentials. Never log input, response bodies, or raw errors.
 const tls=require('tls'),http=require('http'),crypto=require('crypto'),net=require('net');

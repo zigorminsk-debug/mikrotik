@@ -1,0 +1,47 @@
+# Electron IPC/UI with mocks only; no real network or native consent click.
+name: Windows audit IPC and mock screenshot
+on:
+  push:
+    branches: ['**']
+    paths:
+      - '.github/workflows/windows-audit-ui.yml'
+      - 'app/js/physical-audit.js'
+      - 'app/js/lab.js'
+      - 'app/index.html'
+      - 'windows/main.js'
+      - 'windows/preload.js'
+      - 'windows/audit/**'
+      - 'tools/test-audit-electron-windows.js'
+      - 'tools/export-audit-ui.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit-ui:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Electron and prepare application
+        shell: pwsh
+        run: |
+          Push-Location windows
+          npm ci --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed' }
+          npm run copy
+          if ($LASTEXITCODE -ne 0) { throw 'Application copy failed' }
+          Pop-Location
+      - name: Exercise real IPC with mocked confirmation and collector
+        shell: pwsh
+        run: |
+          ./windows/node_modules/.bin/electron.cmd tools/test-audit-electron-windows.js
+          if ($LASTEXITCODE -ne 0) { throw 'Audit IPC fixture failed' }
+      - name: Export mock screenshot 0–9
+        run: python tools/export-audit-ui.py 0
+      - name: Export mock screenshot 10–19
+        run: python tools/export-audit-ui.py 10
+      - name: Export mock screenshot 20–23
+        run: python tools/export-audit-ui.py 20

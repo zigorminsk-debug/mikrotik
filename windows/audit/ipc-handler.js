@@ -1,5 +1,5 @@
 'use strict';
-// Experimental, not registered with Electron. Injected dependencies make the
+// Injected dependencies make the
 // consent boundary testable without touching real routers or opening sockets.
 const {validate}=require('./rest-readonly');
 const SAFE_ERRORS=new Set([

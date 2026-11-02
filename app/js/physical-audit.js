@@ -1,4 +1,4 @@
-/* Экспериментальный UI: пока не подключён к приложению или сетевому IPC. */
+/* Частичный аудит IPv4: безопасное текстовое отображение выбранных разделов. */
 (function (global) {
 'use strict';
 // Uses textContent only: every value returned by a device is untrusted.
@@ -7,8 +7,8 @@ function createAuditUI(container, bridge) {
   function node(tag,text,cls) {var e=doc.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;}
   function label(form,text,id,type,attrs){var l=node('label',text), input=node('input');input.id=id;input.type=type;Object.keys(attrs||{}).forEach(function(k){input.setAttribute(k,attrs[k]);});l.appendChild(input);form.appendChild(l);return input;}
   container.replaceChildren();
-  var header=node('h3','Чтение рабочего MikroTik по IPv4 (неполный аудит)');container.appendChild(header);
-  container.appendChild(node('p','Только выбранные разделы RouterOS 7 по HTTPS. Это не полная копия и не проверка трафика. Данные могут содержать адреса и топологию; они не сохраняются этой формой. MAC-подключение и перенос в виртуальную машину пока недоступны.','note'));
+  var header=node('h3','Чтение рабочего MikroTik по IPv4 (экспериментальный неполный аудит)');container.appendChild(header);
+  container.appendChild(node('p','Только выбранные разделы RouterOS 7 по HTTPS. На физическом устройстве функция ещё не проверена. Это не полная копия и не проверка трафика. Данные могут содержать адреса и топологию; они не сохраняются этой формой. MAC-подключение и перенос в виртуальную машину пока недоступны. Начатое чтение нельзя остановить закрытием формы.','note'));
   container.appendChild(node('p','Администратор заранее настраивает www-ssl и отдельную учётную запись без прав записи и sensitive. Самостоятельно сверьте SHA-256 сертификата по независимому доверенному каналу. Не используйте отпечаток, полученный через непроверенное соединение.','fs-hint'));
   var form=node('form');form.setAttribute('autocomplete','off');container.appendChild(form);
   var host=label(form,'IPv4 устройства','audit-ip','text',{inputmode:'decimal',maxlength:'15',autocomplete:'off',spellcheck:'false'});

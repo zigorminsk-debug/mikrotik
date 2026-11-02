@@ -748,8 +748,9 @@ function renderResults(res) {
 }
 
 /* ---------- Настройки устройства (модальное окно) ---------- */
-var editingId = null;
+var editingId = null, auditUi = null;
 function closeSettings() {
+  if(auditUi){auditUi.dispose();auditUi=null;}
   var manual=$('lm_manual_ports'); if(manual)manual.value='';
   modal.hidden=true; editingId=null;
 }
@@ -817,6 +818,7 @@ function validPublication(row) {
 function openSettings(id) {
   var d = byId(id);
   if (!d) return;
+  if(auditUi){auditUi.dispose();auditUi=null;}
   editingId = id;
   var c = d.cfg;
   var html = f('lm_name', 'Название устройства', 'text', d.name, 'spellcheck="false"');
@@ -830,6 +832,7 @@ function openSettings(id) {
       '<label for="lm_manual_mac">MAC устройства с наклейки или из поиска</label><input id="lm_manual_mac" type="text" maxlength="17" placeholder="AA:BB:CC:DD:EE:FF" spellcheck="false" autocomplete="off">' +
       '<button type="button" class="btn ghost" id="lm_copy_mac">Копировать MAC для WinBox</button><div id="lm_copy_mac_status" class="fs-hint" aria-live="polite"></div><p class="fs-hint">Копирование заменит текущее содержимое буфера обмена Windows. Введите MAC вручную, если поиск не обнаружил устройство, или выберите строку выше. Это не проверка устройства и не подключение; вставьте адрес в отдельный WinBox самостоятельно.</p>' +
       '<button type="button" class="btn ghost" id="lm_open_winbox">Открыть WinBox отдельно</button><p class="fs-hint">Выберите установленный официальный WinBox и войдите в него вручную по MAC. Лаборатория не получает доступ к устройству и не отправляет настройки.</p><div id="lm_winbox_status" class="fs-hint" aria-live="polite"></div>' +
+      '<div id="lm_physical_audit"></div>' +
       '<label for="lm_manual_ports">Имена Ethernet-портов устройства (необязательно, вручную)</label>' +
       '<textarea id="lm_manual_ports" rows="3" maxlength="4096" spellcheck="false" placeholder="ether1, ether2, ether3"></textarea><p class="fs-hint">Перепишите имена портов из Interfaces в отдельном WinBox через запятую или с новой строки. Не вставляйте экспорт, команды, пароли или ключи. Список временный и не сохраняется.</p>' +
       '<button type="button" class="btn ghost" id="lm_preview_physical">Сохранить и оценить схему</button><p class="fs-hint">Черновая сводка по сохранённой схеме без соединения. Сравниваются только введённые имена, не совместимость или состояние устройства.</p>';
@@ -954,6 +957,7 @@ function openSettings(id) {
 
   lmTitle.textContent = '⚙ ' + TYPES[d.type].label + ' — настройки';
   lmBody.innerHTML = html;
+  if (d.type === 'router' && $('lm_physical_audit') && typeof PhysicalAuditUI !== 'undefined') auditUi=PhysicalAuditUI.createAuditUI($('lm_physical_audit'),window.routerOS);
   lmErr.hidden = true;
   modal.hidden = false;
 
@@ -1385,6 +1389,7 @@ function init() {
 init();
 
 window.addEventListener('hashchange', function () {
+  if ((location.hash || '').replace(/^#/, '') !== 'lab' && auditUi) closeSettings();
   if ((location.hash || '').replace(/^#/, '') !== 'lab' && playCtl) {
     clearTimeout(playCtl.timer);
     playCtl = null;

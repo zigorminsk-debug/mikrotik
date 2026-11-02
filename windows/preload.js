@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('routerOS', Object.freeze({
   pingClient: (routerId, clientId, state, target) => ipcRenderer.invoke('chr:ping-client', routerId, clientId, state, target),
   ping: (routerId, state, target) => ipcRenderer.invoke('chr:ping', routerId, state, target),
   physicalInterfaces: () => ipcRenderer.invoke('physical:interfaces'),
+  auditIp: options => ipcRenderer.invoke('physical:audit-ip', options),
   discoverPhysical: (name, address) => ipcRenderer.invoke('physical:discover', name, address),
   openWinbox: () => ipcRenderer.invoke('physical:open-winbox'),
   copyPhysicalMac: mac => ipcRenderer.invoke('physical:copy-mac', mac),

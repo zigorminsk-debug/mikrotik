@@ -6,7 +6,7 @@ const vm = require('vm');
 const {EventEmitter} = require('events');
 const source = fs.readFileSync(require('path').join(__dirname,'../windows/main.js'),'utf8');
 const windows = [], handlers = {}, choices = [], downloads = [], opened = [], created = [], errors = [], writes = [], dialogs = [];
-let onlineValid = true, physicalCalls = 0;
+let onlineValid = true, physicalCalls = 0, auditCalls = 0;
 const physicalNic={name:'Test Ethernet',address:'192.168.88.5'};
 let saveChoice = {canceled:true}, openChoice = {canceled:true};
 const winboxRuns=[], clipboardWrites=[], labs=[], linuxDownloads=[];
@@ -15,7 +15,7 @@ let plan = {blockers:[],groups:[{id:'iface',commands:['/interface print']}],expe
 class Window extends EventEmitter {
   constructor(options) {
     super(); this.options=options; this.dead=false; this.webContents=new EventEmitter();
-    Object.assign(this.webContents,{mainFrame:{},isDestroyed:()=>this.dead,send:(...args)=>{this.events.push(args);},setWindowOpenHandler:f=>{this.popups=f;},
+    Object.assign(this.webContents,{mainFrame:{url:'file:///app/www/index.html'},isDestroyed:()=>this.dead,send:(...args)=>{this.events.push(args);},setWindowOpenHandler:f=>{this.popups=f;},
       session:{setPermissionRequestHandler:f=>{this.permissions=f;},webRequest:{onBeforeRequest:(_filter,f)=>{this.requests=f;}}}});
     this.events=[]; windows.push(this);
   }
@@ -57,6 +57,9 @@ const req=name=>{
   if(name==='./chr/ping')return require('../windows/chr/ping');
   if(name==='./chr/resolve')return require('../windows/chr/resolve');
   if(name==='child_process')return {spawn:mockSpawn};
+  if(name==='./audit/ipc-handler')return require('../windows/audit/ipc-handler');
+  if(name==='./audit/rest-readonly')return {collect:async opts=>{auditCalls++;return {sections:[],complete:false};}};
+  if(name==='./audit/report')return {describe:()=>({complete:false,sections:[]})};
   if(name==='./physical/open-winbox')return require('../windows/physical/open-winbox');
   if(name==='./physical/mndp')return {interfaces:()=>[physicalNic],discover:async()=>{physicalCalls++;return [{mac:'02:11:22:33:44:55'}];}};
   return require(name);
@@ -67,6 +70,14 @@ vm.runInNewContext(source,{require:req,process:{platform:'win32',resourcesPath:'
   const main=windows[0], call=handlers['chr:launch'];assert(main && call);
   const good={sender:main.webContents,senderFrame:main.webContents.mainFrame};
   const bad=await call({sender:{},senderFrame:{}},'r',{});assert(!bad.ok && !downloads.length);
+  const audit=handlers['physical:audit-ip'];assert(audit);
+  const auditInput={host:'192.168.88.1',port:443,fingerprint:'AA:'.repeat(31)+'AA',user:'reader',password:'temporary-test-password'};
+  assert(!(await audit({sender:{},senderFrame:{}},auditInput)).ok);assert.equal(auditCalls,0);
+  main.webContents.mainFrame.url='file:///app/www/another.html';assert(!(await audit(good,auditInput)).ok);assert.equal(auditCalls,0);
+  main.webContents.mainFrame.url='file:///app/www/index.html?other';assert(!(await audit(good,auditInput)).ok);
+  main.webContents.mainFrame.url='file:///app/www/index.html#lab';choices.push(0);assert((await audit(good,auditInput)).cancelled);assert.equal(auditCalls,0);
+  choices.push(1);assert((await audit(good,auditInput)).ok);assert.equal(auditCalls,1);assert(!JSON.stringify(dialogs.at(-1)).includes(auditInput.password));
+  main.webContents.mainFrame.url='file:///app/www/index.html';
   const listPhysical=handlers['physical:interfaces'], findPhysical=handlers['physical:discover'];
   assert(!(await listPhysical({sender:{},senderFrame:{}})).ok);
   assert((await listPhysical(good)).ok);

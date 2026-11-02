@@ -62,6 +62,11 @@ jobs:
           node tools/test-physical-mndp.js
           node tools/test-open-winbox.js
           node tools/test-physical-preview.js
+          node tools/test-audit-ipc-handler.js
+          node tools/test-audit-report.js
+          node tools/test-audit-import-plan.js
+          node tools/test-audit-compare.js
+          node tools/test-audit-rest-readonly.js
           node tools/test-workflow-triggers.js
       - name: DOM-тест (интерактивный стенд, шрифт, автодополнение)
         run: |
@@ -81,6 +86,8 @@ jobs:
           node tools/test-chr-dual-wan-dom.js
           node tools/test-chr-isolated-example-dom.js
           node tools/test-physical-dom.js
+          node tools/test-audit-ui.js
+          node tools/test-audit-product-dom.js
           node tools/test-physical-preview-dom.js
 
   android:
