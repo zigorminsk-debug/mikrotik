@@ -33,7 +33,7 @@ function validIp(host,allowLoopback=false){
 }
 function validate(o,allowLoopback){
  if(!o||!validIp(o.host,allowLoopback)||!Number.isInteger(o.port)||o.port<1||o.port>65535)throw Error('Недопустимый адрес или порт.');
- if(typeof o.fingerprint!=='string'||!/^([a-fA-F0-9]{2}:){31}[a-fA-F0-9]{2}$/.test(o.fingerprint))throw Error('Нужен проверенный SHA-256 отпечаток сертификата.');
+ if(typeof o.fingerprint!=='string'||!/^(?:[a-fA-F0-9]{64}|(?:[a-fA-F0-9]{2}:){31}[a-fA-F0-9]{2})$/.test(o.fingerprint))throw Error('Нужен проверенный SHA-256 отпечаток сертификата.');
  if(typeof o.user!=='string'||!o.user||o.user.length>128||/[:\r\n\x00]/.test(o.user)||typeof o.password!=='string'||o.password.length<1||o.password.length>512||/[\r\n\x00]/.test(o.password))throw Error('Недопустимый формат учётных данных.');
 }
 function sanitize(value,topic){

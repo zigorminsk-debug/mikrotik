@@ -13,7 +13,7 @@ function createAuditUI(container, bridge) {
   var form=node('form');form.setAttribute('autocomplete','off');container.appendChild(form);
   var host=label(form,'IPv4 устройства','audit-ip','text',{inputmode:'decimal',maxlength:'15',autocomplete:'off',spellcheck:'false'});
   var port=label(form,'Порт HTTPS','audit-port','number',{min:'1',max:'65535',autocomplete:'off'});port.value='443';
-  var pin=label(form,'Проверенный SHA-256 сертификата (AA:BB:...)','audit-pin','text',{maxlength:'95',autocomplete:'off',spellcheck:'false'});
+  var pin=label(form,'Проверенный SHA-256 сертификата (64 шестнадцатеричных символа, с двоеточиями или без)','audit-pin','text',{maxlength:'95',autocomplete:'off',spellcheck:'false'});
   var user=label(form,'Пользователь только для чтения','audit-user','text',{maxlength:'128',autocomplete:'off'});
   var password=label(form,'Пароль','audit-password','password',{maxlength:'512',autocomplete:'new-password'});
   var submit=node('button','Прочитать выбранные настройки','btn primary');submit.type='submit';form.appendChild(submit);

@@ -28,6 +28,9 @@ function createAuditHandler({isTrusted,showDialog,isStopped,collect,describe}){
   // interface, file path, endpoint, method or insecure TLS option is accepted.
   const options={host:input.host,port:input.port,fingerprint:input.fingerprint,user:input.user,password:input.password};
   try{validate(options,false);}catch(error){return {ok:false,message:SAFE_ERRORS.has(error.message)?error.message:'Недопустимые параметры чтения.'};}
+  // RouterOS often displays a continuous 64-digit hash; show a canonical
+  // representation in the native dialog without accepting partial hashes.
+  options.fingerprint=options.fingerprint.replace(/:/g,'').toUpperCase().match(/.{2}/g).join(':');
   busy=true;
   try{
    const result=await showDialog({

@@ -8,6 +8,7 @@ const assert=require('assert'),{createAuditHandler}=require('../windows/audit/ip
  assert(!(await audit('untrusted',good)).ok);assert.equal(readCalls,0);
  assert(!(await audit('main-frame',{...good,host:'localhost'})).ok);assert.equal(readCalls,0);
  assert((await audit('main-frame',good)).cancelled);assert.equal(readCalls,0);assert.equal(dialogSeen.defaultId,0);assert.equal(dialogSeen.cancelId,0);assert(dialogSeen.detail.includes(good.host));assert(dialogSeen.detail.includes(good.fingerprint));assert(!dialogSeen.detail.includes(good.password));assert(dialogSeen.detail.includes('независимому доверенному каналу'));
+ consent=0;assert((await audit('main-frame',{...good,fingerprint:good.fingerprint.replace(/:/g,'')})).cancelled);assert(dialogSeen.detail.includes(good.fingerprint));
  consent=1;let release;pending=new Promise(r=>{release=r;});const first=audit('main-frame',{...good,path:'/rest/system/reset-configuration',method:'POST',allowLoopback:true});await new Promise(r=>setImmediate(r));assert.equal(readCalls,1);assert(!(await audit('main-frame',good)).ok);assert.deepStrictEqual(Object.keys(optionsSeen).sort(),['fingerprint','host','password','port','user']);release();assert((await first).ok);
  pending=null;stop=true;assert((await audit('main-frame',good)).cancelled);assert.equal(readCalls,1);stop=false;
  let releaseSecond;pending=new Promise(r=>{releaseSecond=r;});const second=audit('main-frame',good);await new Promise(r=>setImmediate(r));stop=true;releaseSecond();assert((await second).cancelled);stop=false;pending=null;
