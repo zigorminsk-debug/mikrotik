@@ -30,7 +30,8 @@ with tempfile.TemporaryDirectory(prefix='audit-source-chr-') as tmp:
    elif n==2:vm.sendline('')
    else:break
   else:raise RuntimeError('CHR login failed')
-  commands=['/interface bridge add name=source-lan protocol-mode=rstp vlan-filtering=no disabled=no',
+  commands=[':foreach i in=[/ip dhcp-client find] do={/ip dhcp-client disable $i}',
+   '/interface bridge add name=source-lan protocol-mode=rstp vlan-filtering=no disabled=no',
    '/interface bridge port add bridge=source-lan interface=ether1 pvid=1 ingress-filtering=no frame-types=admit-all disabled=no',
    '/interface bridge port add bridge=source-lan interface=ether2 pvid=1 ingress-filtering=no frame-types=admit-all disabled=no',
    '/ip address add address=10.0.2.15/24 interface=source-lan disabled=no',
