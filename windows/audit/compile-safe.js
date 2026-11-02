@@ -21,7 +21,7 @@ function compile(snapshot,mapping){
   checks.push({id:'port:'+port.target,query:':if ([:len [/interface bridge port find where bridge=audit-lan and interface='+port.target+' and pvid=1 and ingress-filtering=no and frame-types=admit-all and disabled=no]] != 1) do={:error "audit-port-mismatch"}'});
  }
  commands.push('/ip address add address='+address.address+' interface=audit-lan disabled=no');
- checks.push({id:'ipv4',query:':if ([:len [/ip address find where address='+address.address+' and interface=audit-lan and disabled=no and dynamic=no]] != 1) do={:error "audit-ipv4-mismatch"}'});
+ checks.push({id:'ipv4',query:':if ([:len [/ip address find where address="'+address.address+'" and interface=audit-lan and disabled=no and dynamic=no]] != 1) do={:error "audit-ipv4-mismatch"}'});
  return {ok:true,commands,checks,preview:plan,skipped:plan.skipped,limitations:plan.limitations};
 }
 module.exports={compile};
