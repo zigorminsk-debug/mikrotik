@@ -6,7 +6,7 @@ import json, pathlib, re, secrets, shutil, subprocess, sys, tempfile
 import pexpect
 images=list(pathlib.Path(sys.argv[1]).glob('*.img'))
 if len(images)!=1: raise SystemExit('Expected one pristine CHR image')
-plan=json.loads(subprocess.check_output(['node','tools/audit-compile-ci.js'],text=True))
+plan=json.load(sys.stdin) if sys.argv[2:]==['--stdin-plan'] else json.loads(subprocess.check_output(['node','tools/audit-compile-ci.js'],text=True))
 if len(plan['commands'])!=4 or len(plan['checks'])!=4: raise SystemExit('Unexpected fixture plan')
 password='Disposable-Audit-CI-42!'
 def literal(value): return '"'+value[:16]+'" . "'+value[16:]+'"'

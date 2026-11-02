@@ -7,6 +7,9 @@ on:
       - '.github/workflows/audit-isolated-import-research.yml'
       - 'windows/audit/import-plan.js'
       - 'windows/audit/compile-safe.js'
+      - 'windows/audit/rest-readonly.js'
+      - 'tools/audit-source-compile-ci.js'
+      - 'tools/test-audit-source-to-chr-ci.py'
       - 'tools/audit-safe-fixture.js'
       - 'tools/test-audit-compile-safe.js'
       - 'tools/audit-compile-ci.js'
@@ -17,7 +20,7 @@ permissions:
 jobs:
   isolated-fixture:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -37,5 +40,7 @@ jobs:
           curl -fL --retry 2 -o chr.zip https://download.mikrotik.com/routeros/7.23.8/chr-7.23.8.img.zip
           echo 'ac01ec7c092f4cab8136212e8ebfd613e0a37844c406317fa228d1ad446ce62c  chr.zip' | sha256sum -c -
           unzip -o chr.zip
+      - name: Read disposable source CHR and test a separate target
+        run: /usr/bin/python3 tools/test-audit-source-to-chr-ci.py "$RUNNER_TEMP/audit-isolated"
       - name: Exercise synthetic allowlisted plan in disposable CHR
         run: /usr/bin/python3 tools/test-audit-isolated-chr-ci.py "$RUNNER_TEMP/audit-isolated"
