@@ -1,0 +1,12 @@
+#!/usr/bin/env node
+'use strict';
+const assert=require('assert'),{validAddress,preview}=require('../windows/audit/import-plan');
+const sec=(id,rows)=>({id,status:'ok',rows});
+function snapshot(){return {sections:[sec('interfaces',[{name:'ether7',type:'ether'},{name:'ether8',type:'ether'}]),sec('bridge',[{name:'bridge-local',disabled:'false','vlan-filtering':'false','protocol-mode':'rstp'}]),sec('bridge-ports',[{bridge:'bridge-local',interface:'ether7',disabled:'false',pvid:'1','ingress-filtering':'false','frame-types':'admit-all'},{bridge:'bridge-local',interface:'ether8',disabled:'false',pvid:'1','ingress-filtering':'false','frame-types':'admit-all'}]),sec('bridge-vlans',[]),sec('addresses',[{interface:'bridge-local',disabled:'false',dynamic:'false',address:'192.168.55.1/24'}])]};}
+const mapping=[{source:'ether7',target:'ether2'},{source:'ether8',target:'ether3'}];
+const r=preview(snapshot(),mapping);assert(!r.executable&&!r.complete);assert.deepStrictEqual(r.items.map(x=>x.kind),['bridge','port','port','ipv4']);assert(r.limitations.length>=5);assert(r.skipped.length);
+for(const x of ['0.0.0.0/8','127.1.1.1/24','169.254.2.1/24','224.1.2.3/24','10.0.0.0/24','10.0.0.255/24','192.168.1.1/31','192.168.1.1/032','192.168.1.1/24;:execute x','192.168.001.1/24'])assert(!validAddress(x),x);assert(validAddress('192.168.1.1/24'));assert(validAddress('10.0.0.255/23'));
+const tests=[s=>{s.sections[0].rows[0].type='vlan';},s=>{s.sections[0].rows.push({name:'ether7',type:'ether'});},s=>{s.sections[1].rows[0]['vlan-filtering']='true';},s=>{delete s.sections[1].rows[0].disabled;},s=>{s.sections[2].rows[0].interface='ether7;:execute x';},s=>{s.sections[2].rows[0]['ingress-filtering']='true';},s=>{s.sections[3].rows.push({bridge:'bridge-local'});},s=>{s.sections[4].rows[0].dynamic='true';},s=>{s.sections[4].rows.push({});},s=>{s.sections[3].status='forbidden';},s=>{s.sections.push(s.sections[0]);}];
+for(const mutate of tests){const s=snapshot();mutate(s);const result=preview(s,mapping);assert.equal(result.items.length,0);assert(result.skipped.length);}
+for(const map of [[],[{source:'ether7',target:'ether1'},{source:'ether8',target:'ether3'}],[{source:'ether7',target:'ether2'},{source:'ether8',target:'ether2'}],[{source:'ether7',target:'ether2;evil'},{source:'ether8',target:'ether3'}]])assert.equal(preview(snapshot(),map).items.length,0);
+console.log('Audit import preview research: narrow non-executable IR, explicit mappings, unknowns and unsafe cases rejected; no VM or commands.');
