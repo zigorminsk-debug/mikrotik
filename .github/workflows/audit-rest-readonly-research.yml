@@ -11,6 +11,8 @@ on:
       - 'tools/test-audit-ipc-handler.js'
       - 'tools/test-audit-import-plan.js'
       - 'tools/test-audit-compare.js'
+      - 'tools/test-audit-ui.js'
+      - 'app/js/physical-audit.js'
       - 'tools/test-audit-rest-chr-ci.js'
       - 'tools/test-audit-rest-chr-ci.py'
   workflow_dispatch:
@@ -25,6 +27,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - name: Install DOM test dependencies
+        run: npm ci --prefix tools --no-audit --no-fund
       - name: Verify TLS pinning and allowlist with local fake server
         run: |
           node tools/test-audit-rest-readonly.js
@@ -32,6 +36,7 @@ jobs:
           node tools/test-audit-ipc-handler.js
           node tools/test-audit-import-plan.js
           node tools/test-audit-compare.js
+          node tools/test-audit-ui.js
       - name: Install QEMU and console tools
         run: |
           sudo apt-get update
