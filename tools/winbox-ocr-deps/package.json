@@ -3,6 +3,7 @@
   "private": true,
   "description": "CI-only OCR research, not packaged in the application",
   "dependencies": {
+    "pngjs": "7.0.0",
     "tesseract.js": "5.1.1"
   }
 }

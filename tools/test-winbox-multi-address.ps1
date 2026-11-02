@@ -192,6 +192,12 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -PassThru -RedirectStandardError
   $tessOutput=& node (Join-Path $PSScriptRoot 'winbox-tesseract-ci.js') (Join-Path $env:RUNNER_TEMP 'lab-scheme-detail-tess.png')
   $tessExit=$LASTEXITCODE
   foreach($line in $tessOutput){if($line -match '^CI_TESS_FIELDS=(?:[01],[01],[01]|error)$'){Write-Output $line}}
+  # Diagnostic only: raster similarity never makes the normal OCR gate pass.
+  # Output is a fixed boolean, never recognised text or user data.
+  if($env:CI_CAPTURE_TARGET -eq 'wan'){
+   $glyphOutput=& node (Join-Path $PSScriptRoot 'winbox-glyph-diagnostic-ci.js') (Join-Path $env:RUNNER_TEMP 'lab-scheme-detail-tess.png')
+   foreach($line in $glyphOutput){if($line -match '^CI_GLYPH_DIAGNOSTIC=(?:0|1|error)$'){Write-Output $line}}
+  }
   if(!$addressOk -or !$networkOk -or $tessExit -ne 0){throw 'OCR did not confirm address and interface fields'}
  }
  if($env:CI_CAPTURE_PRINT -eq '1'){

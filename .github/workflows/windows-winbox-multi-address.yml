@@ -11,6 +11,8 @@ on:
       - 'tools/winbox-ocr-ci.ps1'
       - 'tools/test-winbox-ocr-geometry.ps1'
       - 'tools/winbox-tesseract-ci.js'
+      - 'tools/winbox-glyph-diagnostic-ci.js'
+      - 'tools/test-winbox-glyph-diagnostic-ci.js'
       - 'tools/test-winbox-tesseract-ci.js'
       - 'tools/winbox-ocr-deps/**'
       - 'tools/test-chr-isolated-example-dom.js'
@@ -100,6 +102,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'OCR dependency install failed' }
           node tools/test-winbox-tesseract-ci.js
           if ($LASTEXITCODE -ne 0) { throw 'OCR negative tests failed' }
+          node tools/test-winbox-glyph-diagnostic-ci.js
+          if ($LASTEXITCODE -ne 0) { throw 'Glyph diagnostic negative tests failed' }
           $dir=Join-Path $env:RUNNER_TEMP 'tessdata-ci'
           New-Item -ItemType Directory -Force $dir | Out-Null
           $language=Join-Path $dir 'eng.traineddata.gz'
