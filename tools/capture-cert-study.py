@@ -88,7 +88,7 @@ pid=$!
 # Do not treat a login screen or failed authentication as a connected GUI.
 # CHR can be slow under software emulation. Require authentication and session startup logs. The test PPPoE stays disabled.
 ready=0
-for attempt in $(seq 1 12); do
+for attempt in $(seq 1 16); do
   sleep 15
   rm -f "$3/winbox.png"
   scrot "$3/winbox.png"
@@ -121,7 +121,7 @@ sleep 4
 # Unsaved sample values in the disposable template, not a signed certificate.
 xdotool mousemove 750 212 click 1 key ctrl+a type --clearmodifiers 'lab-ca'
 xdotool mousemove 750 382 click 1 key ctrl+a type --clearmodifiers 'lab-ca'
-xdotool mousemove 750 525 click 1 key ctrl+a type --clearmodifiers '30'
+xdotool mousemove 750 525 click 1 key ctrl+a type --clearmodifiers '3650'
 sleep 2
 scrot -q 30 "$3/cert-form.jpg"
 xdotool mousemove --sync 620 178 click 1
@@ -144,8 +144,8 @@ kill "$pid" 2>/dev/null || true
     env = os.environ.copy()
     env['QT_X11_NO_MITSHM'] = '1'
     subprocess.run(['xvfb-run', '-a', '-s', '-screen 0 1440x900x24', 'bash', '-c', script,
-                    'capture', str(winbox), password, str(out)], env=env, check=True, timeout=240)
-    if any(not (out / (name + '.jpg')).exists() or (out / (name + '.jpg')).stat().st_size < 5000 for name in ('cert-usage','cert-sign')):
+                    'capture', str(winbox), password, str(out)], env=env, check=True, timeout=330)
+    if any(not (out / (name + '.jpg')).exists() or (out / (name + '.jpg')).stat().st_size < 5000 for name in ('cert-form','cert-sign')):
         raise RuntimeError('WinBox capture is unexpectedly small')
 except Exception as error:
     print('::error title=Certificate screenshot fixture::Exception class: '+type(error).__name__+'; serial and GUI logs withheld.',flush=True)
