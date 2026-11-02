@@ -32,12 +32,12 @@ jobs:
           unzip -o winbox.zip -d winbox
       - name: Capture only disposable empty forms
         run: /usr/bin/python3 tools/capture-cert-study.py "$RUNNER_TEMP/routeros-capture"
-      - name: Export cert-form screenshot 0–9
-        run: python3 tools/export-cert-study.py cert-form 0
-      - name: Export cert-form screenshot 10–19
-        run: python3 tools/export-cert-study.py cert-form 10
-      - name: Export cert-form screenshot 20–29
-        run: python3 tools/export-cert-study.py cert-form 20
+      - name: Export cert-sign screenshot 0–9
+        run: python3 tools/export-cert-study.py cert-sign 0
+      - name: Export cert-sign screenshot 10–19
+        run: python3 tools/export-cert-study.py cert-sign 10
+      - name: Export cert-sign screenshot 20–29
+        run: python3 tools/export-cert-study.py cert-sign 20
       - name: Export cert-usage screenshot 0–9
         run: python3 tools/export-cert-study.py cert-usage 0
       - name: Export cert-usage screenshot 10–19

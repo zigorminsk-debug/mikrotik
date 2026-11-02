@@ -126,14 +126,26 @@ sleep 2
 scrot -q 30 "$3/cert-form.jpg"
 xdotool mousemove --sync 620 178 click 1
 sleep 2
+# Select exactly the CA usages, then capture the filled but unsaved form.
+xdotool mousemove --sync 780 256 click 1
+xdotool mousemove --sync 655 278 click 1
+sleep 2
 scrot -q 30 "$3/cert-usage.jpg"
+xdotool mousemove --sync 1034 474 click 1
+sleep 4
+# Reopen the stored template and display the Sign dialog, without confirming it.
+xdotool mousemove --sync 444 302 click --repeat 2 --delay 150 1
+sleep 3
+xdotool mousemove --sync 956 264 click 1
+sleep 3
+scrot -q 30 "$3/cert-sign.jpg"
 kill "$pid" 2>/dev/null || true
 '''
     env = os.environ.copy()
     env['QT_X11_NO_MITSHM'] = '1'
     subprocess.run(['xvfb-run', '-a', '-s', '-screen 0 1440x900x24', 'bash', '-c', script,
                     'capture', str(winbox), password, str(out)], env=env, check=True, timeout=240)
-    if any(not (out / (name + '.jpg')).exists() or (out / (name + '.jpg')).stat().st_size < 5000 for name in ('cert-form','cert-usage')):
+    if any(not (out / (name + '.jpg')).exists() or (out / (name + '.jpg')).stat().st_size < 5000 for name in ('cert-usage','cert-sign')):
         raise RuntimeError('WinBox capture is unexpectedly small')
 except Exception as error:
     print('::error title=Certificate screenshot fixture::Exception class: '+type(error).__name__+'; serial and GUI logs withheld.',flush=True)
