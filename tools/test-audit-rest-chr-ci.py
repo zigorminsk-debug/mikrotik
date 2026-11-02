@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 """CI-only disposable CHR for read-only HTTPS research; no live router."""
-import json, pathlib, re, subprocess, sys, time
+import json, pathlib, re, secrets, subprocess, sys
 import pexpect
 base=pathlib.Path(sys.argv[1]);images=list(base.glob('*.img'))
 if len(images)!=1: raise SystemExit('Expected one CHR image')
@@ -11,10 +11,22 @@ def settle():
   try: vm.read_nonblocking(size=65536,timeout=1)
   except pexpect.TIMEOUT: return
 
+def literal(value):
+ return '"'+value[:16]+'" . "'+value[16:]+'"'
+
 def command(text,timeout=60):
- vm.sendline(text);vm.expect(r'\[admin@[^\]]+\]\s*>',timeout=timeout);out=vm.before;settle()
- if re.search(r'(?i)failure:|expected end of command|bad command name|syntax error|input does not match',out): raise RuntimeError('CHR rejected fixture command')
- return out
+ # Complete markers cannot appear in the echoed command; unlike the prompt,
+ # they cannot be mistaken for a previous serial-console redraw.
+ token=secrets.token_hex(16);ok='AUDITOK'+token;bad='AUDITERR'+token
+ settle();vm.sendline(':do { '+text+'; :put ('+literal(ok)+') } on-error={ :put ('+literal(bad)+') }')
+ if vm.expect([re.escape(ok),re.escape(bad)],timeout=timeout)!=0:raise RuntimeError('CHR rejected fixture command')
+
+def fingerprint():
+ start='AUDITPIN'+secrets.token_hex(8);end='AUDITEND'+secrets.token_hex(8)
+ settle();vm.sendline(':put ('+literal(start)+' . [/certificate get [/certificate find where name="audit-ci"] fingerprint] . '+literal(end)+')')
+ vm.expect(re.escape(start)+r'([0-9A-Fa-f]{64})'+re.escape(end),timeout=60)
+ value=vm.match.group(1)
+ return ':'.join(value[i:i+2] for i in range(0,64,2))
 stage='boot/login'
 try:
  vm.expect(r'(?i)login:');vm.sendline('admin');vm.expect(r'(?i)password:');vm.sendline('')
@@ -36,12 +48,7 @@ try:
               '/user add name=ci-audit group=audit-ci password="'+password+'"']):
   stage='configure-'+str(index+1);command(text,120)
  stage='read-certificate-fingerprint'
- data=command(':put ("AUDITPIN" . [/certificate get [/certificate find where name="audit-ci"] fingerprint] . "END")')
- stage='parse-certificate-fingerprint'
- clean=re.sub(r'\x1b\[[0-9;?]*[A-Za-z]','',data).replace('\r','').replace('\n','')
- match=re.search(r'AUDITPIN([0-9A-Fa-f]{64})END',clean)
- if not match:raise RuntimeError('Cannot obtain fixture certificate fingerprint')
- pin=':'.join(match.group(1)[i:i+2] for i in range(0,64,2))
+ pin=fingerprint()
  stage='collector-and-write-denial'
  result=subprocess.run(['node','tools/test-audit-rest-chr-ci.js'],input=json.dumps({'port':port,'fingerprint':pin,'user':user,'password':password}),text=True,timeout=180)
  if result.returncode:raise RuntimeError('HTTPS collector test failed')

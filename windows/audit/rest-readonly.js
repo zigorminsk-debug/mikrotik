@@ -23,7 +23,7 @@ const TOPICS=Object.freeze([
  {id:'services',path:'/rest/ip/service',fields:['name','port','disabled','address','available-from']},
  {id:'queues',path:'/rest/queue/simple',fields:['name','target','max-limit','disabled']}
 ].map(t=>Object.freeze({...t,fields:Object.freeze(t.fields)})));
-const MAX_BYTES=1024*1024,MAX_ROWS=2000,MAX_VALUE=512;
+const MAX_BYTES=1024*1024,MAX_ROWS=2000,MAX_VALUE=512,MAX_TOTAL_BYTES=2*1024*1024,MAX_TOTAL_ROWS=5000;
 function validIp(host,allowLoopback=false){
  if(typeof host!=='string'||net.isIP(host)!==4||host.length>15)return false;
  const p=host.split('.');if(p.some(x=>x.length>1&&x[0]==='0'))return false;
@@ -82,8 +82,13 @@ function readTopic(o,topic,timeout=10000){
 async function collect(options,{allowLoopback=false,topics=TOPICS,timeout=10000}={}){
  validate(options,allowLoopback);
  if(!Array.isArray(topics)||!topics.length||topics.some(t=>!TOPICS.includes(t)))throw Error('Недопустимый перечень разделов.');
- const sections=[];
- for(const t of topics){const result=await readTopic(options,t,timeout);sections.push({id:t.id,...result});if(result.status==='auth')break;}
+ const sections=[];let totalBytes=0,totalRows=0;
+ for(const t of topics){
+  const result=await readTopic(options,t,timeout);
+  if(result.status==='ok'){totalRows+=result.rows.length;totalBytes+=Buffer.byteLength(JSON.stringify(result.rows),'utf8');}
+  if(totalRows>MAX_TOTAL_ROWS||totalBytes>MAX_TOTAL_BYTES)throw Error('Снимок слишком большой; чтение остановлено.');
+  sections.push({id:t.id,...result});if(result.status==='auth')break;
+ }
  return {sections,complete:false}; // Fixed list is intentionally incomplete.
 }
 module.exports={TOPICS,validIp,validate,sanitize,collect};
