@@ -1,0 +1,41 @@
+# Research only; not connected to the product or to a real router.
+name: Audit isolated import research
+on:
+  push:
+    branches: ['**']
+    paths:
+      - '.github/workflows/audit-isolated-import-research.yml'
+      - 'windows/audit/import-plan.js'
+      - 'windows/audit/compile-safe.js'
+      - 'tools/audit-safe-fixture.js'
+      - 'tools/test-audit-compile-safe.js'
+      - 'tools/audit-compile-ci.js'
+      - 'tools/test-audit-isolated-chr-ci.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated-fixture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Check fail-closed compiler with malicious input
+        run: node tools/test-audit-compile-safe.js
+      - name: Install QEMU and console tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 python3-pexpect unzip
+      - name: Obtain official disposable CHR
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/audit-isolated"
+          cd "$RUNNER_TEMP/audit-isolated"
+          curl -fL --retry 2 -o chr.zip https://download.mikrotik.com/routeros/7.23.8/chr-7.23.8.img.zip
+          echo 'ac01ec7c092f4cab8136212e8ebfd613e0a37844c406317fa228d1ad446ce62c  chr.zip' | sha256sum -c -
+          unzip -o chr.zip
+      - name: Exercise synthetic allowlisted plan in disposable CHR
+        run: /usr/bin/python3 tools/test-audit-isolated-chr-ci.py "$RUNNER_TEMP/audit-isolated"
