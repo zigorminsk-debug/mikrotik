@@ -67,19 +67,27 @@ with tempfile.TemporaryDirectory(prefix='guide-ovpn-ci-') as d:
    path=base/'client.ovpn';path.write_text(config);path.chmod(0o600)
    p=subprocess.Popen(['sudo','openvpn','--config',str(path)],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
    end=time.monotonic()+seconds;output=''
-   # Read asynchronously without disclosing TLS material or raw logs.
-   import select
-   while time.monotonic()<end and p.poll() is None:
-    if select.select([p.stdout],[],[],1)[0]:
-     line=p.stdout.readline();output+=line
-     if 'Initialization Sequence Completed' in line:return p,output
-     if 'AUTH_FAILED' in line or 'VERIFY ERROR' in line or 'certificate required' in line.lower():break
+   # A reader thread avoids select() hiding lines already buffered by TextIO.
+   import queue, threading
+   events=queue.Queue()
+   def reader():
+    for line in p.stdout:events.put(line)
+   threading.Thread(target=reader,daemon=True).start()
+   while time.monotonic()<end and (p.poll() is None or not events.empty()):
+    try:line=events.get(timeout=1)
+    except queue.Empty:continue
+    output+=line
+    if 'Initialization Sequence Completed' in line:return p,output
+    if 'AUTH_FAILED' in line or 'VERIFY ERROR' in line or 'certificate required' in line.lower():break
    p.terminate()
    try:p.communicate(timeout=10)
    except subprocess.TimeoutExpired:p.kill();p.communicate()
    return None,output
   stage='connect';proc,log=run(common,60)
-  if proc is None:raise RuntimeError('No completed tunnel')
+  if proc is None:
+   terms=['Options error','Cannot open TUN','TCP connection established','TLS Error','VERIFY ERROR','AUTH_FAILED','private key password verification failed','bad decrypt','unsupported','OpenSSL','Connection refused','Connection reset','No such file','Exiting due to fatal error']
+   print('::notice title=OpenVPN CI categories::'+', '.join(t for t in terms if t.lower() in log.lower()),flush=True)
+   raise RuntimeError('No completed tunnel')
   stage='ping-router-lan';result=subprocess.run(['ping','-c','2','-W','3','192.168.88.1'],capture_output=True,timeout=12)
   if result.returncode:raise RuntimeError('LAN-interface ping failed')
   proc.terminate();proc.communicate(timeout=10);proc=None

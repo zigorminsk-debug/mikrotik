@@ -127,5 +127,8 @@ kill "$pid" 2>/dev/null || true
                     'capture', str(winbox), password, str(out)], env=env, check=True, timeout=240)
     if any(not (out / (name + '.jpg')).exists() or (out / (name + '.jpg')).stat().st_size < 5000 for name in ('cert-menu','cert-list','cert-form')):
         raise RuntimeError('WinBox capture is unexpectedly small')
+except Exception as error:
+    print('::error title=Certificate screenshot fixture::Exception class: '+type(error).__name__+'; serial and GUI logs withheld.',flush=True)
+    sys.exit(1)
 finally:
     vm.close(force=True)
