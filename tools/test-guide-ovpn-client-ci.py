@@ -22,7 +22,7 @@ with tempfile.TemporaryDirectory(prefix='guide-ovpn-ci-') as d:
   if vm.expect([re.escape(yes),re.escape(no)],timeout=120)!=0:raise RuntimeError('CHR rejected fixture command')
  def readpem(filename,kind):
   token='END'+secrets.token_hex(16);settle();vm.sendline(':put [/file get "'+filename+'" contents]; :put ('+lit(token)+')');vm.expect(re.escape(token),timeout=60);raw=vm.before
-  m=re.search(r'-----BEGIN '+kind+r'-----[\s\S]+?-----END '+kind+r'-----',raw)
+  m=re.search(r'-----BEGIN ('+kind+r')-----[\s\S]+?-----END \1-----',raw)
   if not m:raise RuntimeError('PEM not found')
   return m.group(0).replace('\r','')+'\n'
  proc=None;stage='boot'
@@ -53,8 +53,11 @@ with tempfile.TemporaryDirectory(prefix='guide-ovpn-ci-') as d:
    '/interface ovpn-server server add name=guide-ovpn protocol=tcp port=1194 mode=ip certificate=guide-server require-client-certificate=yes default-profile=guide-vpn auth=sha256 cipher=aes256-cbc disabled=no',
   ]
   for i,c in enumerate(cmds):stage='setup-'+str(i+1);cmd(c)
-  stage='export'
-  for name,content in [('ca.crt',readpem('cert_export_guide-ca.crt','CERTIFICATE')),('client.crt',readpem('cert_export_guide-client.crt','CERTIFICATE')),('client.key',readpem('cert_export_guide-client.key','ENCRYPTED PRIVATE KEY')),('auth.txt','guide-user\n'+authpass+'\n'),('pass.txt',keypass+'\n')]:
+  stage='export-ca';ca=readpem('cert_export_guide-ca.crt','CERTIFICATE')
+  stage='export-client';client=readpem('cert_export_guide-client.crt','CERTIFICATE')
+  stage='export-key';key=readpem('cert_export_guide-client.key','(?:RSA |ENCRYPTED )?PRIVATE KEY')
+  if 'ENCRYPTED' not in key:raise RuntimeError('Client key is not encrypted')
+  for name,content in [('ca.crt',ca),('client.crt',client),('client.key',key),('auth.txt','guide-user\n'+authpass+'\n'),('pass.txt',keypass+'\n')]:
    p=base/name;p.write_text(content);p.chmod(0o600)
   common='\n'.join(['client','dev tun','proto tcp-client','remote 127.0.0.1 18194','nobind','persist-key','persist-tun',f'ca {base}/ca.crt',f'cert {base}/client.crt',f'key {base}/client.key',f'askpass {base}/pass.txt',f'auth-user-pass {base}/auth.txt','remote-cert-tls server','verify-x509-name vpn.example.org name','cipher AES-256-CBC','data-ciphers AES-256-CBC','auth SHA256','route 192.168.88.0 255.255.255.0','verb 3'])+'\n'
   def run(config,seconds):
