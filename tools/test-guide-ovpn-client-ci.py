@@ -23,7 +23,9 @@ with tempfile.TemporaryDirectory(prefix='guide-ovpn-ci-') as d:
  def readpem(filename,kind):
   token='END'+secrets.token_hex(16);settle();vm.sendline(':put [/file get "'+filename+'" contents]; :put ('+lit(token)+')');vm.expect(re.escape(token),timeout=60);raw=vm.before
   m=re.search(r'-----BEGIN ('+kind+r')-----[\s\S]+?-----END \1-----',raw)
-  if not m:raise RuntimeError('PEM not found')
+  if not m:
+   if filename=='cert_export_guide-ca.crt':print('::notice title=CI public CA export diagnostic::'+repr(raw[:1000]).replace('%','%25').replace('\n','%0A').replace('\r','%0D'))
+   raise RuntimeError('PEM not found')
   return m.group(0).replace('\r','')+'\n'
  proc=None;stage='boot'
  try:

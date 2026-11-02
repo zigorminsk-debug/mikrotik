@@ -116,7 +116,7 @@ scrot -q 30 "$3/cert-menu.jpg"
 xdotool mousemove --sync 305 201 click 1
 sleep 4
 scrot -q 30 "$3/cert-list.jpg"
-xdotool mousemove --sync 300 205 click 1
+xdotool mousemove --sync 300 253 click 1
 sleep 4
 scrot -q 30 "$3/cert-form.jpg"
 kill "$pid" 2>/dev/null || true
