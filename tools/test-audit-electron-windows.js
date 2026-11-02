@@ -17,7 +17,7 @@ app.commandLine.appendSwitch('disable-gpu');app.setPath('userData',path.join(os.
  const result=await win.webContents.executeJavaScript(`(async()=>{const $=id=>document.getElementById(id);$('audit-password').value='fixture-password';$('lm_physical_audit').querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));for(let i=0;i<100&&!$('lm_physical_audit').textContent.includes('TEST-FIXTURE');i++)await new Promise(r=>setTimeout(r,50));return {cleared:$('audit-password').value==='',text:$('lm_physical_audit').textContent};})()`);
  // Identity is inside a collapsed details element, but is still text in the DOM.
  if(!result.cleared||!result.text.includes('TEST-FIXTURE')||calls!==2)throw Error('UI fixture result failed');
- await win.webContents.executeJavaScript(`document.getElementById('lm_physical_audit').scrollIntoView({block:'start'});new Promise(r=>setTimeout(r,500))`);
+ await win.webContents.executeJavaScript(`document.querySelector('#lm_physical_audit button[type=submit]').scrollIntoView({block:'center'});new Promise(r=>setTimeout(r,500))`);
  const shot=await win.webContents.capturePage();if(shot.isEmpty())throw Error('Screenshot is empty');fs.writeFileSync(path.join(process.env.RUNNER_TEMP,'audit-ui-mocked.jpg'),shot.resize({width:900}).toJPEG(30));
  console.log('::notice title=Audit Windows IPC::Real Electron renderer, preload and IPC exercised with a mocked confirmation and collector. Only fixture data; no physical router, actual native dialog or network was tested.');
 }catch(_){console.log('::error title=Audit Windows IPC::Fixture failed; no raw data logged.');process.exitCode=1;}finally{for(const w of BrowserWindow.getAllWindows())w.destroy();app.quit();}})();
