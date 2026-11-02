@@ -54,13 +54,14 @@ class LinuxGuest {
   }
   async operation(fn){if(!this.started||this.closed||!this.console||this.failed)throw Error('Клиент недоступен; перезапустите лабораторию');if(this.busy)throw Error('Клиент занят');this.busy=true;try{return await fn();}catch(error){this.failed=true;throw error;}finally{this.busy=false;}}
   async address(){return this.operation(()=>shellResult(this.console,"result=$(ip -4 addr show dev eth0 | awk '/inet / {split($2,a,\"/\");print a[1];exit}')",'ip'));}
-  async setStatic(ip,gateway){
-    if(!validTarget(ip)||(gateway!==''&&!validTarget(gateway)))throw Error('Недопустимые настройки IPv4 клиента');
+  async setStatic(ip,gateway,dns){
+    if(!validTarget(ip)||(gateway!==''&&!validTarget(gateway))||!validTarget(dns))throw Error('Недопустимые настройки IPv4 клиента');
     return this.operation(async()=>{
       // Well-known image, fixed commands only. The gateway is from the
       // validated scheme; never interpolate a name or renderer command.
-      const cmd='sudo dhcpcd -k eth0 >/dev/null 2>&1 || true; sudo ip addr flush dev eth0 && sudo ip addr add '+ip+'/24 dev eth0 && sudo ip link set eth0 up'+(gateway?' && sudo ip route add default via '+gateway:'')+'; result=$?';
-      if(await shellResult(this.console,cmd,'status')!==0)throw Error('Не удалось назначить адрес клиенту');
+      const cmd='sudo dhcpcd -k eth0 >/dev/null 2>&1 || true; sudo ip addr flush dev eth0 && sudo ip addr add '+ip+'/24 dev eth0 && sudo ip link set eth0 up'+(gateway?' && sudo ip route add default via '+gateway:'')+` && sudo sh -c 'printf "nameserver %s\\n" "${dns}" > /etc/resolv.conf'; result=$?`;
+      if(await shellResult(this.console,cmd,'status')!==0)throw Error('Не удалось назначить адрес или DNS клиенту');
+      if(await shellResult(this.console,`grep -Fx 'nameserver ${dns}' /etc/resolv.conf >/dev/null; result=$?`,'status')!==0)throw Error('DNS клиента не совпал с выбранной схемой');
     });
   }
   async ping(ip){

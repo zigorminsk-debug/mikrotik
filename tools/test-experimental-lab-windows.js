@@ -12,7 +12,7 @@ const state={devices:[
  {id:'isp',type:'isp',name:'ISP',cfg:{kind:'static',priority:'primary',ip:'198.51.100.2/30',gw:'198.51.100.1',dns:'1.1.1.1'}},
  {id:'router',type:'router',name:'Router',cfg:{lan:'192.168.73.0/24',gw:'192.168.73.1',dhcp:true,nat:true,firewall:true,vpn:false}},
  {id:'pc',type:'pc',name:'PC',cfg:{mode:'dhcp',segment:'main'}},
- {id:'server',type:'server',name:'Server',cfg:{mode:'static',ip:'192.168.73.20/24',gw:'192.168.73.1',segment:'main'}}
+ {id:'server',type:'server',name:'Server',cfg:{mode:'static',ip:'192.168.73.20/24',gw:'192.168.73.1',dns:'192.168.73.53',segment:'main'}}
 ],links:[{a:'isp',b:'router'}]};
 if(mode==='hub'){state.devices.push({id:'switch',type:'switch',name:'Switch',cfg:{}});state.links.push({a:'router',b:'switch'},{a:'switch',b:'pc'},{a:'switch',b:'server'});}
 else state.links.push({a:'router',b:'pc'},{a:'router',b:'server'});

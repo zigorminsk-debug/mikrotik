@@ -26,8 +26,9 @@ function endpointPlan(engine, state, routerId) {
       if(d.type!=='switch'){
         if(found.has(id))return {blockers:['Один клиент соединён с несколькими портами MikroTik; такая топология пока не проверена.'],segments:[]};
         const ip=d.cfg.mode==='static' ? engine.parseCidr(d.cfg.ip) : null;
-        if(d.cfg.mode==='static' && (!ip || ip.prefix!==24 || !validTarget(ip.ip) || (d.cfg.gw && !validTarget(d.cfg.gw))))return {blockers:['Нужны допустимые адреса клиентов IPv4/24 и шлюза.'],segments:[]};
-        found.add(id);members.push({id:d.id,type:d.type,mode:d.cfg.mode,ip:ip?ip.ip:null,netmask:24,gateway:ip?(d.cfg.gw||''):null});
+        const dns=ip && result.model.assignments[d.id] && result.model.assignments[d.id].dns;
+        if(d.cfg.mode==='static' && (!ip || ip.prefix!==24 || !validTarget(ip.ip) || (d.cfg.gw && !validTarget(d.cfg.gw)) || !validTarget(dns)))return {blockers:['Нужны допустимые IPv4/24, шлюз и DNS клиента; неподдерживаемый DNS не заменяется.'],segments:[]};
+        found.add(id);members.push({id:d.id,type:d.type,mode:d.cfg.mode,ip:ip?ip.ip:null,netmask:24,gateway:ip?(d.cfg.gw||''):null,dns:ip?dns:null});
       }
       for(const next of neighbors.get(id))if(!visited.has(next))queue.push(next);
     }

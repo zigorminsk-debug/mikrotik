@@ -7,7 +7,8 @@ const sample=()=>({devices:[
  {id:'s',type:'switch',name:'Коммутатор',cfg:{}},
  {id:'p',type:'pc',name:'ПК',cfg:{mode:'static',ip:'192.168.88.10/24',gw:'192.168.88.1',segment:'main'}},
  {id:'v',type:'server',name:'Сервер',cfg:{mode:'static',ip:'192.168.88.20/24',gw:'192.168.88.1',segment:'main'}}],links:[{a:'i',b:'r'},{a:'r',b:'s'},{a:'s',b:'p'},{a:'s',b:'v'}]});
-let s=sample();assert.deepStrictEqual(makePlan(engine,s,'r').blockers,[]);let p=endpointPlan(engine,s,'r');assert.deepStrictEqual(p.blockers,[]);assert.equal(p.segments.length,1);assert.equal(p.segments[0].routerPort,'ether2');assert.deepStrictEqual(p.segments[0].clients.map(x=>x.ip).sort(),['192.168.88.10','192.168.88.20']);
+let s=sample();assert.deepStrictEqual(makePlan(engine,s,'r').blockers,[]);let p=endpointPlan(engine,s,'r');assert.deepStrictEqual(p.blockers,[]);assert.equal(p.segments.length,1);assert.equal(p.segments[0].routerPort,'ether2');assert.deepStrictEqual(p.segments[0].clients.map(x=>x.ip).sort(),['192.168.88.10','192.168.88.20']);assert(p.segments[0].clients.every(x=>x.dns==='192.168.88.1'));
+s.devices[3].cfg.dns='192.168.88.53';p=endpointPlan(engine,s,'r');assert.equal(p.segments[0].clients.find(x=>x.id==='p').dns,'192.168.88.53');
 // Direct connections stay attached to the matching router port, not silently replaced.
 s.links=[{a:'i',b:'r'},{a:'r',b:'p'},{a:'r',b:'v'}];s.devices=s.devices.filter(x=>x.id!=='s');p=endpointPlan(engine,s,'r');assert.deepStrictEqual(p.blockers,[]);assert.deepStrictEqual(p.segments.map(x=>x.routerPort),['ether2','ether3']);
 s=sample();s.devices[3].cfg.mode='dhcp';p=endpointPlan(engine,s,'r');assert.deepStrictEqual(p.blockers,[]);assert.equal(p.segments[0].clients.find(x=>x.id==='p').mode,'dhcp');assert.equal(p.segments[0].clients.find(x=>x.id==='p').ip,null);

@@ -6,13 +6,13 @@ const base=path.resolve('/tmp/isolated-lab'),opts={qemu:path.join(base,'qemu-sys
 (async()=>{
  assert(portOk(1)&&!portOk(0)&&!portOk(65536));assert(macOk(opts.mac)&&!macOk('01:00:00:00:00:01'));
  for(const patch of [{qemu:'relative'},{image:path.join(base,'other.img')},{localPort:0},{hubPort:2001},{mac:'bad;reboot'}])assert.throws(()=>new LinuxGuest({...opts,...patch}));
- const g=new LinuxGuest(opts);g.started=true;let sent='',response='3';
- g.console={settle:async()=>{},send:s=>{sent=s;},expect:async()=>{const parts=[...sent.matchAll(/'([A-Za-z0-9]+)'/g)].map(x=>x[1]);const i=parts.findIndex(x=>x.startsWith('LINUX'));return parts[i]+parts[i+1]+'R'+response+'END';},close(){}};
+ const g=new LinuxGuest(opts);g.started=true;let sent='',sentCommands=[],response='3';
+ g.console={settle:async()=>{},send:s=>{sent=s;sentCommands.push(s);},expect:async()=>{const parts=[...sent.matchAll(/'([A-Za-z0-9]+)'/g)].map(x=>x[1]);const i=parts.findIndex(x=>x.startsWith('LINUX'));return parts[i]+parts[i+1]+'R'+response+'END';},close(){}};
  assert.deepStrictEqual(await g.ping('192.168.88.20'),{sent:3,received:3});assert(sent.includes('ping -c 3 -W 2 192.168.88.20'));
  await assert.rejects(g.ping('192.168.88.20; reboot'),/IPv4/);assert(!g.failed);
  response='192.168.88.10';assert.equal(await g.address(),'192.168.88.10');
- response='0';await g.setStatic('192.168.88.10','192.168.88.1');assert(sent.includes('192.168.88.10/24')&&sent.includes('default via 192.168.88.1'));
- await assert.rejects(g.setStatic('192.168.88.10','1.1.1.1;reboot'),/IPv4/);assert(!g.failed);
+ response='0';sentCommands=[];await g.setStatic('192.168.88.10','192.168.88.1','192.168.88.1');assert(sentCommands[0].includes('192.168.88.10/24')&&sentCommands[0].includes('default via 192.168.88.1'));assert(sent.includes('grep -Fx')&&sent.includes('nameserver 192.168.88.1'));
+ await assert.rejects(g.setStatic('192.168.88.10','1.1.1.1;reboot','192.168.88.1'),/IPv4/);await assert.rejects(g.setStatic('192.168.88.10','192.168.88.1','1.1.1.1;reboot'),/IPv4/);assert(!g.failed);
  let resolve;g.console.expect=()=>new Promise(ok=>{resolve=ok;});const pending=g.ping('192.168.88.20');await new Promise(r=>setImmediate(r));await assert.rejects(g.address(),/занят/);const parts=[...sent.matchAll(/'([A-Za-z0-9]+)'/g)].map(x=>x[1]);const i=parts.findIndex(x=>x.startsWith('LINUX'));resolve(parts[i]+parts[i+1]+'R1END');assert.equal((await pending).received,1);
  g.console.expect=async()=>{throw Error('timeout');};await assert.rejects(g.ping('192.168.88.20'),/timeout/);assert(g.failed);await assert.rejects(g.address(),/перезапустите/);await g.stop();
  // Stop must not resolve while a disk operation can still recreate data.

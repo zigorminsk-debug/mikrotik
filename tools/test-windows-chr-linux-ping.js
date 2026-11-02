@@ -43,7 +43,7 @@ async function linuxCommand(c,cmd,expected=0){const token='LNX'+randomBytes(16).
  const summary=await guest.console.expect(/3 packets transmitted[^\r\n]*/,30000);console.log('::notice title=Fixed Linux ping summary::'+summary.replace(/%/g,'%25'));
  await guest.console.expect(/\$\s*$/m,30000);
  assert.deepStrictEqual(await guest.ping('192.168.88.1'),{sent:3,received:3});}
- stage='Linux static addresses';await pc.setStatic('192.168.88.10','192.168.88.1');await server.setStatic('192.168.88.20','192.168.88.1');assert.equal(await pc.address(),'192.168.88.10');assert.equal(await server.address(),'192.168.88.20');
+ stage='Linux static addresses';await pc.setStatic('192.168.88.10','192.168.88.1','192.168.88.1');await server.setStatic('192.168.88.20','192.168.88.1','192.168.88.1');assert.equal(await pc.address(),'192.168.88.10');assert.equal(await server.address(),'192.168.88.20');
  stage='PC to router';assert.deepStrictEqual(await pc.ping('192.168.88.1'),{sent:3,received:3});
  stage='PC to server';assert.deepStrictEqual(await pc.ping('192.168.88.20'),{sent:3,received:3});
  stage='server to PC';assert.deepStrictEqual(await server.ping('192.168.88.10'),{sent:3,received:3});

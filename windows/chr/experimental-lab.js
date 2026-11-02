@@ -60,7 +60,7 @@ class ExperimentalLab {
       const mac='52:54:00:'+prefix.join(':')+':'+(index+1).toString(16).padStart(2,'0');
       const guest=new LinuxGuest({qemu:this.paths.qemu,image:this.paths.linuxImage,tempRoot:this.paths.tempRoot,supervisor:this.paths.supervisor,localPort:port,hubPort,mac});
       this.guests.set(endpoint.id,guest);await guest.start();this.track(guest);this.check();
-      if(endpoint.mode==='static')await guest.setStatic(endpoint.ip,endpoint.gateway);
+      if(endpoint.mode==='static')await guest.setStatic(endpoint.ip,endpoint.gateway,endpoint.dns);
       const address=await guest.address();this.check();
       if(endpoint.mode==='static'&&address!==endpoint.ip)throw Error('Адрес Linux-клиента не совпал с выбранной схемой');
       endpoint.actualAddress=address;
