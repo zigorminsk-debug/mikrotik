@@ -66,8 +66,10 @@ const {ChrSession}=mod.exports;let session,dom;
  // helper generated the original and OCR crop from the same bitmap. Exact OCR
  // remains mandatory; the images are never returned to a user or bundled.
  const arrowDir=path.join(process.env.RUNNER_TEMP,'arrow-research');
- const arrowOutput=execFileSync(process.execPath,[path.join(__dirname,'winbox-arrow-research-ci.js'),path.join(process.env.RUNNER_TEMP,'lab-scheme-detail-original-lan.png'),path.join(process.env.RUNNER_TEMP,'lab-scheme-detail-tess.png'),arrowDir],{encoding:'utf8',timeout:45000});
- assert.equal(arrowOutput.trim(),'CI_ARROW_RESEARCH=3');
+ let arrowOutput='';
+ try {arrowOutput=execFileSync(process.execPath,[path.join(__dirname,'winbox-arrow-research-ci.js'),path.join(process.env.RUNNER_TEMP,'lab-scheme-detail-original-lan.png'),path.join(process.env.RUNNER_TEMP,'lab-scheme-detail-tess.png'),arrowDir],{encoding:'utf8',timeout:45000});}
+ catch(e){const out=String(e.stdout||'');const match=out.match(/CI_ARROW_DIFF=(?:error|[0-9,]+)/);throw Error('CI arrow generation failed; bitmap region diagnostic '+(match?match[0]:'unavailable'));}
+ assert(/(?:^|\n)CI_ARROW_RESEARCH=3(?:\r?\n|$)/.test(arrowOutput));
  for(const name of ['address','network','interface'])assert(fs.statSync(path.join(arrowDir,name+'.png')).size>5000);
  console.log('::notice title=CI arrow research::Three annotated copies of the strictly OCR-confirmed LAN fixture were generated from one original bitmap. They are not user screenshots or proof of confidentiality.');
  await capture('wan');
