@@ -9,6 +9,8 @@ const state=()=>({devices:[
 const opts={engine,state:state(),routerId:'r',qemu:'ignored',chrImage:'ignored',linuxImage:'ignored',tempRoot:'ignored',supervisor:'ignored'};
 (async()=>{
  const invalid=state();invalid.devices[1].cfg.dhcp=false;assert.throws(()=>new ExperimentalLab({...opts,state:invalid}),/схем/i);
+ const printer=state();printer.devices[2].type='printer';assert.throws(()=>new ExperimentalLab({...opts,state:printer}),/принтер/i);
+ const collision=state();collision.devices[2].cfg={mode:'static',segment:'main',ip:'192.168.73.100/24',gw:'192.168.73.1'};assert.throws(()=>new ExperimentalLab({...opts,state:collision}),/схем|DHCP/i);
  const used=new Set(),a=await reservePort(used),b=await reservePort(used);assert(a!==b&&used.has(a)&&used.has(b));
  const stopped=new ExperimentalLab(opts);await stopped.stop();await assert.rejects(stopped.start(),/уже использована/);
  // Cancel while the hub is being created: stop must wait for the newly

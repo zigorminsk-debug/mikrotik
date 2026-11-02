@@ -26,10 +26,10 @@ async function nic(guest,up){
  stage='start router and clients from scheme';const info=await lab.start();
  const pc=info.clients.find(x=>x.id==='pc'),server=info.clients.find(x=>x.id==='server');
  assert(pc&&server);assert(/^192\.168\.73\./.test(pc.address));assert.equal(pc.mode,'dhcp');assert.equal(server.address,'192.168.73.20');assert.equal(server.mode,'static');
- stage='PC to server';assert.deepStrictEqual(await lab.ping('pc',server.address),{sent:3,received:3});
- stage='server to PC';assert.deepStrictEqual(await lab.ping('server',pc.address),{sent:3,received:3});
+ stage='PC to server';assert.deepStrictEqual(await lab.pingClient('pc',server.address),{sent:3,received:3});
+ stage='server to PC';assert.deepStrictEqual(await lab.pingClient('server',pc.address),{sent:3,received:3});
  stage='router to clients';assert.equal((await lab.router.ping(pc.address)).received,3);assert.equal((await lab.router.ping(server.address)).received,3);
- stage='negative and recovery';await nic(lab.guests.get('server'),false);assert.equal((await lab.ping('pc',server.address)).received,0);await nic(lab.guests.get('server'),true);assert.equal((await lab.ping('pc',server.address)).received,3);
+ stage='negative and recovery';await nic(lab.guests.get('server'),false);assert.equal((await lab.pingClient('pc',server.address)).received,0);await nic(lab.guests.get('server'),true);assert.equal((await lab.pingClient('pc',server.address)).received,3);
  stage='close and erase';await lab.stop();assert.deepStrictEqual(await fs.readdir(tempRoot),[]);
  stage='cancel during startup';const cancelled=new ExperimentalLab(opts),starting=cancelled.start().then(()=>{throw Error('Expected startup cancellation');},e=>e);
  await new Promise(ok=>setTimeout(ok,2000));await cancelled.stop();const outcome=await starting;assert(outcome instanceof Error);assert.deepStrictEqual(await fs.readdir(tempRoot),[]);

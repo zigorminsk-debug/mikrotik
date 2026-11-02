@@ -22,11 +22,22 @@ async function reservePort(used){
 class ExperimentalLab {
   constructor({engine,state,routerId,qemu,chrImage,linuxImage,tempRoot,supervisor}) {
     this.plan=makePlan(engine,state,routerId);this.endpoints=endpointPlan(engine,state,routerId);
-    const blockers=[...this.plan.blockers,...this.endpoints.blockers];if(blockers.length)throw Error(blockers.join('\n'));
+    const blockers=[...this.plan.blockers,...this.endpoints.blockers];
+    // A generic Linux guest is not a printer. Do not silently substitute one.
+    if(state.devices.some(x=>x.type==='printer'))blockers.push('Виртуальный принтер пока не реализован; Linux-клиент не заменяет печатающее устройство.');
+    if(!blockers.length){
+      const number=ip=>ip.split('.').reduce((n,x)=>n*256+Number(x),0);
+      const [first,last]=this.plan.expected.lanPool.split('-').map(number);
+      for(const segment of this.endpoints.segments)for(const client of segment.clients){
+        if(client.mode==='static'&&number(client.ip)>=first&&number(client.ip)<=last)blockers.push('Статический адрес клиента пересекается с пулом DHCP. Измените адрес, чтобы избежать конфликта.');
+      }
+    }
+    if(blockers.length)throw Error(blockers.join('\n'));
     this.paths={qemu,chrImage,linuxImage,tempRoot,supervisor};this.hubs=[];this.guests=new Map();this.router=null;
-    this.closed=false;this.started=false;this.startWork=null;this.stopPromise=null;
+    this.closed=false;this.started=false;this.startWork=null;this.stopPromise=null;this.exitPromise=null;this.unexpectedExit=false;
   }
-  check(){if(this.closed)throw Error('Лаборатория остановлена');}
+  check(){if(this.closed)throw Error('Лаборатория остановлена');if(this.unexpectedExit)throw Error('Одна из виртуальных машин завершилась');}
+  track(vm){vm.exitPromise.then(()=>{if(!this.closed)this.unexpectedExit=true;});}
   start(){
     if(this.started||this.closed)return Promise.reject(Error('Лаборатория уже использована'));
     this.started=true;this.startWork=this.startOnce();
@@ -42,21 +53,24 @@ class ExperimentalLab {
     }
     this.check();
     this.router=new ChrSession({qemu:this.paths.qemu,image:this.paths.chrImage,tempRoot:this.paths.tempRoot,supervisor:this.paths.supervisor,experimentalIsolatedLinks:links});
-    const info=await this.router.start(this.plan);this.check();
+    const info=await this.router.start(this.plan);this.track(this.router);this.check();
     const prefix=randomBytes(2).toString('hex').match(/../g);
     for(let index=0;index<members.length;index++){
       const {endpoint,port,hubPort}=members[index];
       const mac='52:54:00:'+prefix.join(':')+':'+(index+1).toString(16).padStart(2,'0');
       const guest=new LinuxGuest({qemu:this.paths.qemu,image:this.paths.linuxImage,tempRoot:this.paths.tempRoot,supervisor:this.paths.supervisor,localPort:port,hubPort,mac});
-      this.guests.set(endpoint.id,guest);await guest.start();this.check();
+      this.guests.set(endpoint.id,guest);await guest.start();this.track(guest);this.check();
       if(endpoint.mode==='static')await guest.setStatic(endpoint.ip,endpoint.gateway);
       const address=await guest.address();this.check();
       if(endpoint.mode==='static'&&address!==endpoint.ip)throw Error('Адрес Linux-клиента не совпал с выбранной схемой');
       endpoint.actualAddress=address;
     }
+    this.exitPromise=Promise.race([this.router,...this.guests.values()].map(vm=>vm.exitPromise));
     return {router:info,clients:members.map(({endpoint})=>({id:endpoint.id,type:endpoint.type,mode:endpoint.mode,address:endpoint.actualAddress}))};
   }
-  async ping(id,address){this.check();const guest=this.guests.get(id);if(!guest)throw Error('Виртуальный клиент не найден');return guest.ping(address);}
+  async pingClient(id,address){this.check();const guest=this.guests.get(id);if(!guest)throw Error('Виртуальный клиент не найден');return guest.ping(address);}
+  async ping(address){this.check();return this.router.ping(address);}
+  async resolve(name){this.check();return this.router.resolve(name);}
   stop(){if(!this.stopPromise){this.stopPromise=this.stopOnce();this.stopPromise.catch(()=>{this.stopPromise=null;});}return this.stopPromise;}
   async stopOnce(){
     this.closed=true;
