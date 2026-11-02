@@ -1,0 +1,50 @@
+name: Windows WireGuard tutorial screenshot
+on:
+  push:
+    branches: ['**']
+    paths:
+      - '.github/workflows/windows-wireguard-guide-screenshot.yml'
+      - 'tools/capture-guide-wireguard.js'
+      - 'tools/export-guide-lab.py'
+      - 'app/js/guide-wireguard.js'
+      - 'app/js/app.js'
+      - 'app/css/app.css'
+      - 'app/index.html'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Electron and copy application
+        shell: pwsh
+        run: |
+          Push-Location windows
+          npm install --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed' }
+          npm run copy
+          if ($LASTEXITCODE -ne 0) { throw 'Copy failed' }
+          Pop-Location
+      - name: Capture tutorial only (no CHR, no live WinBox or VPN)
+        shell: pwsh
+        run: |
+          ./windows/node_modules/.bin/electron.cmd tools/capture-guide-wireguard.js
+          if ($LASTEXITCODE -ne 0) { throw 'Electron capture failed' }
+      - name: Export overview 0–9
+        run: python tools/export-guide-lab.py 0 ready
+      - name: Export overview 10–19
+        run: python tools/export-guide-lab.py 10 ready
+      - name: Export overview 20–23
+        run: python tools/export-guide-lab.py 20 ready
+      - name: Export parameter 0–9
+        run: python tools/export-guide-lab.py 0 detail
+      - name: Export parameter 10–19
+        run: python tools/export-guide-lab.py 10 detail
+      - name: Export parameter 20–23
+        run: python tools/export-guide-lab.py 20 detail

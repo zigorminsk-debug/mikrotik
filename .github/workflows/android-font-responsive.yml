@@ -8,6 +8,7 @@ on:
       - 'tools/export-android-font.py'
       - 'app/css/app.css'
       - 'app/js/app.js'
+      - 'app/js/guide-wireguard.js'
       - 'app/index.html'
       - 'android/app/build.gradle'
   workflow_dispatch:
