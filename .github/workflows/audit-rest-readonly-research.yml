@@ -1,4 +1,4 @@
-# Disposable CHR research only; not a production physical-router connector.
+# Disposable CHR research only; serial markers and HTTPS pinning are not a production connector.
 name: Audit read-only HTTPS research
 on:
   push:
