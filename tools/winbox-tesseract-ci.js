@@ -26,7 +26,12 @@ if (require.main === module) {
       const {createWorker}=require('./winbox-ocr-deps/node_modules/tesseract.js');
       worker=await createWorker('eng',1,{langPath,cacheMethod:'none'});
       const {data}=await worker.recognize(image);
-      const result=verify(data.words,fixtures[process.env.CI_SCHEME_KIND]);
+      const target=process.env.CI_CAPTURE_TARGET||'lan';
+      if(!['lan','wan'].includes(target)) throw Error('unknown fixture target');
+      const expected=target==='wan'?{address:'198.51.100.2/30',network:'198.51.100.0',interface:'ether1'}:fixtures[process.env.CI_SCHEME_KIND];
+      const result=verify(data.words,expected);
+      const wrong=target==='wan'?fixtures[process.env.CI_SCHEME_KIND]:{address:'198.51.100.2/30',network:'198.51.100.0',interface:'ether1'};
+      if(verify(data.words,wrong).some(Boolean))throw Error('wrong address fields accepted');
       console.log('CI_TESS_FIELDS='+result.map(Number).join(','));
       if(!result.every(Boolean))process.exitCode=1;
     } catch (_) { console.log('CI_TESS_FIELDS=error');process.exitCode=1; }
