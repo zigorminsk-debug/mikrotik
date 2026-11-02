@@ -75,3 +75,5 @@
 `chr-ping-controls-windows.jpg` — оригинальный снимок элементов окна лаборатории Windows Electron [CI 41336424303](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41336424303), визуально проверен. При съёмке мост подменён тестом, CHR не запускалась и ping не отправлялся; это не WinBox и не пользовательская схема.
 
 `chr-ping-dns-windows.jpg` — оригинальный снимок полей ping и DNS в окне лаборатории Windows Electron [CI 41342540822](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41342540822), визуально проверен. Мост подменён тестом, CHR не запускалась, DNS и ping не выполнялись; это не WinBox и не пользовательская схема.
+
+`chr-linux-client-launch-windows.jpg` — оригинальный снимок окна Windows Electron в [CI 41382821514](https://github.com/zigorminsk-debug/mikrotik/actions/runs/41382821514): кнопка отдельного запуска Linux-клиентов и выбор источника. Для съёмки ответы моста подменены тестом; статус запуска и адрес учебные, CHR и Linux VM не запускались, пакеты не отправлялись. Это не WinBox и не снимок пользовательской схемы; кадр визуально проверен.

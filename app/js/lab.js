@@ -694,6 +694,7 @@ function renderResults(res) {
             var dst=document.createElement('option');dst.value=c.address;dst.textContent=name+' — '+c.address+' (Linux VM при запуске)';dst.dataset.liveClient='1';pingPreset.appendChild(dst);
           });
           status.textContent = withClients ? 'CHR и Linux-клиенты запущены. Адреса и источники добавлены в ping; при закрытии окна диски удаляются.' : 'Виртуальная CHR открыта. При закрытии её окна временный диск удаляется.';
+          var pingStatus=$('lab-ping-result');if(pingStatus)pingStatus.textContent=withClients ? 'Выберите запущенную VM и IPv4 для проверки.' : 'Выберите CHR и адрес для проверки.';
         } else if (result && result.cancelled) status.textContent = 'Запуск отменён.';
         else status.textContent = (result && result.message) || 'Не удалось открыть виртуальную CHR.';
       }).catch(function() { if (status.isConnected) status.textContent = 'Не удалось связаться с Windows-компонентом CHR.'; })
