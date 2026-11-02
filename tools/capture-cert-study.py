@@ -5,6 +5,8 @@ Nothing here accesses a real router or user credentials. The example password is
 only by the disposable VM; the temporary disk image is never committed or published.
 """
 import os
+import re
+import secrets
 import pathlib
 import subprocess
 import sys
@@ -139,14 +141,27 @@ sleep 3
 xdotool mousemove --sync 956 408 click 1
 sleep 3
 scrot -q 30 "$3/cert-sign.jpg"
+# Start CA signing in this throwaway VM only.
+xdotool mousemove --sync 933 514 click 1
+sleep 20
+scrot -q 30 "$3/cert-signed.jpg"
 kill "$pid" 2>/dev/null || true
 '''
     env = os.environ.copy()
     env['QT_X11_NO_MITSHM'] = '1'
     subprocess.run(['xvfb-run', '-a', '-s', '-screen 0 1440x900x24', 'bash', '-c', script,
                     'capture', str(winbox), password, str(out)], env=env, check=True, timeout=330)
-    if any(not (out / (name + '.jpg')).exists() or (out / (name + '.jpg')).stat().st_size < 5000 for name in ('cert-form','cert-sign')):
+    if any(not (out / (name + '.jpg')).exists() or (out / (name + '.jpg')).stat().st_size < 5000 for name in ('cert-sign','cert-signed')):
         raise RuntimeError('WinBox capture is unexpectedly small')
+    # Fail closed unless signing produced a CA private key in this disposable VM.
+    token = secrets.token_hex(16)
+    yes, no = 'CAOK'+token, 'CAERR'+token
+    def rosstr(x): return '"'+x[:16]+'" . "'+x[16:]+'"'
+    settle()
+    vm.sendline(':do { :if ([:len [/certificate find where name=lab-ca and private-key=yes]] != 1) do={:error "not-signed"}; :put ('+rosstr(yes)+') } on-error={ :put ('+rosstr(no)+') }')
+    if vm.expect([re.escape(yes), re.escape(no)], timeout=120) != 0:
+        raise RuntimeError('No signed CA private key')
+    print('::notice title=Certificate fixture::A signed lab-ca with private key was created in a disposable CHR through WinBox; screenshots require visual review.')
 except Exception as error:
     print('::error title=Certificate screenshot fixture::Exception class: '+type(error).__name__+'; serial and GUI logs withheld.',flush=True)
     sys.exit(1)

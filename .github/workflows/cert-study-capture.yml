@@ -38,9 +38,9 @@ jobs:
         run: python3 tools/export-cert-study.py cert-sign 10
       - name: Export cert-sign screenshot 20–29
         run: python3 tools/export-cert-study.py cert-sign 20
-      - name: Export cert-form screenshot 0–9
-        run: python3 tools/export-cert-study.py cert-form 0
-      - name: Export cert-form screenshot 10–19
-        run: python3 tools/export-cert-study.py cert-form 10
-      - name: Export cert-form screenshot 20–29
-        run: python3 tools/export-cert-study.py cert-form 20
+      - name: Export cert-signed screenshot 0–9
+        run: python3 tools/export-cert-study.py cert-signed 0
+      - name: Export cert-signed screenshot 10–19
+        run: python3 tools/export-cert-study.py cert-signed 10
+      - name: Export cert-signed screenshot 20–29
+        run: python3 tools/export-cert-study.py cert-signed 20
