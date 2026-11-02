@@ -12,6 +12,9 @@ on:
       - 'tools/test-winbox-ocr-geometry.ps1'
       - 'tools/winbox-tesseract-ci.js'
       - 'tools/winbox-glyph-diagnostic-ci.js'
+      - 'tools/winbox-arrow-research-ci.js'
+      - 'tools/test-winbox-arrow-research-ci.js'
+      - 'tools/export-winbox-arrow-research.py'
       - 'tools/test-winbox-glyph-diagnostic-ci.js'
       - 'tools/test-winbox-tesseract-ci.js'
       - 'tools/winbox-ocr-deps/**'
@@ -104,6 +107,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'OCR negative tests failed' }
           node tools/test-winbox-glyph-diagnostic-ci.js
           if ($LASTEXITCODE -ne 0) { throw 'Glyph diagnostic negative tests failed' }
+          node tools/test-winbox-arrow-research-ci.js
+          if ($LASTEXITCODE -ne 0) { throw 'Arrow geometry tests failed' }
           $dir=Join-Path $env:RUNNER_TEMP 'tessdata-ci'
           New-Item -ItemType Directory -Force $dir | Out-Null
           $language=Join-Path $dir 'eng.traineddata.gz'
@@ -124,6 +129,47 @@ jobs:
           $dir = Join-Path $env:RUNNER_TEMP 'qemu-candidate'
           node tools/test-winbox-multi-address.js "$env:QEMU_EXE" "$env:CHR_IMAGE" (Join-Path $dir 'scheme-sessions') (Join-Path $env:RUNNER_TEMP 'chr-supervisor.exe') "$env:WINBOX_EXE"
           if ($LASTEXITCODE -ne 0) { throw 'Scheme WinBox research failed' }
+      - name: Archive CI-only LAN arrow experiment
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: winbox-lan-arrow-research-${{ matrix.kind }}
+          path: |
+            ${{ runner.temp }}/arrow-research/*.png
+            ${{ runner.temp }}/lab-scheme-detail-original-lan.png
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Convert disposable annotated images for visual diagnostics
+        if: always()
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Drawing
+          $dir=Join-Path $env:RUNNER_TEMP 'arrow-research'
+          foreach ($name in @('address','network','interface')) {
+            $png=Join-Path $dir "$name.png"
+            if (Test-Path $png) {
+              $image=[System.Drawing.Image]::FromFile($png)
+              $codec=[System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object {$_.MimeType -eq 'image/jpeg'} | Select-Object -First 1
+              $params=New-Object System.Drawing.Imaging.EncoderParameters(1)
+              $params.Param[0]=New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality,[long]40)
+              try {$image.Save((Join-Path $dir "$name.jpg"),$codec,$params)} finally {$params.Dispose();$image.Dispose()}
+            }
+          }
+      - name: Export disposable address arrow for visual diagnostics
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path (Join-Path $env:RUNNER_TEMP 'arrow-research/address.jpg')) { python tools/export-winbox-arrow-research.py address; if ($LASTEXITCODE -ne 0) { throw 'Arrow diagnostic export failed' } }
+      - name: Export disposable network arrow for visual diagnostics
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path (Join-Path $env:RUNNER_TEMP 'arrow-research/network.jpg')) { python tools/export-winbox-arrow-research.py network; if ($LASTEXITCODE -ne 0) { throw 'Arrow diagnostic export failed' } }
+      - name: Export disposable interface arrow for visual diagnostics
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path (Join-Path $env:RUNNER_TEMP 'arrow-research/interface.jpg')) { python tools/export-winbox-arrow-research.py interface; if ($LASTEXITCODE -ne 0) { throw 'Arrow diagnostic export failed' } }
       # This intentionally misconfigured negative fixture is never a verified
       # user screenshot. Export even when the later positive OCR check fails.
       - name: Export renamed-interface negative diagnostic 0–9

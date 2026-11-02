@@ -3,7 +3,7 @@
 // Windows CI research only: selected UI example -> isolated CHR -> original WinBox.
 // The temporary runner uses throwaway credentials and a loopback-only management
 // forward. Test credentials are provided over stdin, never as arguments or environment.
-const assert=require('assert'),fs=require('fs'),path=require('path'),Module=require('module'),{spawn}=require('child_process');
+const assert=require('assert'),fs=require('fs'),path=require('path'),Module=require('module'),{spawn,execFileSync}=require('child_process');
 const {JSDOM,VirtualConsole}=require('jsdom');
 const E=require('../app/js/lab-sim'),{makePlan}=require('../windows/chr/plan'),{makeReader,verifyConfiguration}=require('../windows/chr/verify');
 const [qemu,image,work,supervisor,winbox]=process.argv.slice(2);
@@ -61,7 +61,16 @@ const {ChrSession}=mod.exports;let session,dom;
   await session.console.command('/interface ethernet set [find where name='+lookalike+'] name=ether1');
   await verifyConfiguration(plan.expected,get);
  }
- await capture('lan');await capture('wan');
+ await capture('lan');
+ // CI research only: overlay one arrow per confirmed LAN field. The PowerShell
+ // helper generated the original and OCR crop from the same bitmap. Exact OCR
+ // remains mandatory; the images are never returned to a user or bundled.
+ const arrowDir=path.join(process.env.RUNNER_TEMP,'arrow-research');
+ const arrowOutput=execFileSync(process.execPath,[path.join(__dirname,'winbox-arrow-research-ci.js'),path.join(process.env.RUNNER_TEMP,'lab-scheme-detail-original-lan.png'),path.join(process.env.RUNNER_TEMP,'lab-scheme-detail-tess.png'),arrowDir],{encoding:'utf8',timeout:45000});
+ assert.equal(arrowOutput.trim(),'CI_ARROW_RESEARCH=3');
+ for(const name of ['address','network','interface'])assert(fs.statSync(path.join(arrowDir,name+'.png')).size>5000);
+ console.log('::notice title=CI arrow research::Three annotated copies of the strictly OCR-confirmed LAN fixture were generated from one original bitmap. They are not user screenshots or proof of confidentiality.');
+ await capture('wan');
  const picture=path.join(process.env.RUNNER_TEMP,'lab-scheme-winbox.jpg');assert(fs.existsSync(picture)&&fs.statSync(picture).size>5000);if(kind==='dhcp'){const p=path.join(process.env.RUNNER_TEMP,'lab-scheme-dhcp.jpg');assert(fs.existsSync(p)&&fs.statSync(p).size>5000);}
  for(const target of ['lan','wan']){const p=path.join(process.env.RUNNER_TEMP,'lab-scheme-detail-'+target+'.jpg');assert(fs.existsSync(p)&&fs.statSync(p).size>5000);}
  const dir=session.directory;await session.stop();assert(!fs.existsSync(dir));

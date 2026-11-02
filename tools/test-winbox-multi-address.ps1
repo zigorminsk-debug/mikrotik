@@ -169,6 +169,8 @@ $p = Start-Process -FilePath $env:CI_WINBOX_EXE -PassThru -RedirectStandardError
    $hdc=$graphics.GetHdc();try{$ok=[CiMouse]::PrintWindow($handle,$hdc,2)}finally{$graphics.ReleaseHdc($hdc)};if(!$ok){throw 'PrintWindow failed'}
    $name=if($env:CI_NEGATIVE_INTERFACE){'negative-wan'}else{$env:CI_CAPTURE_TARGET}
    $bitmap.Save((Join-Path $env:RUNNER_TEMP ('lab-scheme-detail-'+$name+'.jpg')),$jpeg,$params)
+   # The source and OCR crop are produced from this exact CI bitmap.
+   if($env:CI_CAPTURE_TARGET -eq 'lan'){$bitmap.Save((Join-Path $env:RUNNER_TEMP 'lab-scheme-detail-original-lan.png'),[System.Drawing.Imaging.ImageFormat]::Png)}
    # Fixed CI window only: isolate the form fields, excluding the table behind
    # the dialog so OCR cannot mistake the list for a confirmed detail view.
    if($bitmap.Width -lt 800 -or $bitmap.Height -lt 500){throw 'Unexpected detail bounds'}
